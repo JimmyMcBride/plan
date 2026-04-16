@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"plan/internal/notes"
+	"plan/internal/workspace"
 )
 
 type BrainImportPreview struct {
@@ -22,6 +23,25 @@ type BrainImportCandidate struct {
 	Slug  string
 	Title string
 	Path  string
+}
+
+type BrainImportSelection struct {
+	WorkspacePath string
+	Brainstorms   []string
+	Epics         []string
+	Specs         []string
+	Stories       []string
+}
+
+type BrainImportResult struct {
+	WorkspacePath string
+	Imported      []BrainImportedArtifact
+}
+
+type BrainImportedArtifact struct {
+	Type            string
+	SourcePath      string
+	DestinationPath string
 }
 
 func InspectBrainWorkspace(path string) (*BrainImportPreview, error) {
@@ -103,4 +123,104 @@ func inspectBrainNoteDir(repoRoot, dir, noteType string) ([]BrainImportCandidate
 		return candidates[i].Title < candidates[j].Title
 	})
 	return candidates, nil
+}
+
+func (m *Manager) ImportBrainPlanning(selection BrainImportSelection) (*BrainImportResult, error) {
+	info, err := m.workspace.EnsureInitialized()
+	if err != nil {
+		return nil, err
+	}
+	repoRoot, brainDir, err := resolveBrainWorkspace(selection.WorkspacePath)
+	if err != nil {
+		return nil, err
+	}
+	result := &BrainImportResult{WorkspacePath: filepath.ToSlash(repoRoot)}
+
+	importGroups := []struct {
+		items    []string
+		noteType string
+		dir      string
+	}{
+		{items: selection.Brainstorms, noteType: "brainstorm", dir: filepath.Join(brainDir, "brainstorms")},
+		{items: selection.Epics, noteType: "epic", dir: filepath.Join(brainDir, "planning", "epics")},
+		{items: selection.Specs, noteType: "spec", dir: filepath.Join(brainDir, "planning", "specs")},
+		{items: selection.Stories, noteType: "story", dir: filepath.Join(brainDir, "planning", "stories")},
+	}
+	for _, group := range importGroups {
+		for _, slug := range normalizeStoryRefs(group.items) {
+			note, err := notes.Read(filepath.Join(group.dir, slug+".md"))
+			if err != nil {
+				return nil, err
+			}
+			imported, err := m.importBrainNote(info, repoRoot, note)
+			if err != nil {
+				return nil, err
+			}
+			result.Imported = append(result.Imported, imported)
+		}
+	}
+	return result, nil
+}
+
+func (m *Manager) importBrainNote(info *workspace.Info, repoRoot string, note *notes.Note) (BrainImportedArtifact, error) {
+	slug := slugFromPath(note.Path)
+	path, metadata, err := brainImportDestination(info, note, slug, repoRoot)
+	if err != nil {
+		return BrainImportedArtifact{}, err
+	}
+	created, err := notes.Create(path, note.Title, note.Type, note.Content, metadata)
+	if err != nil {
+		return BrainImportedArtifact{}, err
+	}
+	return BrainImportedArtifact{
+		Type:            note.Type,
+		SourcePath:      rel(repoRoot, note.Path),
+		DestinationPath: rel(info.ProjectDir, created.Path),
+	}, nil
+}
+
+func brainImportDestination(info *workspace.Info, note *notes.Note, slug, repoRoot string) (string, map[string]any, error) {
+	sourcePath := rel(repoRoot, note.Path)
+	metadata := map[string]any{
+		"project":                info.ProjectName,
+		"slug":                   slug,
+		"imported_from":          "brain",
+		"source_brain_path":      sourcePath,
+		"source_brain_workspace": filepath.ToSlash(repoRoot),
+	}
+	switch note.Type {
+	case "brainstorm":
+		status := stringValue(note.Metadata["brainstorm_status"])
+		if status == "" {
+			status = "active"
+		}
+		metadata["status"] = status
+		return filepath.Join(info.BrainstormsDir, slug+".md"), metadata, nil
+	case "epic":
+		specSlug := stringValue(note.Metadata["spec"])
+		if specSlug == "" {
+			specSlug = slug
+		}
+		metadata["spec"] = slugify(specSlug)
+		return filepath.Join(info.EpicsDir, slug+".md"), metadata, nil
+	case "spec":
+		status := stringValue(note.Metadata["status"])
+		if _, ok := validSpecStatuses[status]; !ok {
+			status = "draft"
+		}
+		metadata["status"] = status
+		metadata["epic"] = slugify(stringValue(note.Metadata["epic"]))
+		return filepath.Join(info.SpecsDir, slug+".md"), metadata, nil
+	case "story":
+		status := stringValue(note.Metadata["status"])
+		if _, ok := validStoryStatuses[status]; !ok {
+			status = "todo"
+		}
+		metadata["status"] = status
+		metadata["epic"] = slugify(stringValue(note.Metadata["epic"]))
+		metadata["spec"] = slugify(stringValue(note.Metadata["spec"]))
+		return filepath.Join(info.StoriesDir, slug+".md"), metadata, nil
+	default:
+		return "", nil, fmt.Errorf("unsupported brain note type %q", note.Type)
+	}
 }

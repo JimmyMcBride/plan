@@ -1,8 +1,12 @@
 package planning
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"plan/internal/notes"
+	"plan/internal/workspace"
 )
 
 func TestInspectBrainWorkspaceOnlyReturnsPlanningArtifacts(t *testing.T) {
@@ -42,5 +46,49 @@ func TestInspectBrainWorkspaceSupportsDotBrainPath(t *testing.T) {
 	}
 	if !strings.HasSuffix(preview.WorkspacePath, "examples/brain") {
 		t.Fatalf("expected repo root path in preview: %+v", preview)
+	}
+}
+
+func TestImportBrainPlanningCreatesCanonicalPlanArtifacts(t *testing.T) {
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := New(ws)
+
+	result, err := manager.ImportBrainPlanning(BrainImportSelection{
+		WorkspacePath: "../../examples/brain",
+		Brainstorms:   []string{"mempalace-inspired-brain-improvements"},
+		Epics:         []string{"planning-and-brainstorming-ux"},
+		Specs:         []string{"planning-and-brainstorming-ux"},
+		Stories:       []string{"add-session-aware-memory-distillation"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Imported) != 4 {
+		t.Fatalf("expected four imported planning artifacts: %+v", result)
+	}
+
+	for _, item := range []struct {
+		path     string
+		noteType string
+	}{
+		{path: filepath.Join(root, ".plan", "brainstorms", "mempalace-inspired-brain-improvements.md"), noteType: "brainstorm"},
+		{path: filepath.Join(root, ".plan", "epics", "planning-and-brainstorming-ux.md"), noteType: "epic"},
+		{path: filepath.Join(root, ".plan", "specs", "planning-and-brainstorming-ux.md"), noteType: "spec"},
+		{path: filepath.Join(root, ".plan", "stories", "add-session-aware-memory-distillation.md"), noteType: "story"},
+	} {
+		note, err := notes.Read(item.path)
+		if err != nil {
+			t.Fatalf("expected imported %s note: %v", item.noteType, err)
+		}
+		if note.Type != item.noteType {
+			t.Fatalf("expected imported note type %s, got %s", item.noteType, note.Type)
+		}
+		if note.Metadata["imported_from"] != "brain" {
+			t.Fatalf("expected import provenance metadata: %+v", note.Metadata)
+		}
 	}
 }

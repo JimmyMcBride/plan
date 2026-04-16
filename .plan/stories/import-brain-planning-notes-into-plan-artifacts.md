@@ -4,10 +4,10 @@ epic: brain-interop-and-planning-imports
 project: plan
 slug: import-brain-planning-notes-into-plan-artifacts
 spec: brain-interop-and-planning-imports
-status: todo
+status: done
 title: Import brain planning notes into plan artifacts
 type: story
-updated_at: "2026-04-16T06:28:47Z"
+updated_at: "2026-04-16T07:07:28Z"
 ---
 
 # Import brain planning notes into plan artifacts
