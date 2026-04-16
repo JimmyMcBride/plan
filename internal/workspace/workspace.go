@@ -368,9 +368,20 @@ func (m *Manager) Update() (*UpdateResult, error) {
 		}
 		return nil, err
 	}
+	return m.repairWorkspace(info)
+}
 
+func (m *Manager) Adopt() (*UpdateResult, error) {
+	info, err := m.Resolve()
+	if err != nil {
+		return nil, err
+	}
+	return m.repairWorkspace(info)
+}
+
+func (m *Manager) repairWorkspace(info *Info) (*UpdateResult, error) {
 	result := &UpdateResult{Info: info}
-	for _, dir := range info.directoryPaths() {
+	for _, dir := range append([]string{info.PlanDir}, info.directoryPaths()...) {
 		created, err := ensureDir(dir)
 		if err != nil {
 			return nil, err

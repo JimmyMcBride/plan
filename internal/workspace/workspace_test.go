@@ -244,6 +244,77 @@ func TestUpdateRepairsToolManagedStateWithoutTouchingUserNotes(t *testing.T) {
 	}
 }
 
+func TestAdoptCreatesWorkspaceWithoutTouchingRepoFiles(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+
+	readmePath := filepath.Join(root, "README.md")
+	const readme = "# existing repo\n"
+	if err := os.WriteFile(readmePath, []byte(readme), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := manager.Adopt()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !contains(result.Created, ".plan") || !contains(result.Created, ".plan/PROJECT.md") || !contains(result.Created, ".plan/.meta/workspace.json") {
+		t.Fatalf("expected adopt to create plan workspace surfaces: %+v", result)
+	}
+
+	raw, err := os.ReadFile(readmePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != readme {
+		t.Fatalf("expected non-plan repo files to stay untouched:\n%s", raw)
+	}
+
+	report, err := manager.Doctor()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.WorkspaceStatus != "current" {
+		t.Fatalf("expected adopted workspace to be current: %+v", report)
+	}
+}
+
+func TestAdoptRepairsPartialWorkspace(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+	if err := os.MkdirAll(filepath.Join(root, ".plan"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	projectPath := filepath.Join(root, ".plan", "PROJECT.md")
+	const customProject = "# preserved project\n"
+	if err := os.WriteFile(projectPath, []byte(customProject), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := manager.Adopt()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !contains(result.Created, ".plan/.meta/workspace.json") {
+		t.Fatalf("expected adopt to fill missing managed surfaces: %+v", result)
+	}
+	raw, err := os.ReadFile(projectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != customProject {
+		t.Fatalf("expected adopt to preserve existing plan notes:\n%s", raw)
+	}
+
+	report, err := manager.Doctor()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.WorkspaceStatus != "current" || report.MigrationStatus != "current" {
+		t.Fatalf("expected adopted partial workspace to become current: %+v", report)
+	}
+}
+
 func TestUpdateRecreatesMissingScaffoldingWithoutOverwritingExistingNotes(t *testing.T) {
 	root := t.TempDir()
 	manager := New(root)

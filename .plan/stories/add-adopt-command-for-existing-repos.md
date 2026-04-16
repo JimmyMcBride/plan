@@ -4,10 +4,10 @@ epic: workspace-adoption-update-and-migration
 project: plan
 slug: add-adopt-command-for-existing-repos
 spec: workspace-adoption-update-and-migration
-status: todo
+status: done
 title: Add adopt command for existing repos
 type: story
-updated_at: "2026-04-16T06:28:47Z"
+updated_at: "2026-04-16T06:52:33Z"
 ---
 
 # Add adopt command for existing repos
