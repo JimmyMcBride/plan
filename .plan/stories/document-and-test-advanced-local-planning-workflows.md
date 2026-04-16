@@ -4,10 +4,10 @@ epic: power-user-local-workflows
 project: plan
 slug: document-and-test-advanced-local-planning-workflows
 spec: power-user-local-workflows
-status: todo
+status: done
 title: Document and test advanced local planning workflows
 type: story
-updated_at: "2026-04-16T06:28:47Z"
+updated_at: "2026-04-16T07:16:12Z"
 ---
 
 # Document and test advanced local planning workflows

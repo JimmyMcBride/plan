@@ -37,6 +37,18 @@ Supporting surfaces:
 - `ROADMAP.md`
 - optional future dependency and ready views
 
+Simple default path:
+
+1. brainstorm
+2. promote
+3. approve spec
+4. create stories
+5. execute
+
+Advanced path stays optional. When a repo grows, you can add roadmap versions,
+dependency blockers, ready-work views, Brain imports, and filtered status views
+without changing the base model.
+
 ## Workspace
 
 ```text
@@ -81,6 +93,29 @@ plan spec status --project . newsletter-system --set approved
 plan story create --project . newsletter-system "Build template editor"
 plan status --project .
 ```
+
+## Advanced Local Workflows
+
+These stay optional. If you do not need them, ignore them.
+
+- adopt an existing repo into a managed workspace:
+  `plan adopt --project .`
+- run structural planning checks:
+  `plan check --project .`
+- inspect version slices of the roadmap:
+  `plan roadmap versions --project . --version v2`
+- filter status for larger plans:
+  `plan status --project . --version v3 --epic power-user-local-workflows --story-status todo`
+- surface ready and blocked work:
+  `plan ready --project .`
+- narrow story lists by roadmap version:
+  `plan story list --project . --version v3`
+- inspect or import planning notes from a local Brain workspace:
+  `plan import brain inspect --workspace ../brain`
+  `plan import brain apply --project . --workspace ../brain --epic planning-and-brainstorming-ux`
+
+The rule stays the same: use the advanced surfaces only when the simple default
+stops being enough.
 
 ## Install
 

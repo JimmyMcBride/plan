@@ -3,11 +3,11 @@ created_at: "2026-04-16T05:33:06Z"
 epic: power-user-local-workflows
 project: plan
 slug: power-user-local-workflows
-status: implementing
+status: done
 target_version: v3
 title: Power-User Local Workflows Spec
 type: spec
-updated_at: "2026-04-16T07:12:42Z"
+updated_at: "2026-04-16T07:16:12Z"
 ---
 
 # Power-User Local Workflows Spec
