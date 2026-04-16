@@ -3,11 +3,11 @@ created_at: "2026-04-16T05:33:06Z"
 epic: roadmap-and-portfolio-planning
 project: plan
 slug: roadmap-and-portfolio-planning
-status: implementing
+status: done
 target_version: v2
 title: Roadmap and Portfolio Planning Spec
 type: spec
-updated_at: "2026-04-16T06:31:36Z"
+updated_at: "2026-04-16T06:39:51Z"
 ---
 
 # Roadmap and Portfolio Planning Spec

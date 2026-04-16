@@ -309,3 +309,54 @@ func TestUpdateStorySyncsSpecLifecycleAndEpicProgress(t *testing.T) {
 		t.Fatalf("expected epic status to reflect completed story: %+v", status.Epics)
 	}
 }
+
+func TestStatusBuildsRoadmapVersionSummaries(t *testing.T) {
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := New(ws)
+
+	if _, err := manager.CreateEpic("Roadmap Work", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.UpdateSpec("roadmap-work", notes.UpdateInput{
+		Metadata: map[string]any{"status": "approved", "target_version": "v2"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.CreateStory(
+		"roadmap-work",
+		"Ship roadmap parser",
+		"Parse version sections from roadmap",
+		[]string{"Version sections are parsed"},
+		[]string{"go test ./internal/planning"},
+		nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.UpdateStory("ship-roadmap-parser", StoryChanges{Status: "in_progress"}); err != nil {
+		t.Fatal(err)
+	}
+
+	status, err := manager.Status()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.RoadmapPath != ".plan/ROADMAP.md" {
+		t.Fatalf("expected roadmap path in status: %+v", status)
+	}
+	if len(status.Versions) < 2 {
+		t.Fatalf("expected roadmap versions in status: %+v", status.Versions)
+	}
+	if status.Versions[1].Key != "v2" || len(status.Versions[1].Epics) != 1 {
+		t.Fatalf("expected v2 version grouping: %+v", status.Versions)
+	}
+	if status.Versions[1].Epics[0].Title != "Roadmap Work" {
+		t.Fatalf("expected roadmap epic in v2 group: %+v", status.Versions[1].Epics)
+	}
+	if len(status.UnassignedEpics) != 0 {
+		t.Fatalf("expected no unassigned epics: %+v", status.UnassignedEpics)
+	}
+}

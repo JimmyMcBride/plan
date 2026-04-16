@@ -4,10 +4,10 @@ epic: roadmap-and-portfolio-planning
 project: plan
 slug: surface-roadmap-progress-in-status-output
 spec: roadmap-and-portfolio-planning
-status: todo
+status: done
 title: Surface roadmap progress in status output
 type: story
-updated_at: "2026-04-16T06:28:47Z"
+updated_at: "2026-04-16T06:39:51Z"
 ---
 
 # Surface roadmap progress in status output
