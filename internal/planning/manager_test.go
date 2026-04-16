@@ -360,3 +360,60 @@ func TestStatusBuildsRoadmapVersionSummaries(t *testing.T) {
 		t.Fatalf("expected no unassigned epics: %+v", status.UnassignedEpics)
 	}
 }
+
+func TestUpdateStoryStoresNormalizedBlockerMetadata(t *testing.T) {
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := New(ws)
+
+	if _, err := manager.CreateEpic("Billing", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.SetSpecStatus("billing", "approved"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.CreateStory(
+		"billing",
+		"Implement invoices",
+		"Create invoice generation flow",
+		[]string{"Generate invoices from line items"},
+		[]string{"Run focused billing tests"},
+		nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.CreateStory(
+		"billing",
+		"Ship exports",
+		"Create export flow",
+		[]string{"Export invoices"},
+		[]string{"Run export tests"},
+		nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := manager.UpdateStory("ship-exports", StoryChanges{
+		SetBlockers: []string{"Implement invoices", "implement-invoices", " "},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	stories, err := manager.ListStories("billing", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, story := range stories {
+		if story.Title != "Ship exports" {
+			continue
+		}
+		if len(story.Blockers) != 1 || story.Blockers[0] != "implement-invoices" {
+			t.Fatalf("expected normalized blocker slugs: %+v", story)
+		}
+		return
+	}
+	t.Fatal("expected updated story in listing")
+}

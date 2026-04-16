@@ -4,10 +4,10 @@ epic: dependency-graph-and-ready-work
 project: plan
 slug: add-dependency-metadata-to-stories
 spec: dependency-graph-and-ready-work
-status: todo
+status: done
 title: Add dependency metadata to stories
 type: story
-updated_at: "2026-04-16T06:28:47Z"
+updated_at: "2026-04-16T06:58:35Z"
 ---
 
 # Add dependency metadata to stories

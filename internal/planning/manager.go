@@ -57,11 +57,12 @@ type EpicInfo struct {
 }
 
 type StoryInfo struct {
-	Path   string
-	Title  string
-	Status string
-	Epic   string
-	Spec   string
+	Path     string
+	Title    string
+	Status   string
+	Epic     string
+	Spec     string
+	Blockers []string
 }
 
 type VersionStatus struct {
@@ -94,6 +95,7 @@ type StoryChanges struct {
 	AddCriteria     []string
 	AddVerification []string
 	AddResources    []string
+	SetBlockers     []string
 }
 
 type EpicBundle struct {
@@ -483,8 +485,14 @@ func (m *Manager) UpdateStory(storySlug string, changes StoryChanges) (*notes.No
 	}
 
 	input := notes.UpdateInput{Body: &body}
+	if changes.Status != "" || changes.SetBlockers != nil {
+		input.Metadata = map[string]any{}
+	}
 	if changes.Status != "" {
-		input.Metadata = map[string]any{"status": changes.Status}
+		input.Metadata["status"] = changes.Status
+	}
+	if changes.SetBlockers != nil {
+		input.Metadata["blockers"] = normalizeStoryRefs(changes.SetBlockers)
 	}
 	updated, err := notes.Update(path, input)
 	if err != nil {
@@ -509,11 +517,12 @@ func (m *Manager) ListStories(filterEpic, filterStatus string) ([]StoryInfo, err
 	out := make([]StoryInfo, 0, len(items))
 	for _, story := range items {
 		item := StoryInfo{
-			Path:   rel(info.ProjectDir, story.Path),
-			Title:  story.Title,
-			Status: stringValue(story.Metadata["status"]),
-			Epic:   stringValue(story.Metadata["epic"]),
-			Spec:   stringValue(story.Metadata["spec"]),
+			Path:     rel(info.ProjectDir, story.Path),
+			Title:    story.Title,
+			Status:   stringValue(story.Metadata["status"]),
+			Epic:     stringValue(story.Metadata["epic"]),
+			Spec:     stringValue(story.Metadata["spec"]),
+			Blockers: stringSliceValue(story.Metadata["blockers"]),
 		}
 		if filterEpic != "" && item.Epic != filterEpic {
 			continue
@@ -918,6 +927,42 @@ func trimmedItems(items []string) []string {
 		out = append(out, item)
 	}
 	return out
+}
+
+func normalizeStoryRefs(items []string) []string {
+	var out []string
+	seen := map[string]struct{}{}
+	for _, item := range items {
+		slug := slugify(item)
+		if slug == "" {
+			continue
+		}
+		if _, ok := seen[slug]; ok {
+			continue
+		}
+		seen[slug] = struct{}{}
+		out = append(out, slug)
+	}
+	return out
+}
+
+func stringSliceValue(v any) []string {
+	switch value := v.(type) {
+	case []string:
+		return append([]string(nil), value...)
+	case []any:
+		var out []string
+		for _, item := range value {
+			s, ok := item.(string)
+			if !ok || strings.TrimSpace(s) == "" {
+				continue
+			}
+			out = append(out, s)
+		}
+		return out
+	default:
+		return nil
+	}
 }
 
 func deriveSpecStatus(current string, stories []StoryInfo) string {
