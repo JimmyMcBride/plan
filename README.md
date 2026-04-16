@@ -118,3 +118,16 @@ Preview install targets:
 ```bash
 plan skills targets --scope both --agent codex --project .
 ```
+
+## Release Flow
+
+- Pull requests run `go test ./...` and `go build ./...` in CI.
+- Every push to `main` tags the next patch release if `HEAD` is not already tagged.
+- The release workflow verifies the tagged commit, builds platform archives, and publishes a checksum file with the release assets.
+- `scripts/install.sh` only falls back to a source build when no published release can be resolved. Download or checksum failures stay hard failures.
+
+## Maintainers
+
+- Keep pull request titles and descriptions release-note-friendly. Generated GitHub release notes use merged PR metadata.
+- Include the verification commands you ran in the PR so the release notes have a clean audit trail.
+- Use `scripts/next-release-tag.sh` if you need to preview the next patch tag locally.

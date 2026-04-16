@@ -4,10 +4,10 @@ epic: skill-installer-and-release-delivery
 project: plan
 slug: validate-release-automation-and-maintainer-docs
 spec: skill-installer-and-release-delivery
-status: todo
+status: done
 title: Validate release automation and maintainer docs
 type: story
-updated_at: "2026-04-16T05:46:34Z"
+updated_at: "2026-04-16T06:24:54Z"
 ---
 
 # Validate release automation and maintainer docs
