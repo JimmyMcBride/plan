@@ -4,10 +4,10 @@ epic: brain-interop-and-planning-imports
 project: plan
 slug: inspect-brain-workspaces-for-import-candidates
 spec: brain-interop-and-planning-imports
-status: todo
+status: done
 title: Inspect brain workspaces for import candidates
 type: story
-updated_at: "2026-04-16T06:28:47Z"
+updated_at: "2026-04-16T07:05:51Z"
 ---
 
 # Inspect brain workspaces for import candidates
