@@ -1,0 +1,31 @@
+package cmd
+
+import (
+	"fmt"
+
+	"github.com/spf13/cobra"
+)
+
+func newUpdateCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "update",
+		Short: "Repair or normalize the local .plan workspace",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			result, err := workspaceManager().Update()
+			if err != nil {
+				return err
+			}
+			fmt.Printf("Updated plan workspace at %s\n", result.Info.PlanDir)
+			for _, item := range result.Created {
+				fmt.Printf("  created %s\n", item)
+			}
+			for _, item := range result.Updated {
+				fmt.Printf("  updated %s\n", item)
+			}
+			if len(result.Created) == 0 && len(result.Updated) == 0 {
+				fmt.Println("  no changes")
+			}
+			return nil
+		},
+	}
+}

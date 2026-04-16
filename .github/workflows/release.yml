@@ -1,0 +1,129 @@
+name: Release
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+      sha:
+        required: true
+        type: string
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.vars.outputs.tag }}
+      sha: ${{ steps.vars.outputs.sha }}
+
+    steps:
+      - id: vars
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG_INPUT="${{ inputs.tag }}"
+          SHA_INPUT="${{ inputs.sha }}"
+          if [ -n "${TAG_INPUT}" ]; then
+            echo "tag=${TAG_INPUT}" >> "$GITHUB_OUTPUT"
+            echo "sha=${SHA_INPUT}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+            echo "sha=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    runs-on: ubuntu-latest
+    needs: resolve
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: linux
+            arch: amd64
+          - os: linux
+            arch: arm64
+          - os: darwin
+            arch: amd64
+          - os: darwin
+            arch: arm64
+          - os: windows
+            arch: amd64
+          - os: windows
+            arch: arm64
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - name: Build release archive
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: '0'
+        run: |
+          set -euo pipefail
+          TAG="${{ needs.resolve.outputs.tag }}"
+          OUT_DIR="dist/${GOOS}_${GOARCH}"
+          mkdir -p "${OUT_DIR}/plan"
+          BIN_NAME="plan"
+          ARCHIVE_EXT="tar.gz"
+          if [ "${GOOS}" = "windows" ]; then
+            BIN_NAME="plan.exe"
+            ARCHIVE_EXT="zip"
+          fi
+          go build \
+            -ldflags="-s -w -X 'plan/internal/buildinfo.Version=${TAG}' -X 'plan/internal/buildinfo.Commit=${{ needs.resolve.outputs.sha }}' -X 'plan/internal/buildinfo.Date=$(date -u +%Y-%m-%dT%H:%M:%SZ)'" \
+            -o "${OUT_DIR}/plan/${BIN_NAME}" .
+          if [ "${GOOS}" = "windows" ]; then
+            (cd "${OUT_DIR}/plan" && zip -q "../../../dist/plan_${TAG}_${GOOS}_${GOARCH}.${ARCHIVE_EXT}" "${BIN_NAME}")
+          else
+            tar -C "${OUT_DIR}/plan" -czf "dist/plan_${TAG}_${GOOS}_${GOARCH}.${ARCHIVE_EXT}" "${BIN_NAME}"
+          fi
+
+      - name: Upload archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.os }}-${{ matrix.arch }}
+          path: dist/plan_${{ needs.resolve.outputs.tag }}_${{ matrix.os }}_${{ matrix.arch }}.*
+
+  release:
+    runs-on: ubuntu-latest
+    needs: [resolve, build]
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: release-*
+          merge-multiple: true
+
+      - name: Create checksums
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum plan_${{ needs.resolve.outputs.tag }}_*.* > "plan_${{ needs.resolve.outputs.tag }}_checksums.txt"
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.resolve.outputs.tag }}
+          name: ${{ needs.resolve.outputs.tag }}
+          target_commitish: ${{ needs.resolve.outputs.sha }}
+          generate_release_notes: true
+          files: |
+            dist/plan_${{ needs.resolve.outputs.tag }}_*.tar.gz
+            dist/plan_${{ needs.resolve.outputs.tag }}_*.zip
+            dist/plan_${{ needs.resolve.outputs.tag }}_checksums.txt
