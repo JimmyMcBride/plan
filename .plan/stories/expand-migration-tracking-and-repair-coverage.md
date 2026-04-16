@@ -4,10 +4,10 @@ epic: workspace-adoption-update-and-migration
 project: plan
 slug: expand-migration-tracking-and-repair-coverage
 spec: workspace-adoption-update-and-migration
-status: todo
+status: done
 title: Expand migration tracking and repair coverage
 type: story
-updated_at: "2026-04-16T06:28:47Z"
+updated_at: "2026-04-16T06:56:00Z"
 ---
 
 # Expand migration tracking and repair coverage

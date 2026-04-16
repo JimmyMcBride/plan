@@ -315,6 +315,85 @@ func TestAdoptRepairsPartialWorkspace(t *testing.T) {
 	}
 }
 
+func TestMigrationStateRecordsMeaningfulRepairDetails(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+
+	if _, err := manager.Adopt(); err != nil {
+		t.Fatal(err)
+	}
+	state, err := manager.ReadMigrationState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.LastOperation != "adopt" || len(state.History) != 1 {
+		t.Fatalf("expected adopt run to be recorded: %+v", state)
+	}
+	if !contains(state.LastCreated, ".plan/PROJECT.md") {
+		t.Fatalf("expected adopt details to include created workspace files: %+v", state)
+	}
+
+	if err := os.Remove(filepath.Join(root, ".plan", "ROADMAP.md")); err != nil {
+		t.Fatal(err)
+	}
+	result, err := manager.Update()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !contains(result.Created, ".plan/ROADMAP.md") {
+		t.Fatalf("expected update to repair roadmap: %+v", result)
+	}
+
+	state, err = manager.ReadMigrationState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.LastOperation != "update" || len(state.History) != 2 {
+		t.Fatalf("expected update repair to append migration history: %+v", state)
+	}
+	last := state.History[len(state.History)-1]
+	if last.Operation != "update" || !contains(last.Created, ".plan/ROADMAP.md") {
+		t.Fatalf("expected update run details in migration history: %+v", last)
+	}
+}
+
+func TestRepeatedAdoptAndUpdateRemainIdempotent(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+
+	if _, err := manager.Adopt(); err != nil {
+		t.Fatal(err)
+	}
+	state, err := manager.ReadMigrationState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	initialHistory := len(state.History)
+
+	adoptAgain, err := manager.Adopt()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(adoptAgain.Created) != 0 || len(adoptAgain.Updated) != 0 {
+		t.Fatalf("expected repeated adopt to stay idempotent: %+v", adoptAgain)
+	}
+	updateAgain, err := manager.Update()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(updateAgain.Created) != 0 || len(updateAgain.Updated) != 0 {
+		t.Fatalf("expected repeated update to stay idempotent: %+v", updateAgain)
+	}
+
+	state, err = manager.ReadMigrationState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(state.History) != initialHistory {
+		t.Fatalf("expected no-op adopt/update to avoid mutation churn: %+v", state)
+	}
+}
+
 func TestUpdateRecreatesMissingScaffoldingWithoutOverwritingExistingNotes(t *testing.T) {
 	root := t.TempDir()
 	manager := New(root)

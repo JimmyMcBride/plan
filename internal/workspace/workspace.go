@@ -23,10 +23,22 @@ type WorkspaceMeta struct {
 }
 
 type MigrationState struct {
-	SchemaVersion int      `json:"schema_version"`
-	Known         []string `json:"known"`
-	LastRunAt     string   `json:"last_run_at,omitempty"`
-	Status        string   `json:"status,omitempty"`
+	SchemaVersion int            `json:"schema_version"`
+	Known         []string       `json:"known"`
+	LastRunAt     string         `json:"last_run_at,omitempty"`
+	Status        string         `json:"status,omitempty"`
+	LastOperation string         `json:"last_operation,omitempty"`
+	LastCreated   []string       `json:"last_created,omitempty"`
+	LastUpdated   []string       `json:"last_updated,omitempty"`
+	History       []MigrationRun `json:"history,omitempty"`
+}
+
+type MigrationRun struct {
+	Operation string   `json:"operation"`
+	At        string   `json:"at"`
+	Status    string   `json:"status"`
+	Created   []string `json:"created,omitempty"`
+	Updated   []string `json:"updated,omitempty"`
 }
 
 type Surface struct {
@@ -205,6 +217,9 @@ func (m *Manager) Init() (*InitResult, error) {
 	} else if created {
 		result.Created = append(result.Created, rel(info.ProjectDir, info.MigrationsFile))
 	}
+	if err := recordMigrationRun(info, "init", result.Created, nil, now); err != nil {
+		return nil, err
+	}
 
 	return result, nil
 }
@@ -368,7 +383,7 @@ func (m *Manager) Update() (*UpdateResult, error) {
 		}
 		return nil, err
 	}
-	return m.repairWorkspace(info)
+	return m.repairWorkspace(info, "update")
 }
 
 func (m *Manager) Adopt() (*UpdateResult, error) {
@@ -376,10 +391,10 @@ func (m *Manager) Adopt() (*UpdateResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	return m.repairWorkspace(info)
+	return m.repairWorkspace(info, "adopt")
 }
 
-func (m *Manager) repairWorkspace(info *Info) (*UpdateResult, error) {
+func (m *Manager) repairWorkspace(info *Info, operation string) (*UpdateResult, error) {
 	result := &UpdateResult{Info: info}
 	for _, dir := range append([]string{info.PlanDir}, info.directoryPaths()...) {
 		created, err := ensureDir(dir)
@@ -433,6 +448,9 @@ func (m *Manager) repairWorkspace(info *Info) (*UpdateResult, error) {
 		if updated {
 			result.Updated = append(result.Updated, rel(info.ProjectDir, info.MigrationsFile))
 		}
+	}
+	if err := recordMigrationRun(info, operation, result.Created, result.Updated, now); err != nil {
+		return nil, err
 	}
 
 	return result, nil
@@ -635,6 +653,36 @@ func validateMigrationState(state *MigrationState) error {
 	default:
 		return nil
 	}
+}
+
+func recordMigrationRun(info *Info, operation string, created, updated []string, now string) error {
+	if len(created) == 0 && len(updated) == 0 {
+		return nil
+	}
+	state, err := readMigrationStateFile(info.MigrationsFile)
+	if err != nil {
+		defaultState := defaultMigrationState(now)
+		state = &defaultState
+	}
+	created = append([]string(nil), created...)
+	updated = append([]string(nil), updated...)
+	run := MigrationRun{
+		Operation: operation,
+		At:        now,
+		Status:    "current",
+		Created:   created,
+		Updated:   updated,
+	}
+	state.LastRunAt = now
+	state.Status = "current"
+	state.LastOperation = operation
+	state.LastCreated = created
+	state.LastUpdated = updated
+	state.History = append(state.History, run)
+	if len(state.History) > 10 {
+		state.History = append([]MigrationRun(nil), state.History[len(state.History)-10:]...)
+	}
+	return writeJSON(info.MigrationsFile, state)
 }
 
 func writeJSON(path string, v any) error {

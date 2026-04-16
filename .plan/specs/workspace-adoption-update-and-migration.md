@@ -3,11 +3,11 @@ created_at: "2026-04-16T05:33:06Z"
 epic: workspace-adoption-update-and-migration
 project: plan
 slug: workspace-adoption-update-and-migration
-status: implementing
+status: done
 target_version: v2
 title: Workspace Adoption, Update, and Migration Spec
 type: spec
-updated_at: "2026-04-16T06:50:14Z"
+updated_at: "2026-04-16T06:56:00Z"
 ---
 
 # Workspace Adoption, Update, and Migration Spec
