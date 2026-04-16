@@ -109,9 +109,12 @@ func (i *Installer) ResolveTargets(req InstallRequest) ([]Target, error) {
 		if projectDir == "" {
 			projectDir = "."
 		}
-		projectDir = filepath.Clean(expandHome(projectDir, i.Home))
+		resolvedProjectDir, err := resolveProjectDir(projectDir, i.Home)
+		if err != nil {
+			return nil, err
+		}
 		for _, agent := range agents {
-			root := knownLocalSkillRoot(projectDir, agent)
+			root := knownLocalSkillRoot(resolvedProjectDir, agent)
 			targets = append(targets, Target{
 				Agent: agent,
 				Scope: string(ScopeLocal),
@@ -309,4 +312,13 @@ func expandHome(path, home string) string {
 		return home
 	}
 	return filepath.Join(home, strings.TrimPrefix(path, "~/"))
+}
+
+func resolveProjectDir(path, home string) (string, error) {
+	path = filepath.Clean(expandHome(path, home))
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", fmt.Errorf("resolve project dir %s: %w", path, err)
+	}
+	return abs, nil
 }

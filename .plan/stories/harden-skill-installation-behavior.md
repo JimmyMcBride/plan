@@ -4,10 +4,10 @@ epic: skill-installer-and-release-delivery
 project: plan
 slug: harden-skill-installation-behavior
 spec: skill-installer-and-release-delivery
-status: todo
+status: done
 title: Harden skill installation behavior
 type: story
-updated_at: "2026-04-16T05:46:34Z"
+updated_at: "2026-04-16T06:23:55Z"
 ---
 
 # Harden skill installation behavior
