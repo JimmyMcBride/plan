@@ -9,7 +9,7 @@ import (
 	"plan/internal/workspace"
 )
 
-func TestPromoteBrainstormSeedsSpec(t *testing.T) {
+func TestPromoteBrainstormSeedsEpicAndSpecWithProvenance(t *testing.T) {
 	root := t.TempDir()
 	ws := workspace.New(root)
 	if _, err := ws.Init(); err != nil {
@@ -20,9 +20,17 @@ func TestPromoteBrainstormSeedsSpec(t *testing.T) {
 	brainstorm, err := manager.CreateBrainstormWithInput(BrainstormCreateInput{
 		Topic:         "Auth System",
 		FocusQuestion: "How do we make sign-in simpler without lowering trust?",
-		Ideas:         []string{"Support passwordless sign-in"},
 	})
 	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.AddBrainstormEntry("auth-system", "desired-outcome", "Deliver an auth flow that feels low-friction for small teams."); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.AddBrainstormEntry("auth-system", "constraints", "Keep setup local-first and avoid hosted auth dependencies."); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.AddBrainstormEntry("auth-system", "ideas", "Support passwordless sign-in"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := manager.AddBrainstormEntry("auth-system", "open-questions", "How should account recovery work?"); err != nil {
@@ -40,13 +48,42 @@ func TestPromoteBrainstormSeedsSpec(t *testing.T) {
 		t.Fatalf("unexpected spec path: %s", bundle.Spec.Path)
 	}
 	if got := bundle.Epic.Metadata["source_brainstorm"]; got != brainstorm.Path {
-		t.Fatalf("unexpected brainstorm link: %v", got)
+		t.Fatalf("unexpected epic brainstorm link: %v", got)
+	}
+	if got := bundle.Spec.Metadata["source_brainstorm"]; got != brainstorm.Path {
+		t.Fatalf("unexpected spec brainstorm link: %v", got)
+	}
+	if !strings.Contains(bundle.Epic.Content, "Deliver an auth flow that feels low-friction for small teams.") {
+		t.Fatalf("expected brainstorm outcome in epic:\n%s", bundle.Epic.Content)
+	}
+	if !strings.Contains(bundle.Epic.Content, "[Source Brainstorm](../brainstorms/auth-system.md)") {
+		t.Fatalf("expected brainstorm link in epic resources:\n%s", bundle.Epic.Content)
+	}
+	if !strings.Contains(bundle.Spec.Content, "How do we make sign-in simpler without lowering trust?") {
+		t.Fatalf("expected brainstorm focus question in spec problem:\n%s", bundle.Spec.Content)
 	}
 	if !strings.Contains(bundle.Spec.Content, "Support passwordless sign-in") {
 		t.Fatalf("expected brainstorm idea in spec:\n%s", bundle.Spec.Content)
 	}
+	if !strings.Contains(bundle.Spec.Content, "Keep setup local-first and avoid hosted auth dependencies.") {
+		t.Fatalf("expected brainstorm constraints in spec:\n%s", bundle.Spec.Content)
+	}
+	if !strings.Contains(bundle.Spec.Content, "How should account recovery work?") {
+		t.Fatalf("expected brainstorm questions in spec:\n%s", bundle.Spec.Content)
+	}
 	if strings.Contains(bundle.Spec.Content, "**") {
 		t.Fatalf("expected seeded spec content to avoid brainstorm timestamp noise:\n%s", bundle.Spec.Content)
+	}
+
+	promotedBrainstorm, err := notes.Read(filepath.Join(root, ".plan", "brainstorms", "auth-system.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if promotedBrainstorm.Metadata["status"] != "promoted" {
+		t.Fatalf("expected brainstorm to be marked promoted: %+v", promotedBrainstorm.Metadata)
+	}
+	if promotedBrainstorm.Metadata["epic"] != "auth-system" || promotedBrainstorm.Metadata["spec"] != "auth-system" {
+		t.Fatalf("expected brainstorm promotion links: %+v", promotedBrainstorm.Metadata)
 	}
 }
 

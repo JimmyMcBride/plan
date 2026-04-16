@@ -4,10 +4,10 @@ epic: spec-driven-planning-workflow
 project: plan
 slug: improve-epic-promotion-and-spec-seeding
 spec: spec-driven-planning-workflow
-status: todo
+status: done
 title: Improve epic promotion and spec seeding
 type: story
-updated_at: "2026-04-16T05:46:33Z"
+updated_at: "2026-04-16T06:14:19Z"
 ---
 
 # Improve epic promotion and spec seeding

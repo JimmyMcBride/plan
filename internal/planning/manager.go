@@ -228,6 +228,15 @@ func (m *Manager) PromoteBrainstorm(brainstormSlug string) (*EpicBundle, error) 
 	if err != nil {
 		return nil, err
 	}
+	epicAbs := filepath.Join(info.ProjectDir, filepath.FromSlash(bundle.Epic.Path))
+	epic, err := notes.Read(epicAbs)
+	if err != nil {
+		return nil, err
+	}
+	seededEpic, err := m.seedEpicFromBrainstorm(info, epic, brainstorm)
+	if err != nil {
+		return nil, err
+	}
 	specAbs := filepath.Join(info.ProjectDir, filepath.FromSlash(bundle.Spec.Path))
 	spec, err := notes.Read(specAbs)
 	if err != nil {
@@ -237,6 +246,16 @@ func (m *Manager) PromoteBrainstorm(brainstormSlug string) (*EpicBundle, error) 
 	if err != nil {
 		return nil, err
 	}
+	if _, err := notes.Update(brainstormPath, notes.UpdateInput{
+		Metadata: map[string]any{
+			"status": "promoted",
+			"epic":   slugFromPath(seededEpic.Path),
+			"spec":   slugFromPath(seeded.Path),
+		},
+	}); err != nil {
+		return nil, err
+	}
+	bundle.Epic = m.relNote(seededEpic, info.ProjectDir)
 	bundle.Spec = m.relNote(seeded, info.ProjectDir)
 	return bundle, nil
 }
@@ -501,11 +520,29 @@ func (m *Manager) createSpecForEpic(info *workspace.Info, epic *notes.Note) (*no
 	if err != nil {
 		return nil, err
 	}
-	return notes.Create(filepath.Join(info.SpecsDir, specSlug+".md"), epic.Title+" Spec", "spec", body, map[string]any{
+	metadata := map[string]any{
 		"project": info.ProjectName,
 		"slug":    specSlug,
 		"epic":    slugFromPath(epic.Path),
 		"status":  "draft",
+	}
+	if sourceBrainstorm := stringValue(epic.Metadata["source_brainstorm"]); sourceBrainstorm != "" {
+		metadata["source_brainstorm"] = sourceBrainstorm
+	}
+	return notes.Create(filepath.Join(info.SpecsDir, specSlug+".md"), epic.Title+" Spec", "spec", body, metadata)
+}
+
+func (m *Manager) seedEpicFromBrainstorm(info *workspace.Info, epic *notes.Note, brainstorm *notes.Note) (*notes.Note, error) {
+	body := epic.Content
+	if desiredOutcome := notes.ExtractSection(brainstorm.Content, "Desired Outcome"); desiredOutcome != "" {
+		body = notes.AppendUnderHeading(body, "Outcome", desiredOutcome)
+	}
+	if focus := notes.ExtractSection(brainstorm.Content, "Focus Question"); focus != "" {
+		body = notes.AppendUnderHeading(body, "Why Now", focus)
+	}
+	body = notes.AppendUnderHeading(body, "Resources", fmt.Sprintf("- [Source Brainstorm](%s)", relativeLinkPath(filepath.Dir(epic.Path), brainstorm.Path)))
+	return notes.Update(epic.Path, notes.UpdateInput{
+		Body: ptr(body),
 	})
 }
 
@@ -514,13 +551,25 @@ func (m *Manager) seedSpecFromBrainstorm(info *workspace.Info, spec *notes.Note,
 	if focus := notes.ExtractSection(brainstorm.Content, "Focus Question"); focus != "" {
 		body = notes.AppendUnderHeading(body, "Problem", focus)
 	}
+	if desiredOutcome := notes.ExtractSection(brainstorm.Content, "Desired Outcome"); desiredOutcome != "" {
+		body = notes.AppendUnderHeading(body, "Goals", desiredOutcome)
+	}
 	if ideas := notes.ExtractSection(brainstorm.Content, "Ideas"); ideas != "" {
 		body = notes.AppendUnderHeading(body, "Goals", ideas)
 	}
-	body = notes.AppendUnderHeading(body, "Story Breakdown", "- [ ] Break approved spec into execution-ready stories")
+	if constraints := notes.ExtractSection(brainstorm.Content, "Constraints"); constraints != "" {
+		body = notes.AppendUnderHeading(body, "Constraints", constraints)
+	}
+	if questions := notes.ExtractSection(brainstorm.Content, "Open Questions"); questions != "" {
+		body = notes.AppendUnderHeading(body, "Risks / Open Questions", questions)
+	}
+	body = notes.AppendUnderHeading(body, "Story Breakdown", "- [ ] Split approved spec into execution-ready stories")
 	body = notes.AppendUnderHeading(body, "Resources", fmt.Sprintf("- [Source Brainstorm](%s)", relativeLinkPath(filepath.Dir(spec.Path), brainstorm.Path)))
 	updated, err := notes.Update(spec.Path, notes.UpdateInput{
 		Body: ptr(body),
+		Metadata: map[string]any{
+			"source_brainstorm": rel(info.ProjectDir, brainstorm.Path),
+		},
 	})
 	if err != nil {
 		return nil, err
