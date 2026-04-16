@@ -34,6 +34,10 @@ func printStatus(out io.Writer, status *planning.ProjectStatus) {
 		status.InProgressStories,
 		status.BlockedStories,
 	)
+	fmt.Fprintf(out, "ready_work: %d ready, %d blocked_by_dependencies\n",
+		status.ReadyStories,
+		status.DependencyBlocked,
+	)
 	if hasRoadmapVersionAssignments(status) {
 		printVersionStatus(out, status)
 		return

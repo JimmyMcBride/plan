@@ -4,10 +4,10 @@ epic: dependency-graph-and-ready-work
 project: plan
 slug: expose-ready-work-cli-and-status-views
 spec: dependency-graph-and-ready-work
-status: todo
+status: done
 title: Expose ready-work CLI and status views
 type: story
-updated_at: "2026-04-16T06:28:47Z"
+updated_at: "2026-04-16T07:03:16Z"
 ---
 
 # Expose ready-work CLI and status views

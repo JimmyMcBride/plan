@@ -26,6 +26,7 @@ func newRootCmd() *cobra.Command {
 		newSpecCommand(),
 		newStoryCommand(),
 		newRoadmapCommand(),
+		newReadyCommand(),
 		newStatusCommand(),
 		newSkillsCommand(),
 	)

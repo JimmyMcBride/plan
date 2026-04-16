@@ -54,6 +54,9 @@ func TestStatusCommandPrintsEpicProgressCounts(t *testing.T) {
 	if !strings.Contains(output, "stories: 1 total, 0 done, 0 in_progress, 1 blocked") {
 		t.Fatalf("expected story summary in output:\n%s", output)
 	}
+	if !strings.Contains(output, "ready_work: 0 ready, 1 blocked_by_dependencies") {
+		t.Fatalf("expected ready-work summary in output:\n%s", output)
+	}
 	if !strings.Contains(output, "Billing [implementing] (0/1 done, 0 in progress, 1 blocked)") {
 		t.Fatalf("expected epic progress counts in output:\n%s", output)
 	}
@@ -104,6 +107,9 @@ func TestStatusCommandPrintsRoadmapVersionSummaries(t *testing.T) {
 	output := buf.String()
 	if !strings.Contains(output, "roadmap: .plan/ROADMAP.md") {
 		t.Fatalf("expected roadmap path in output:\n%s", output)
+	}
+	if !strings.Contains(output, "ready_work: 0 ready, 0 blocked_by_dependencies") {
+		t.Fatalf("expected ready-work summary in output:\n%s", output)
 	}
 	if !strings.Contains(output, "v2: Rigor (1 stories, 0 done, 1 in_progress, 0 blocked)") {
 		t.Fatalf("expected version summary in output:\n%s", output)

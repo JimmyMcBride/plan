@@ -88,6 +88,8 @@ type ProjectStatus struct {
 	DoneStories       int
 	BlockedStories    int
 	InProgressStories int
+	ReadyStories      int
+	DependencyBlocked int
 }
 
 type StoryChanges struct {
@@ -566,6 +568,10 @@ func (m *Manager) Status() (*ProjectStatus, error) {
 		case "in_progress":
 			status.InProgressStories++
 		}
+	}
+	if ready, err := m.ReadyWork(); err == nil {
+		status.ReadyStories = len(ready.Ready)
+		status.DependencyBlocked = len(ready.Blocked)
 	}
 	if roadmap, err := m.ReadRoadmap(); err == nil {
 		status.RoadmapPath = roadmap.Path

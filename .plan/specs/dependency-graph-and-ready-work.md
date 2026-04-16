@@ -3,11 +3,11 @@ created_at: "2026-04-16T05:33:06Z"
 epic: dependency-graph-and-ready-work
 project: plan
 slug: dependency-graph-and-ready-work
-status: implementing
+status: done
 target_version: v3
 title: Dependency Graph and Ready Work Spec
 type: spec
-updated_at: "2026-04-16T06:57:04Z"
+updated_at: "2026-04-16T07:03:16Z"
 ---
 
 # Dependency Graph and Ready Work Spec
