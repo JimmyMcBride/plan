@@ -4,9 +4,23 @@ Created: {{ .Now }}
 
 ## Overview
 
-## Epics
+## v1: Core
 
-- [ ] Example epic
+Goal:
+
+Summary:
+
+## v2: Rigor
+
+Goal:
+
+Summary:
+
+## v3: Power
+
+Goal:
+
+Summary:
 
 ## Ordering Notes
 

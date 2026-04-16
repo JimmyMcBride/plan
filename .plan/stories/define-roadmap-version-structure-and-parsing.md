@@ -4,10 +4,10 @@ epic: roadmap-and-portfolio-planning
 project: plan
 slug: define-roadmap-version-structure-and-parsing
 spec: roadmap-and-portfolio-planning
-status: todo
+status: done
 title: Define roadmap version structure and parsing
 type: story
-updated_at: "2026-04-16T06:28:47Z"
+updated_at: "2026-04-16T06:33:37Z"
 ---
 
 # Define roadmap version structure and parsing
