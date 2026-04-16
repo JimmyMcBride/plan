@@ -4,10 +4,10 @@ epic: dependency-graph-and-ready-work
 project: plan
 slug: compute-ready-and-blocked-work-sets
 spec: dependency-graph-and-ready-work
-status: todo
+status: done
 title: Compute ready and blocked work sets
 type: story
-updated_at: "2026-04-16T06:28:47Z"
+updated_at: "2026-04-16T07:01:10Z"
 ---
 
 # Compute ready and blocked work sets

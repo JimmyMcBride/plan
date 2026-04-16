@@ -417,3 +417,84 @@ func TestUpdateStoryStoresNormalizedBlockerMetadata(t *testing.T) {
 	}
 	t.Fatal("expected updated story in listing")
 }
+
+func TestReadyWorkSeparatesReadyAndBlockedStories(t *testing.T) {
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := New(ws)
+
+	if _, err := manager.CreateEpic("Billing", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.SetSpecStatus("billing", "approved"); err != nil {
+		t.Fatal(err)
+	}
+	for _, input := range []struct {
+		title string
+		body  string
+	}{
+		{title: "Implement invoices", body: "Create invoice generation flow"},
+		{title: "Ship exports", body: "Create export flow"},
+		{title: "Manual blocker", body: "Needs external review"},
+	} {
+		if _, err := manager.CreateStory(
+			"billing",
+			input.title,
+			input.body,
+			[]string{"Acceptance for " + input.title},
+			[]string{"Verify " + input.title},
+			nil,
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := manager.UpdateStory("ship-exports", StoryChanges{SetBlockers: []string{"implement-invoices"}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.UpdateStory("manual-blocker", StoryChanges{Status: "blocked"}); err != nil {
+		t.Fatal(err)
+	}
+
+	work, err := manager.ReadyWork()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(work.Ready) != 1 || work.Ready[0].Title != "Implement invoices" {
+		t.Fatalf("expected only invoices story to be ready: %+v", work.Ready)
+	}
+	if len(work.Blocked) != 2 {
+		t.Fatalf("expected blocked stories to be returned: %+v", work.Blocked)
+	}
+	assertBlockedReason(t, work.Blocked, "Ship exports", "blocked by implement-invoices [todo]")
+	assertBlockedReason(t, work.Blocked, "Manual blocker", "story status is blocked")
+
+	if _, err := manager.UpdateStory("implement-invoices", StoryChanges{Status: "done"}); err != nil {
+		t.Fatal(err)
+	}
+	work, err = manager.ReadyWork()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(work.Ready) != 1 || work.Ready[0].Title != "Ship exports" {
+		t.Fatalf("expected exports story to become ready once blocker is done: %+v", work.Ready)
+	}
+}
+
+func assertBlockedReason(t *testing.T, blocked []BlockedStory, title, reason string) {
+	t.Helper()
+	for _, item := range blocked {
+		if item.Story.Title != title {
+			continue
+		}
+		for _, current := range item.Reasons {
+			if current == reason {
+				return
+			}
+		}
+		t.Fatalf("expected blocker reason %q for %s: %+v", reason, title, item)
+	}
+	t.Fatalf("expected blocked story %s: %+v", title, blocked)
+}
