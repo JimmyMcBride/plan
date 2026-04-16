@@ -4,10 +4,10 @@ epic: plan-quality-and-verification-engine
 project: plan
 slug: expose-plan-check-command-and-reporting
 spec: plan-quality-and-verification-engine
-status: todo
+status: done
 title: Expose plan check command and reporting
 type: story
-updated_at: "2026-04-16T06:28:47Z"
+updated_at: "2026-04-16T06:47:46Z"
 ---
 
 # Expose plan check command and reporting

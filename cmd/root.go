@@ -16,6 +16,7 @@ func newRootCmd() *cobra.Command {
 	root.PersistentFlags().StringVar(&projectDir, "project", ".", "project root")
 
 	root.AddCommand(
+		newCheckCommand(),
 		newInitCommand(),
 		newDoctorCommand(),
 		newUpdateCommand(),

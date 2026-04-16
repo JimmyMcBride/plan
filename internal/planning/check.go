@@ -32,12 +32,27 @@ type CheckFinding struct {
 }
 
 func (r *CheckReport) HasErrors() bool {
+	return r.ErrorCount() > 0
+}
+
+func (r *CheckReport) ErrorCount() int {
+	count := 0
 	for _, finding := range r.Findings {
 		if finding.Severity == "error" {
-			return true
+			count++
 		}
 	}
-	return false
+	return count
+}
+
+func (r *CheckReport) WarningCount() int {
+	count := 0
+	for _, finding := range r.Findings {
+		if finding.Severity == "warn" {
+			count++
+		}
+	}
+	return count
 }
 
 func (m *Manager) Check(input CheckInput) (*CheckReport, error) {
