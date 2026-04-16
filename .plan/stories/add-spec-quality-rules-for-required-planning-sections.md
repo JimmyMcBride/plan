@@ -4,10 +4,10 @@ epic: plan-quality-and-verification-engine
 project: plan
 slug: add-spec-quality-rules-for-required-planning-sections
 spec: plan-quality-and-verification-engine
-status: todo
+status: done
 title: Add spec quality rules for required planning sections
 type: story
-updated_at: "2026-04-16T06:28:47Z"
+updated_at: "2026-04-16T06:42:27Z"
 ---
 
 # Add spec quality rules for required planning sections
