@@ -32,6 +32,17 @@ type BrainstormInfo struct {
 	Title string
 }
 
+type BrainstormCreateInput struct {
+	Topic         string
+	FocusQuestion string
+	Ideas         []string
+}
+
+type brainstormSectionSpec struct {
+	Heading string
+	List    bool
+}
+
 type EpicInfo struct {
 	Path             string
 	Title            string
@@ -81,20 +92,34 @@ func New(workspaceManager *workspace.Manager) *Manager {
 }
 
 func (m *Manager) CreateBrainstorm(topic string) (*notes.Note, error) {
+	return m.CreateBrainstormWithInput(BrainstormCreateInput{Topic: topic})
+}
+
+func (m *Manager) CreateBrainstormWithInput(input BrainstormCreateInput) (*notes.Note, error) {
 	info, err := m.workspace.EnsureInitialized()
 	if err != nil {
 		return nil, err
 	}
+	if strings.TrimSpace(input.Topic) == "" {
+		return nil, fmt.Errorf("brainstorm topic is required")
+	}
 	body, err := templates.Render("brainstorm.md", map[string]any{
-		"Title": topic,
+		"Title": input.Topic,
 		"Now":   time.Now().UTC().Format(time.RFC3339),
 	})
 	if err != nil {
 		return nil, err
 	}
-	slug := slugify(topic)
+	if strings.TrimSpace(input.FocusQuestion) != "" {
+		body = notes.AppendUnderHeading(body, "Focus Question", strings.TrimSpace(input.FocusQuestion))
+	}
+	if block := formatBrainstormEntry(brainstormIdeasSection, strings.Join(input.Ideas, "\n")); block != "" {
+		body = notes.AppendUnderHeading(body, brainstormIdeasSection.Heading, block)
+	}
+
+	slug := slugify(input.Topic)
 	path := filepath.Join(info.BrainstormsDir, slug+".md")
-	note, err := notes.Create(path, topic, "brainstorm", body, map[string]any{
+	note, err := notes.Create(path, input.Topic, "brainstorm", body, map[string]any{
 		"slug":    slug,
 		"status":  "active",
 		"project": info.ProjectName,
@@ -118,6 +143,10 @@ func (m *Manager) ReadBrainstorm(slug string) (*notes.Note, error) {
 }
 
 func (m *Manager) AddIdea(brainstormSlug, body string) (*notes.Note, error) {
+	return m.AddBrainstormEntry(brainstormSlug, brainstormIdeasSection.Heading, body)
+}
+
+func (m *Manager) AddBrainstormEntry(brainstormSlug, section, body string) (*notes.Note, error) {
 	info, err := m.workspace.EnsureInitialized()
 	if err != nil {
 		return nil, err
@@ -130,9 +159,16 @@ func (m *Manager) AddIdea(brainstormSlug, body string) (*notes.Note, error) {
 	if note.Type != "brainstorm" {
 		return nil, fmt.Errorf("%s is not a brainstorm note", note.Path)
 	}
-	entry := fmt.Sprintf("- **%s** %s", time.Now().Format("15:04"), strings.TrimSpace(body))
+	spec, err := resolveBrainstormSection(section)
+	if err != nil {
+		return nil, err
+	}
+	entry := formatBrainstormEntry(spec, body)
+	if entry == "" {
+		return nil, fmt.Errorf("brainstorm entry is required")
+	}
 	updated, err := notes.Update(path, notes.UpdateInput{
-		Body: ptr(notes.AppendUnderHeading(note.Content, "Ideas", entry)),
+		Body: ptr(notes.AppendUnderHeading(note.Content, spec.Heading, entry)),
 	})
 	if err != nil {
 		return nil, err
@@ -624,4 +660,50 @@ func bullet(item string) string {
 		return item
 	}
 	return "- " + item
+}
+
+var brainstormIdeasSection = brainstormSectionSpec{
+	Heading: "Ideas",
+	List:    true,
+}
+
+func resolveBrainstormSection(value string) (brainstormSectionSpec, error) {
+	switch slugify(value) {
+	case "", "idea", "ideas":
+		return brainstormIdeasSection, nil
+	case "focus", "focus-question":
+		return brainstormSectionSpec{Heading: "Focus Question"}, nil
+	case "desired-outcome", "outcome":
+		return brainstormSectionSpec{Heading: "Desired Outcome"}, nil
+	case "constraints", "constraint":
+		return brainstormSectionSpec{Heading: "Constraints", List: true}, nil
+	case "open-questions", "questions", "question":
+		return brainstormSectionSpec{Heading: "Open Questions", List: true}, nil
+	case "raw-notes", "notes":
+		return brainstormSectionSpec{Heading: "Raw Notes"}, nil
+	default:
+		return brainstormSectionSpec{}, fmt.Errorf("unsupported brainstorm section %q", value)
+	}
+}
+
+func formatBrainstormEntry(section brainstormSectionSpec, body string) string {
+	body = strings.TrimSpace(body)
+	if body == "" {
+		return ""
+	}
+	if !section.List {
+		return body
+	}
+
+	var items []string
+	for _, line := range strings.Split(body, "\n") {
+		line = strings.TrimSpace(line)
+		line = strings.TrimPrefix(line, "- ")
+		line = strings.TrimPrefix(line, "* ")
+		if line == "" {
+			continue
+		}
+		items = append(items, bullet(line))
+	}
+	return strings.Join(items, "\n")
 }

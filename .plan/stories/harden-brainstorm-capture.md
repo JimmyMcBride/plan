@@ -4,10 +4,10 @@ epic: spec-driven-planning-workflow
 project: plan
 slug: harden-brainstorm-capture
 spec: spec-driven-planning-workflow
-status: todo
+status: done
 title: Harden brainstorm capture
 type: story
-updated_at: "2026-04-16T05:46:33Z"
+updated_at: "2026-04-16T06:11:21Z"
 ---
 
 # Harden brainstorm capture

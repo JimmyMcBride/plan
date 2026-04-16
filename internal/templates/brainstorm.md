@@ -4,10 +4,12 @@ Started: {{ .Now }}
 
 ## Focus Question
 
-What are we exploring?
+## Desired Outcome
+
+## Constraints
+
+## Open Questions
 
 ## Ideas
-
-## Related
 
 ## Raw Notes
