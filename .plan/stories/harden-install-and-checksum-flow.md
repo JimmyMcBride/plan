@@ -4,10 +4,10 @@ epic: skill-installer-and-release-delivery
 project: plan
 slug: harden-install-and-checksum-flow
 spec: skill-installer-and-release-delivery
-status: todo
+status: done
 title: Harden install and checksum flow
 type: story
-updated_at: "2026-04-16T05:46:34Z"
+updated_at: "2026-04-16T06:21:52Z"
 ---
 
 # Harden install and checksum flow

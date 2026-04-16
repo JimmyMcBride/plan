@@ -3,11 +3,11 @@ created_at: "2026-04-16T05:33:06Z"
 epic: skill-installer-and-release-delivery
 project: plan
 slug: skill-installer-and-release-delivery
-status: approved
+status: implementing
 target_version: v1
 title: Skill, Installer, and Release Delivery Spec
 type: spec
-updated_at: "2026-04-16T05:46:33Z"
+updated_at: "2026-04-16T06:20:53Z"
 ---
 
 # Skill, Installer, and Release Delivery Spec
