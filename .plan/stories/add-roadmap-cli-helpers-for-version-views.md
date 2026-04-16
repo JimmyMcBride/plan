@@ -4,10 +4,10 @@ epic: roadmap-and-portfolio-planning
 project: plan
 slug: add-roadmap-cli-helpers-for-version-views
 spec: roadmap-and-portfolio-planning
-status: todo
+status: done
 title: Add roadmap CLI helpers for version views
 type: story
-updated_at: "2026-04-16T06:28:47Z"
+updated_at: "2026-04-16T06:34:58Z"
 ---
 
 # Add roadmap CLI helpers for version views
