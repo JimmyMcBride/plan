@@ -72,6 +72,22 @@ func TestWorkspaceContractSeparatesUserAuthoredAndToolManagedSurfaces(t *testing
 	}
 }
 
+func TestDoctorReportsNotInitializedBeforeInit(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+
+	report, err := manager.Doctor()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Initialized {
+		t.Fatalf("expected uninitialized workspace report: %+v", report)
+	}
+	if report.WorkspaceStatus != "not_initialized" || report.MigrationStatus != "not_initialized" {
+		t.Fatalf("unexpected uninitialized report state: %+v", report)
+	}
+}
+
 func TestDoctorReportsCurrentAfterInit(t *testing.T) {
 	root := t.TempDir()
 	manager := New(root)
@@ -188,6 +204,45 @@ func TestUpdateRepairsToolManagedStateWithoutTouchingUserNotes(t *testing.T) {
 	}
 }
 
+func TestUpdateRecreatesMissingScaffoldingWithoutOverwritingExistingNotes(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+	if _, err := manager.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	projectPath := filepath.Join(root, ".plan", "PROJECT.md")
+	const customProject = "# kept project note\n"
+	if err := os.WriteFile(projectPath, []byte(customProject), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(root, ".plan", "ROADMAP.md")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(filepath.Join(root, ".plan", "stories")); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := manager.Update()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !contains(result.Created, ".plan/ROADMAP.md") {
+		t.Fatalf("expected roadmap recreation: %+v", result)
+	}
+	if !contains(result.Created, ".plan/stories") {
+		t.Fatalf("expected stories directory recreation: %+v", result)
+	}
+
+	raw, err := os.ReadFile(projectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != customProject {
+		t.Fatalf("project note was overwritten:\n%s", raw)
+	}
+}
+
 func TestUpdateIsIdempotentWhenWorkspaceIsCurrent(t *testing.T) {
 	root := t.TempDir()
 	manager := New(root)
@@ -209,5 +264,20 @@ func TestUpdateIsIdempotentWhenWorkspaceIsCurrent(t *testing.T) {
 	}
 	if len(second.Created) != 0 || len(second.Updated) != 0 {
 		t.Fatalf("expected second update to stay idempotent: %+v", second)
+	}
+}
+
+func TestEnsureInitializedRejectsInvalidWorkspaceMetadata(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+	if _, err := manager.Init(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".plan", ".meta", "workspace.json"), []byte(`{"schema_version":1}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := manager.EnsureInitialized(); err == nil {
+		t.Fatal("expected invalid workspace metadata to fail initialization check")
 	}
 }

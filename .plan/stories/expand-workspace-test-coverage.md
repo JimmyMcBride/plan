@@ -4,10 +4,10 @@ epic: core-workspace-and-artifact-system
 project: plan
 slug: expand-workspace-test-coverage
 spec: core-workspace-and-artifact-system
-status: todo
+status: done
 title: Expand workspace test coverage
 type: story
-updated_at: "2026-04-16T05:46:33Z"
+updated_at: "2026-04-16T06:06:39Z"
 ---
 
 # Expand workspace test coverage
