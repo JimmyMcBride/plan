@@ -4,10 +4,10 @@ epic: power-user-local-workflows
 project: plan
 slug: add-filtered-status-views-for-large-local-plans
 spec: power-user-local-workflows
-status: todo
+status: done
 title: Add filtered status views for large local plans
 type: story
-updated_at: "2026-04-16T06:28:47Z"
+updated_at: "2026-04-16T07:12:42Z"
 ---
 
 # Add filtered status views for large local plans

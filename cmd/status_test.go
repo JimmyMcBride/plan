@@ -118,3 +118,64 @@ func TestStatusCommandPrintsRoadmapVersionSummaries(t *testing.T) {
 		t.Fatalf("expected roadmap epic progress in output:\n%s", output)
 	}
 }
+
+func TestStatusCommandSupportsVersionEpicAndLifecycleFilters(t *testing.T) {
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := planning.New(ws)
+
+	for _, title := range []string{"Billing", "Exports"} {
+		if _, err := manager.CreateEpic(title, ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := manager.UpdateSpec("billing", notes.UpdateInput{
+		Metadata: map[string]any{"status": "approved", "target_version": "v2"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.UpdateSpec("exports", notes.UpdateInput{
+		Metadata: map[string]any{"status": "approved", "target_version": "v3"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.CreateStory("billing", "Implement invoices", "Create invoice generation flow", []string{"Generate invoices"}, []string{"Run billing tests"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.CreateStory("exports", "Ship exports", "Create export flow", []string{"Export invoices"}, []string{"Run export tests"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.UpdateStory("ship-exports", planning.StoryChanges{Status: "in_progress"}); err != nil {
+		t.Fatal(err)
+	}
+
+	prevProjectDir := projectDir
+	projectDir = root
+	defer func() { projectDir = prevProjectDir }()
+
+	var buf bytes.Buffer
+	command := newStatusCommand()
+	command.SetOut(&buf)
+	command.SetErr(&buf)
+	command.SetArgs([]string{"--version", "v2", "--epic", "billing", "--story-status", "todo"})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "filters: version=v2, epic=billing, story_status=todo") {
+		t.Fatalf("expected filter header in output:\n%s", output)
+	}
+	if !strings.Contains(output, "stories: 1 total, 0 done, 0 in_progress, 0 blocked") {
+		t.Fatalf("expected filtered story counts in output:\n%s", output)
+	}
+	if !strings.Contains(output, "v2: Rigor (1 stories, 0 done, 0 in_progress, 0 blocked)") {
+		t.Fatalf("expected filtered version summary in output:\n%s", output)
+	}
+	if strings.Contains(output, "Exports") {
+		t.Fatalf("expected epic filter to remove exports output:\n%s", output)
+	}
+}

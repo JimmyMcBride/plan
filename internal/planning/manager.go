@@ -57,12 +57,13 @@ type EpicInfo struct {
 }
 
 type StoryInfo struct {
-	Path     string
-	Title    string
-	Status   string
-	Epic     string
-	Spec     string
-	Blockers []string
+	Path          string
+	Title         string
+	Status        string
+	Epic          string
+	Spec          string
+	TargetVersion string
+	Blockers      []string
 }
 
 type VersionStatus struct {
@@ -515,16 +516,22 @@ func (m *Manager) ListStories(filterEpic, filterStatus string) ([]StoryInfo, err
 	if err != nil {
 		return nil, err
 	}
+	specVersions, err := loadSpecTargetVersions(info)
+	if err != nil {
+		return nil, err
+	}
 	filterEpic = slugify(filterEpic)
 	out := make([]StoryInfo, 0, len(items))
 	for _, story := range items {
+		specSlug := stringValue(story.Metadata["spec"])
 		item := StoryInfo{
-			Path:     rel(info.ProjectDir, story.Path),
-			Title:    story.Title,
-			Status:   stringValue(story.Metadata["status"]),
-			Epic:     stringValue(story.Metadata["epic"]),
-			Spec:     stringValue(story.Metadata["spec"]),
-			Blockers: stringSliceValue(story.Metadata["blockers"]),
+			Path:          rel(info.ProjectDir, story.Path),
+			Title:         story.Title,
+			Status:        stringValue(story.Metadata["status"]),
+			Epic:          stringValue(story.Metadata["epic"]),
+			Spec:          specSlug,
+			TargetVersion: specVersions[specSlug],
+			Blockers:      stringSliceValue(story.Metadata["blockers"]),
 		}
 		if filterEpic != "" && item.Epic != filterEpic {
 			continue
@@ -969,6 +976,18 @@ func stringSliceValue(v any) []string {
 	default:
 		return nil
 	}
+}
+
+func loadSpecTargetVersions(info *workspace.Info) (map[string]string, error) {
+	specs, err := readNotesInDir(info.SpecsDir)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]string, len(specs))
+	for _, spec := range specs {
+		out[slugFromPath(spec.Path)] = stringValue(spec.Metadata["target_version"])
+	}
+	return out, nil
 }
 
 func deriveSpecStatus(current string, stories []StoryInfo) string {
