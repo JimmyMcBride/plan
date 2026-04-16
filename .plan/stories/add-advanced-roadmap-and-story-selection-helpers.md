@@ -4,10 +4,10 @@ epic: power-user-local-workflows
 project: plan
 slug: add-advanced-roadmap-and-story-selection-helpers
 spec: power-user-local-workflows
-status: todo
+status: done
 title: Add advanced roadmap and story selection helpers
 type: story
-updated_at: "2026-04-16T06:28:47Z"
+updated_at: "2026-04-16T07:15:10Z"
 ---
 
 # Add advanced roadmap and story selection helpers
