@@ -92,3 +92,33 @@ func TestImportBrainPlanningCreatesCanonicalPlanArtifacts(t *testing.T) {
 		}
 	}
 }
+
+func TestImportBrainPlanningAddsVisibleProvenanceAndReviewGuidance(t *testing.T) {
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := New(ws)
+
+	if _, err := manager.ImportBrainPlanning(BrainImportSelection{
+		WorkspacePath: "../../examples/brain",
+		Stories:       []string{"add-session-aware-memory-distillation"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	note, err := notes.Read(filepath.Join(root, ".plan", "stories", "add-session-aware-memory-distillation.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if note.Metadata["review_required"] != true {
+		t.Fatalf("expected review_required metadata on imported note: %+v", note.Metadata)
+	}
+	if !strings.Contains(note.Content, "Imported From Brain") {
+		t.Fatalf("expected visible provenance link in imported note:\n%s", note.Content)
+	}
+	if !strings.Contains(note.Content, "Review and normalize this artifact before relying on it for deeper execution work.") {
+		t.Fatalf("expected review guidance in imported note:\n%s", note.Content)
+	}
+}

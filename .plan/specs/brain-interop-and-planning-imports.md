@@ -3,11 +3,11 @@ created_at: "2026-04-16T05:33:06Z"
 epic: brain-interop-and-planning-imports
 project: plan
 slug: brain-interop-and-planning-imports
-status: implementing
+status: done
 target_version: v3
 title: Brain Interop and Planning Imports Spec
 type: spec
-updated_at: "2026-04-16T07:05:13Z"
+updated_at: "2026-04-16T07:09:59Z"
 ---
 
 # Brain Interop and Planning Imports Spec

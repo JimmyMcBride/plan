@@ -168,7 +168,8 @@ func (m *Manager) importBrainNote(info *workspace.Info, repoRoot string, note *n
 	if err != nil {
 		return BrainImportedArtifact{}, err
 	}
-	created, err := notes.Create(path, note.Title, note.Type, note.Content, metadata)
+	body := decorateImportedBrainBody(note.Content, path, note.Path)
+	created, err := notes.Create(path, note.Title, note.Type, body, metadata)
 	if err != nil {
 		return BrainImportedArtifact{}, err
 	}
@@ -185,6 +186,7 @@ func brainImportDestination(info *workspace.Info, note *notes.Note, slug, repoRo
 		"project":                info.ProjectName,
 		"slug":                   slug,
 		"imported_from":          "brain",
+		"review_required":        true,
 		"source_brain_path":      sourcePath,
 		"source_brain_workspace": filepath.ToSlash(repoRoot),
 	}
@@ -223,4 +225,14 @@ func brainImportDestination(info *workspace.Info, note *notes.Note, slug, repoRo
 	default:
 		return "", nil, fmt.Errorf("unsupported brain note type %q", note.Type)
 	}
+}
+
+func decorateImportedBrainBody(body, destinationPath, sourcePath string) string {
+	body = notes.AppendUnderHeading(body, "Resources",
+		fmt.Sprintf("- [Imported From Brain](%s)", relativeLinkPath(filepath.Dir(destinationPath), sourcePath)),
+	)
+	body = notes.AppendUnderHeading(body, "Notes",
+		"Imported from a Brain workspace. Review and normalize this artifact before relying on it for deeper execution work.",
+	)
+	return body
 }
