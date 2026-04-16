@@ -50,14 +50,12 @@ When a repo uses `plan`:
 - `plan status --project .`
 - `plan status --project . --version v3 --story-status todo`
 - `plan story list --project . --version v3`
-- `plan import brain inspect --workspace ../brain`
-- `plan import brain apply --project . --workspace ../brain --epic planning-and-brainstorming-ux`
 
 ## Rules
 
 - Brainstorms are discovery material, not the canonical hierarchy.
 - Canonical hierarchy is `Epic -> Spec -> Story`.
 - Keep roadmap lightweight.
-- Keep the simple default path first. Reach for filters, ready-work views, and Brain imports only when the repo size justifies them.
+- Keep the simple default path first. Reach for filters, ready-work views, and version slices only when the repo size justifies them.
 - Do not add tasks beneath stories as first-class objects unless the project explicitly asks for that system.
 - Keep planning separate from memory, retrieval, or context management systems.

@@ -18,7 +18,6 @@ func newRootCmd() *cobra.Command {
 	root.AddCommand(
 		newAdoptCommand(),
 		newCheckCommand(),
-		newImportCommand(),
 		newInitCommand(),
 		newDoctorCommand(),
 		newUpdateCommand(),

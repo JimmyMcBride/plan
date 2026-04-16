@@ -40,12 +40,10 @@ Summary:
 Goal: Add the power features that make `plan` strong on big projects while staying local-first.
 
 - [ ] Dependency Graph and Ready Work
-- [ ] Brain Interop and Planning Imports
 - [ ] Power-User Local Workflows
 
 Summary:
 - model dependencies and surface ready work
-- interoperate cleanly with `brain`
 - support richer local workflows for advanced users and small teams
 
 ## Ordering Notes

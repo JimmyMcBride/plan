@@ -26,7 +26,7 @@ Without a real installer, skill install path, and release automation, every user
 
 - provide a one-command install path
 - install the `plan` skill globally or locally
-- follow the `brain` release pattern from PR merge to release tag
+- follow the repo release pattern from PR merge to release tag
 - document maintainer expectations for release notes and verification
 
 ## Non-Goals

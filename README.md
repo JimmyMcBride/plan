@@ -13,8 +13,9 @@ turning rough ideas into execution-ready plans that agents can follow cleanly.
 - simple default workflow
 - deeper power available later
 
-`plan` does not own memory, retrieval, or context management. That belongs to
-other tools. `plan` owns planning.
+`plan` does not own memory, retrieval, or context management. Use a dedicated
+companion for that, such as [brain](https://github.com/JimmyMcBride/brain).
+`plan` owns planning.
 
 ## Core Model
 
@@ -46,8 +47,8 @@ Simple default path:
 5. execute
 
 Advanced path stays optional. When a repo grows, you can add roadmap versions,
-dependency blockers, ready-work views, Brain imports, and filtered status views
-without changing the base model.
+dependency blockers, ready-work views, and filtered status views without
+changing the base model.
 
 ## Workspace
 
@@ -110,9 +111,6 @@ These stay optional. If you do not need them, ignore them.
   `plan ready --project .`
 - narrow story lists by roadmap version:
   `plan story list --project . --version v3`
-- inspect or import planning notes from a local Brain workspace:
-  `plan import brain inspect --workspace ../brain`
-  `plan import brain apply --project . --workspace ../brain --epic planning-and-brainstorming-ux`
 
 The rule stays the same: use the advanced surfaces only when the simple default
 stops being enough.

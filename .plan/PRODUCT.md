@@ -8,14 +8,14 @@ Date: 2026-04-15
 
 It exists to turn messy ideas into execution-ready plans that agents can follow reliably.
 
-It does not own memory, retrieval, or context management. That belongs to `brain`. `plan` owns planning only.
+It does not own memory, retrieval, or context management. That belongs to a separate companion tool. `plan` owns planning only.
 
 ## Non-negotiables
 
 - Local-first.
 - All project planning material lives in `.plan/` at repo root.
-- Strong skill integration like `brain`.
-- Release and GitHub workflow should follow the clean `brain` pattern.
+- Strong skill integration.
+- Release and GitHub workflow should follow a clean merge-to-release pattern.
 - Default workflow should preserve:
   - brainstorm
   - epic
@@ -201,7 +201,7 @@ This should feel like workspace repair, not ORM migration culture.
 
 ## What to copy from reference tools
 
-### Copy from `brain`
+### Copy from local-first reference tools
 
 - local markdown ownership
 - skill install model
@@ -246,7 +246,7 @@ This should feel like workspace repair, not ORM migration culture.
 
 - dependencies between stories/epics
 - ready view
-- import from existing `brain` planning notes
+- stronger local workflow ergonomics
 
 ### v0.4+
 
@@ -272,6 +272,6 @@ Recommendation: human slugs in v1. Add stable IDs only when dependency graphs or
 
 Recommendation: yes, but lightly. Status gates on specs and stories. No enterprise approval workflows.
 
-### 5. Should `plan` import from `brain`?
+### 5. Should `plan` import from other planning systems?
 
-Recommendation: yes, later. `brain` and `plan` should interoperate cleanly, but `plan` should first prove its own native model.
+Recommendation: maybe later, but only after `plan` proves its own native model and only if imports can stay optional and explicit.
