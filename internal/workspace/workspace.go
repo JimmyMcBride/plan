@@ -79,6 +79,7 @@ type DoctorReport struct {
 	MigrationStatus string   `json:"migration_status"`
 	Missing         []string `json:"missing,omitempty"`
 	Broken          []string `json:"broken,omitempty"`
+	Guidance        []string `json:"guidance,omitempty"`
 }
 
 type Manager struct {
@@ -287,11 +288,12 @@ func (m *Manager) Doctor() (*DoctorReport, error) {
 	report := &DoctorReport{
 		ProjectDir:      info.ProjectDir,
 		PlanDir:         info.PlanDir,
-		WorkspaceStatus: "not_initialized",
+		WorkspaceStatus: "adoptable",
 		MigrationStatus: "not_initialized",
 	}
 	if _, err := os.Stat(info.PlanDir); err != nil {
 		if os.IsNotExist(err) {
+			report.Guidance = guidanceForWorkspaceStatus(report.WorkspaceStatus)
 			return report, nil
 		}
 		return nil, err
@@ -335,17 +337,23 @@ func (m *Manager) Doctor() (*DoctorReport, error) {
 		}
 	}
 
-	report.WorkspaceStatus = classifyHealth(report.Missing, report.Broken)
+	report.WorkspaceStatus = classifyDoctorWorkspace(report.Missing, report.Broken)
+	if report.WorkspaceStatus == "partial" && report.MigrationStatus == "current" {
+		report.MigrationStatus = "partial"
+	}
 	if report.MigrationStatus == "" {
 		switch {
 		case contains(report.Broken, "migrations.json"):
 			report.MigrationStatus = "broken"
+		case isPartialWorkspace(report.Missing):
+			report.MigrationStatus = "partial"
 		case contains(report.Missing, "migrations.json"):
 			report.MigrationStatus = "missing"
 		default:
 			report.MigrationStatus = "current"
 		}
 	}
+	report.Guidance = guidanceForWorkspaceStatus(report.WorkspaceStatus)
 	return report, nil
 }
 
@@ -635,14 +643,52 @@ func rel(root, path string) string {
 	return filepath.ToSlash(r)
 }
 
-func classifyHealth(missing, broken []string) string {
+func classifyDoctorWorkspace(missing, broken []string) string {
 	switch {
+	case isBrokenWorkspace(broken):
+		return "broken"
+	case isPartialWorkspace(missing):
+		return "partial"
 	case len(broken) > 0:
 		return "broken"
 	case len(missing) > 0:
 		return "missing"
 	default:
 		return "current"
+	}
+}
+
+func isPartialWorkspace(missing []string) bool {
+	return contains(missing, ".meta/") || contains(missing, "workspace.json") || contains(missing, "migrations.json")
+}
+
+func isBrokenWorkspace(broken []string) bool {
+	return contains(broken, "workspace.json") || contains(broken, "migrations.json")
+}
+
+func guidanceForWorkspaceStatus(status string) []string {
+	switch status {
+	case "adoptable":
+		return []string{
+			"Run `plan adopt --project .` to create and register the local .plan workspace for this repo.",
+		}
+	case "partial":
+		return []string{
+			"Run `plan adopt --project .` to finish adopting the partial .plan workspace.",
+			"Use `plan update --project .` after adoption to normalize any remaining plan-managed files.",
+		}
+	case "missing":
+		return []string{
+			"Run `plan update --project .` to recreate missing plan-managed surfaces without overwriting user-authored notes.",
+		}
+	case "broken":
+		return []string{
+			"Run `plan update --project .` to repair broken plan-managed metadata and restore a current workspace.",
+		}
+	default:
+		return []string{
+			"Workspace is current. Use `plan update --project .` only after upgrades or when doctor reports drift.",
+		}
 	}
 }
 

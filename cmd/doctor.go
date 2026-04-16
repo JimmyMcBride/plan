@@ -38,6 +38,12 @@ func newDoctorCommand() *cobra.Command {
 					fmt.Printf("  - %s\n", item)
 				}
 			}
+			if len(report.Guidance) > 0 {
+				fmt.Println("guidance:")
+				for _, item := range report.Guidance {
+					fmt.Printf("  - %s\n", item)
+				}
+			}
 			return nil
 		},
 	}

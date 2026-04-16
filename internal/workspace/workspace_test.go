@@ -72,8 +72,11 @@ func TestWorkspaceContractSeparatesUserAuthoredAndToolManagedSurfaces(t *testing
 	}
 }
 
-func TestDoctorReportsNotInitializedBeforeInit(t *testing.T) {
+func TestDoctorReportsAdoptableBeforeInit(t *testing.T) {
 	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# repo\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	manager := New(root)
 
 	report, err := manager.Doctor()
@@ -83,8 +86,11 @@ func TestDoctorReportsNotInitializedBeforeInit(t *testing.T) {
 	if report.Initialized {
 		t.Fatalf("expected uninitialized workspace report: %+v", report)
 	}
-	if report.WorkspaceStatus != "not_initialized" || report.MigrationStatus != "not_initialized" {
-		t.Fatalf("unexpected uninitialized report state: %+v", report)
+	if report.WorkspaceStatus != "adoptable" || report.MigrationStatus != "not_initialized" {
+		t.Fatalf("unexpected adoptable report state: %+v", report)
+	}
+	if !contains(report.Guidance, "Run `plan adopt --project .` to create and register the local .plan workspace for this repo.") {
+		t.Fatalf("expected adopt guidance: %+v", report)
 	}
 }
 
@@ -133,6 +139,37 @@ func TestDoctorReportsMissingWorkspaceSurfaces(t *testing.T) {
 	if report.MigrationStatus != "current" {
 		t.Fatalf("unexpected migration status: %+v", report)
 	}
+	if !contains(report.Guidance, "Run `plan update --project .` to recreate missing plan-managed surfaces without overwriting user-authored notes.") {
+		t.Fatalf("expected missing-workspace guidance: %+v", report)
+	}
+}
+
+func TestDoctorReportsPartialWhenToolManagedSurfacesAreMissing(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+	if _, err := manager.Init(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(root, ".plan", ".meta", "workspace.json")); err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := manager.Doctor()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.WorkspaceStatus != "partial" {
+		t.Fatalf("unexpected workspace status: %+v", report)
+	}
+	if report.MigrationStatus != "partial" {
+		t.Fatalf("unexpected migration status for partial workspace: %+v", report)
+	}
+	if !contains(report.Missing, "workspace.json") {
+		t.Fatalf("expected missing workspace metadata in report: %+v", report)
+	}
+	if !contains(report.Guidance, "Run `plan adopt --project .` to finish adopting the partial .plan workspace.") {
+		t.Fatalf("expected partial-workspace guidance: %+v", report)
+	}
 }
 
 func TestDoctorReportsBrokenToolManagedState(t *testing.T) {
@@ -154,6 +191,9 @@ func TestDoctorReportsBrokenToolManagedState(t *testing.T) {
 	}
 	if !contains(report.Broken, "workspace.json") {
 		t.Fatalf("expected broken workspace metadata in report: %+v", report)
+	}
+	if !contains(report.Guidance, "Run `plan update --project .` to repair broken plan-managed metadata and restore a current workspace.") {
+		t.Fatalf("expected broken-workspace guidance: %+v", report)
 	}
 }
 

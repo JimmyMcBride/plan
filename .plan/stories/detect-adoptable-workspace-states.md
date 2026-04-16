@@ -4,10 +4,10 @@ epic: workspace-adoption-update-and-migration
 project: plan
 slug: detect-adoptable-workspace-states
 spec: workspace-adoption-update-and-migration
-status: todo
+status: done
 title: Detect adoptable workspace states
 type: story
-updated_at: "2026-04-16T06:28:47Z"
+updated_at: "2026-04-16T06:50:14Z"
 ---
 
 # Detect adoptable workspace states
