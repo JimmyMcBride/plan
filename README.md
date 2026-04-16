@@ -49,7 +49,26 @@ my-project/
     specs/
     stories/
     .meta/
+      workspace.json
+      migrations.json
 ```
+
+User-authored planning material lives in:
+
+- `.plan/PROJECT.md`
+- `.plan/ROADMAP.md`
+- `.plan/brainstorms/`
+- `.plan/epics/`
+- `.plan/specs/`
+- `.plan/stories/`
+
+Tool-owned state lives only in:
+
+- `.plan/.meta/workspace.json`
+- `.plan/.meta/migrations.json`
+
+`plan update` may repair or normalize tool-owned state. It must not rewrite
+user-authored planning notes.
 
 ## Quick Start
 

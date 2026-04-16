@@ -29,6 +29,20 @@ type MigrationState struct {
 	Status        string   `json:"status,omitempty"`
 }
 
+type Surface struct {
+	Label string `json:"label"`
+	Path  string `json:"path"`
+	Kind  string `json:"kind"`
+	Type  string `json:"type"`
+
+	absPath string
+}
+
+type Contract struct {
+	UserAuthored []Surface `json:"user_authored"`
+	ToolManaged  []Surface `json:"tool_managed"`
+}
+
 type Info struct {
 	ProjectDir     string
 	ProjectName    string
@@ -101,6 +115,49 @@ func (m *Manager) Resolve() (*Info, error) {
 	}, nil
 }
 
+func (i *Info) Contract() Contract {
+	return Contract{
+		UserAuthored: i.UserAuthoredSurfaces(),
+		ToolManaged:  i.ToolManagedSurfaces(),
+	}
+}
+
+func (i *Info) UserAuthoredSurfaces() []Surface {
+	return []Surface{
+		i.newSurface("PROJECT.md", i.ProjectFile, "user_authored", "file"),
+		i.newSurface("ROADMAP.md", i.RoadmapFile, "user_authored", "file"),
+		i.newSurface("brainstorms/", i.BrainstormsDir, "user_authored", "dir"),
+		i.newSurface("epics/", i.EpicsDir, "user_authored", "dir"),
+		i.newSurface("specs/", i.SpecsDir, "user_authored", "dir"),
+		i.newSurface("stories/", i.StoriesDir, "user_authored", "dir"),
+	}
+}
+
+func (i *Info) ToolManagedSurfaces() []Surface {
+	return []Surface{
+		i.newSurface(".meta/", i.MetaDir, "tool_managed", "dir"),
+		i.newSurface("workspace.json", i.WorkspaceFile, "tool_managed", "file"),
+		i.newSurface("migrations.json", i.MigrationsFile, "tool_managed", "file"),
+	}
+}
+
+func (i *Info) RequiredSurfaces() []Surface {
+	surfaces := make([]Surface, 0, len(i.UserAuthoredSurfaces())+len(i.ToolManagedSurfaces()))
+	surfaces = append(surfaces, i.UserAuthoredSurfaces()...)
+	surfaces = append(surfaces, i.ToolManagedSurfaces()...)
+	return surfaces
+}
+
+func (i *Info) newSurface(label, path, kind, surfaceType string) Surface {
+	return Surface{
+		Label:   label,
+		Path:    rel(i.ProjectDir, path),
+		Kind:    kind,
+		Type:    surfaceType,
+		absPath: path,
+	}
+}
+
 func (m *Manager) Init() (*InitResult, error) {
 	info, err := m.Resolve()
 	if err != nil {
@@ -108,14 +165,7 @@ func (m *Manager) Init() (*InitResult, error) {
 	}
 
 	result := &InitResult{Info: info}
-	for _, dir := range []string{
-		info.PlanDir,
-		info.BrainstormsDir,
-		info.EpicsDir,
-		info.SpecsDir,
-		info.StoriesDir,
-		info.MetaDir,
-	} {
+	for _, dir := range append([]string{info.PlanDir}, info.directoryPaths()...) {
 		created, err := ensureDir(dir)
 		if err != nil {
 			return nil, err
@@ -154,6 +204,16 @@ func (m *Manager) Init() (*InitResult, error) {
 	}
 
 	return result, nil
+}
+
+func (i *Info) directoryPaths() []string {
+	var dirs []string
+	for _, surface := range i.RequiredSurfaces() {
+		if surface.Type == "dir" {
+			dirs = append(dirs, surface.absPath)
+		}
+	}
+	return dirs
 }
 
 func (m *Manager) EnsureInitialized() (*Info, error) {

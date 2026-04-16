@@ -4,10 +4,10 @@ epic: core-workspace-and-artifact-system
 project: plan
 slug: define-plan-workspace-contract
 spec: core-workspace-and-artifact-system
-status: todo
+status: done
 title: Define .plan workspace contract
 type: story
-updated_at: "2026-04-16T05:46:33Z"
+updated_at: "2026-04-16T06:00:44Z"
 ---
 
 # Define .plan workspace contract
