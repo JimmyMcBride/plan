@@ -3,11 +3,11 @@ created_at: "2026-04-16T05:33:06Z"
 epic: dependency-graph-and-ready-work
 project: plan
 slug: dependency-graph-and-ready-work
-status: draft
+status: approved
 target_version: v3
 title: Dependency Graph and Ready Work Spec
 type: spec
-updated_at: "2026-04-16T05:33:06Z"
+updated_at: "2026-04-16T06:28:46Z"
 ---
 
 # Dependency Graph and Ready Work Spec
@@ -79,10 +79,9 @@ Without dependency modeling, larger plans become manual sorting exercises and it
 
 ## Story Breakdown
 
-- [ ] Define first dependency representation
-- [ ] Add validation for dependency references
-- [ ] Add ready-work calculation and CLI output
-- [ ] Test blocked/ready transitions thoroughly
+- [ ] [Add dependency metadata to stories](../stories/add-dependency-metadata-to-stories.md)
+- [ ] [Compute ready and blocked work sets](../stories/compute-ready-and-blocked-work-sets.md)
+- [ ] [Expose ready-work CLI and status views](../stories/expose-ready-work-cli-and-status-views.md)
 
 ## Resources
 

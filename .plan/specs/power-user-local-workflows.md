@@ -3,11 +3,11 @@ created_at: "2026-04-16T05:33:06Z"
 epic: power-user-local-workflows
 project: plan
 slug: power-user-local-workflows
-status: draft
+status: approved
 target_version: v3
 title: Power-User Local Workflows Spec
 type: spec
-updated_at: "2026-04-16T05:33:06Z"
+updated_at: "2026-04-16T06:28:47Z"
 ---
 
 # Power-User Local Workflows Spec
@@ -77,9 +77,9 @@ As projects grow, users need stronger local conventions around multiple epics, v
 
 ## Story Breakdown
 
-- [ ] Define the first power-user workflow helpers worth shipping
-- [ ] Improve cross-epic and cross-version visibility
-- [ ] Validate advanced local flows on real project work
+- [ ] [Add filtered status views for large local plans](../stories/add-filtered-status-views-for-large-local-plans.md)
+- [ ] [Add advanced roadmap and story selection helpers](../stories/add-advanced-roadmap-and-story-selection-helpers.md)
+- [ ] [Document and test advanced local planning workflows](../stories/document-and-test-advanced-local-planning-workflows.md)
 
 ## Resources
 

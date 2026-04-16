@@ -3,11 +3,11 @@ created_at: "2026-04-16T05:33:06Z"
 epic: plan-quality-and-verification-engine
 project: plan
 slug: plan-quality-and-verification-engine
-status: draft
+status: approved
 target_version: v2
 title: Plan Quality and Verification Engine Spec
 type: spec
-updated_at: "2026-04-16T05:33:06Z"
+updated_at: "2026-04-16T06:28:46Z"
 ---
 
 # Plan Quality and Verification Engine Spec
@@ -79,10 +79,9 @@ Without quality signals, `plan` risks producing formally correct files that stil
 
 ## Story Breakdown
 
-- [ ] Define first quality ruleset for specs
-- [ ] Define first quality ruleset for stories
-- [ ] Expose issues through a user-friendly CLI surface
-- [ ] Test warning and failure behavior against real sample plans
+- [ ] [Add spec quality rules for required planning sections](../stories/add-spec-quality-rules-for-required-planning-sections.md)
+- [ ] [Add story quality rules for execution readiness](../stories/add-story-quality-rules-for-execution-readiness.md)
+- [ ] [Expose plan check command and reporting](../stories/expose-plan-check-command-and-reporting.md)
 
 ## Resources
 

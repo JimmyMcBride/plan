@@ -3,11 +3,11 @@ created_at: "2026-04-16T05:33:06Z"
 epic: brain-interop-and-planning-imports
 project: plan
 slug: brain-interop-and-planning-imports
-status: draft
+status: approved
 target_version: v3
 title: Brain Interop and Planning Imports Spec
 type: spec
-updated_at: "2026-04-16T05:33:06Z"
+updated_at: "2026-04-16T06:28:46Z"
 ---
 
 # Brain Interop and Planning Imports Spec
@@ -79,10 +79,9 @@ Without an interop story, users may need to re-create valuable planning work by 
 
 ## Story Breakdown
 
-- [ ] Define import candidate discovery
-- [ ] Define `brain` to `plan` mapping rules
-- [ ] Add provenance fields and links
-- [ ] Test import on real `brain` planning material
+- [ ] [Inspect brain workspaces for import candidates](../stories/inspect-brain-workspaces-for-import-candidates.md)
+- [ ] [Import brain planning notes into plan artifacts](../stories/import-brain-planning-notes-into-plan-artifacts.md)
+- [ ] [Preserve import provenance and review flow](../stories/preserve-import-provenance-and-review-flow.md)
 
 ## Resources
 
