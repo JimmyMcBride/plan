@@ -163,6 +163,6 @@ plan skills targets --scope both --agent codex --project .
 
 ## Maintainers
 
-- Keep pull request titles and descriptions release-note-friendly. Generated GitHub release notes use merged PR metadata.
+- Keep pull request titles and descriptions release-note-friendly. The `## Release Notes` section in the PR template is the source of truth for published release changelogs.
 - Include the verification commands you ran in the PR so the release notes have a clean audit trail.
 - Use `scripts/next-release-tag.sh` if you need to preview the next patch tag locally.
