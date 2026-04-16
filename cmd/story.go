@@ -27,7 +27,7 @@ func newStoryCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Printf("Created story %s\n", note.Path)
+			fmt.Fprintf(cmd.OutOrStdout(), "Created story %s\n", note.Path)
 			return nil
 		},
 	}
@@ -54,7 +54,7 @@ func newStoryCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Printf("Updated story %s\n", note.Path)
+			fmt.Fprintf(cmd.OutOrStdout(), "Updated story %s\n", note.Path)
 			return nil
 		},
 	}
@@ -65,6 +65,7 @@ func newStoryCommand() *cobra.Command {
 
 	var epicFilter string
 	var statusFilter string
+	var versionFilter string
 	list := &cobra.Command{
 		Use:   "list",
 		Short: "List stories",
@@ -74,17 +75,26 @@ func newStoryCommand() *cobra.Command {
 				return err
 			}
 			if len(items) == 0 {
-				fmt.Println("No stories found.")
+				fmt.Fprintln(cmd.OutOrStdout(), "No stories found.")
 				return nil
 			}
+			printed := 0
 			for _, item := range items {
-				fmt.Printf("%s [%s] epic=%s spec=%s\n", item.Title, item.Status, item.Epic, item.Spec)
+				if versionFilter != "" && item.TargetVersion != versionFilter {
+					continue
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "%s [%s] epic=%s spec=%s\n", item.Title, item.Status, item.Epic, item.Spec)
+				printed++
+			}
+			if printed == 0 {
+				fmt.Fprintln(cmd.OutOrStdout(), "No stories found.")
 			}
 			return nil
 		},
 	}
 	list.Flags().StringVar(&epicFilter, "epic", "", "filter by epic slug")
 	list.Flags().StringVar(&statusFilter, "status", "", "filter by story status")
+	list.Flags().StringVar(&versionFilter, "version", "", "filter by target roadmap version")
 
 	show := &cobra.Command{
 		Use:   "show <story-slug>",
@@ -95,7 +105,7 @@ func newStoryCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Printf("%s\n\n%s", note.Path, note.Content)
+			fmt.Fprintf(cmd.OutOrStdout(), "%s\n\n%s", note.Path, note.Content)
 			return nil
 		},
 	}

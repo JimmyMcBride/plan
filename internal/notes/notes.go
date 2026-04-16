@@ -100,7 +100,8 @@ func Update(path string, input UpdateInput) (*Note, error) {
 }
 
 func parse(raw []byte) (map[string]any, string, error) {
-	content := string(raw)
+	content := strings.ReplaceAll(string(raw), "\r\n", "\n")
+	content = strings.ReplaceAll(content, "\r", "\n")
 	meta := map[string]any{}
 	if !strings.HasPrefix(content, "---\n") {
 		return meta, strings.TrimLeft(content, "\n"), nil
@@ -171,7 +172,7 @@ func AppendUnderHeading(content, heading, entry string) string {
 			}
 			title := strings.ToLower(strings.TrimSpace(strings.TrimLeft(trimmed, "#")))
 			if inSection && level <= sectionLevel && !inserted {
-				out = append(out, "", strings.TrimRight(entry, "\n"))
+				out = appendEntryBlock(out, entry)
 				inserted = true
 				inSection = false
 			}
@@ -184,16 +185,23 @@ func AppendUnderHeading(content, heading, entry string) string {
 	}
 
 	if inSection && !inserted {
-		out = append(out, "", strings.TrimRight(entry, "\n"))
+		out = appendEntryBlock(out, entry)
 		inserted = true
 	}
 	if !inserted {
-		if len(out) > 0 {
+		if len(out) > 0 && strings.TrimSpace(out[len(out)-1]) != "" {
 			out = append(out, "")
 		}
 		out = append(out, "## "+heading, "", strings.TrimRight(entry, "\n"))
 	}
 	return strings.Join(out, "\n") + "\n"
+}
+
+func appendEntryBlock(lines []string, entry string) []string {
+	if len(lines) == 0 || strings.TrimSpace(lines[len(lines)-1]) != "" {
+		lines = append(lines, "")
+	}
+	return append(lines, strings.TrimRight(entry, "\n"))
 }
 
 func ExtractSection(content, heading string) string {

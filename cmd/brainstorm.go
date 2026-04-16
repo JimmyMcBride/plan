@@ -3,6 +3,8 @@ package cmd
 import (
 	"fmt"
 
+	"plan/internal/planning"
+
 	"github.com/spf13/cobra"
 )
 
@@ -12,12 +14,18 @@ func newBrainstormCommand() *cobra.Command {
 		Short: "Manage brainstorm notes",
 	}
 
+	var focusQuestion string
+	var seedIdeas []string
 	start := &cobra.Command{
 		Use:   "start <topic>",
 		Short: "Start a new brainstorm",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			note, err := planningManager().CreateBrainstorm(args[0])
+			note, err := planningManager().CreateBrainstormWithInput(planning.BrainstormCreateInput{
+				Topic:         args[0],
+				FocusQuestion: focusQuestion,
+				Ideas:         seedIdeas,
+			})
 			if err != nil {
 				return err
 			}
@@ -25,9 +33,12 @@ func newBrainstormCommand() *cobra.Command {
 			return nil
 		},
 	}
+	start.Flags().StringVar(&focusQuestion, "focus", "", "focus question to seed into the brainstorm")
+	start.Flags().StringArrayVar(&seedIdeas, "idea", nil, "initial idea to capture; repeatable")
 
 	var ideaBody string
 	var ideaStdin bool
+	var section string
 	idea := &cobra.Command{
 		Use:   "idea <brainstorm-slug>",
 		Short: "Append an idea to a brainstorm",
@@ -40,7 +51,7 @@ func newBrainstormCommand() *cobra.Command {
 			if body == "" {
 				return fmt.Errorf("idea body is required")
 			}
-			note, err := planningManager().AddIdea(args[0], body)
+			note, err := planningManager().AddBrainstormEntry(args[0], section, body)
 			if err != nil {
 				return err
 			}
@@ -50,6 +61,7 @@ func newBrainstormCommand() *cobra.Command {
 	}
 	idea.Flags().StringVarP(&ideaBody, "body", "b", "", "idea body")
 	idea.Flags().BoolVar(&ideaStdin, "stdin", false, "read idea body from stdin")
+	idea.Flags().StringVar(&section, "section", "ideas", "brainstorm section: ideas, focus-question, desired-outcome, constraints, open-questions, raw-notes")
 
 	show := &cobra.Command{
 		Use:   "show <brainstorm-slug>",

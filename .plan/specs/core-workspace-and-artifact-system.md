@@ -3,11 +3,11 @@ created_at: "2026-04-16T05:33:06Z"
 epic: core-workspace-and-artifact-system
 project: plan
 slug: core-workspace-and-artifact-system
-status: draft
+status: approved
 target_version: v1
 title: Core Workspace and Artifact System Spec
 type: spec
-updated_at: "2026-04-16T05:33:06Z"
+updated_at: "2026-04-16T05:46:33Z"
 ---
 
 # Core Workspace and Artifact System Spec
@@ -88,9 +88,9 @@ Right now the repo has early planning notes, but not a fully defined and durable
 
 ## Story Breakdown
 
-- [ ] Define final `.plan/` directory contract
-- [ ] Harden workspace metadata and migration reporting
-- [ ] Add tests for init, doctor, and update behavior
+- [ ] [Define .plan workspace contract](../stories/define-plan-workspace-contract.md)
+- [ ] [Harden workspace metadata and repair lifecycle](../stories/harden-workspace-metadata-and-repair-lifecycle.md)
+- [ ] [Expand workspace test coverage](../stories/expand-workspace-test-coverage.md)
 
 ## Resources
 

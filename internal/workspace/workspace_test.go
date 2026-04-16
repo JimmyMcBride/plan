@@ -3,6 +3,7 @@ package workspace
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -19,6 +20,11 @@ func TestInitCreatesPlanWorkspace(t *testing.T) {
 	}
 
 	for _, path := range []string{
+		filepath.Join(root, ".plan", "brainstorms"),
+		filepath.Join(root, ".plan", "epics"),
+		filepath.Join(root, ".plan", "specs"),
+		filepath.Join(root, ".plan", "stories"),
+		filepath.Join(root, ".plan", ".meta"),
 		filepath.Join(root, ".plan", "PROJECT.md"),
 		filepath.Join(root, ".plan", "ROADMAP.md"),
 		filepath.Join(root, ".plan", ".meta", "workspace.json"),
@@ -27,6 +33,64 @@ func TestInitCreatesPlanWorkspace(t *testing.T) {
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("expected %s: %v", path, err)
 		}
+	}
+}
+
+func TestWorkspaceContractSeparatesUserAuthoredAndToolManagedSurfaces(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+
+	info, err := manager.Resolve()
+	if err != nil {
+		t.Fatal(err)
+	}
+	contract := info.Contract()
+
+	if len(contract.UserAuthored) != 6 {
+		t.Fatalf("unexpected user-authored surface count: %d", len(contract.UserAuthored))
+	}
+	if len(contract.ToolManaged) != 3 {
+		t.Fatalf("unexpected tool-managed surface count: %d", len(contract.ToolManaged))
+	}
+
+	for _, surface := range contract.UserAuthored {
+		if surface.Kind != "user_authored" {
+			t.Fatalf("unexpected user-authored surface kind: %+v", surface)
+		}
+		if !strings.HasPrefix(surface.Path, ".plan/") {
+			t.Fatalf("unexpected user-authored surface path: %+v", surface)
+		}
+	}
+
+	for _, surface := range contract.ToolManaged {
+		if surface.Kind != "tool_managed" {
+			t.Fatalf("unexpected tool-managed surface kind: %+v", surface)
+		}
+		if !strings.HasPrefix(surface.Path, ".plan/") {
+			t.Fatalf("unexpected tool-managed surface path: %+v", surface)
+		}
+	}
+}
+
+func TestDoctorReportsAdoptableBeforeInit(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# repo\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	manager := New(root)
+
+	report, err := manager.Doctor()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Initialized {
+		t.Fatalf("expected uninitialized workspace report: %+v", report)
+	}
+	if report.WorkspaceStatus != "adoptable" || report.MigrationStatus != "not_initialized" {
+		t.Fatalf("unexpected adoptable report state: %+v", report)
+	}
+	if !contains(report.Guidance, "Run `plan adopt --project .` to create and register the local .plan workspace for this repo.") {
+		t.Fatalf("expected adopt guidance: %+v", report)
 	}
 }
 
@@ -49,5 +113,361 @@ func TestDoctorReportsCurrentAfterInit(t *testing.T) {
 	}
 	if report.PlanningModel != PlanningModel {
 		t.Fatalf("unexpected planning model: %+v", report)
+	}
+}
+
+func TestDoctorReportsMissingWorkspaceSurfaces(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+	if _, err := manager.Init(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(root, ".plan", "ROADMAP.md")); err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := manager.Doctor()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.WorkspaceStatus != "missing" {
+		t.Fatalf("unexpected workspace status: %+v", report)
+	}
+	if !contains(report.Missing, "ROADMAP.md") {
+		t.Fatalf("expected missing roadmap in report: %+v", report)
+	}
+	if report.MigrationStatus != "current" {
+		t.Fatalf("unexpected migration status: %+v", report)
+	}
+	if !contains(report.Guidance, "Run `plan update --project .` to recreate missing plan-managed surfaces without overwriting user-authored notes.") {
+		t.Fatalf("expected missing-workspace guidance: %+v", report)
+	}
+}
+
+func TestDoctorReportsPartialWhenToolManagedSurfacesAreMissing(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+	if _, err := manager.Init(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(root, ".plan", ".meta", "workspace.json")); err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := manager.Doctor()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.WorkspaceStatus != "partial" {
+		t.Fatalf("unexpected workspace status: %+v", report)
+	}
+	if report.MigrationStatus != "partial" {
+		t.Fatalf("unexpected migration status for partial workspace: %+v", report)
+	}
+	if !contains(report.Missing, "workspace.json") {
+		t.Fatalf("expected missing workspace metadata in report: %+v", report)
+	}
+	if !contains(report.Guidance, "Run `plan adopt --project .` to finish adopting the partial .plan workspace.") {
+		t.Fatalf("expected partial-workspace guidance: %+v", report)
+	}
+}
+
+func TestDoctorReportsBrokenToolManagedState(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+	if _, err := manager.Init(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".plan", ".meta", "workspace.json"), []byte("{broken"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := manager.Doctor()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.WorkspaceStatus != "broken" {
+		t.Fatalf("unexpected workspace status: %+v", report)
+	}
+	if !contains(report.Broken, "workspace.json") {
+		t.Fatalf("expected broken workspace metadata in report: %+v", report)
+	}
+	if !contains(report.Guidance, "Run `plan update --project .` to repair broken plan-managed metadata and restore a current workspace.") {
+		t.Fatalf("expected broken-workspace guidance: %+v", report)
+	}
+}
+
+func TestUpdateRepairsToolManagedStateWithoutTouchingUserNotes(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+	if _, err := manager.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	projectPath := filepath.Join(root, ".plan", "PROJECT.md")
+	const customProject = "# custom project\n"
+	if err := os.WriteFile(projectPath, []byte(customProject), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".plan", ".meta", "workspace.json"), []byte("{broken"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(root, ".plan", ".meta", "migrations.json")); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := manager.Update()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !contains(result.Updated, ".plan/.meta/workspace.json") {
+		t.Fatalf("expected workspace metadata repair: %+v", result)
+	}
+	if !contains(result.Created, ".plan/.meta/migrations.json") {
+		t.Fatalf("expected migration state recreation: %+v", result)
+	}
+
+	raw, err := os.ReadFile(projectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != customProject {
+		t.Fatalf("project note was modified:\n%s", raw)
+	}
+
+	report, err := manager.Doctor()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.WorkspaceStatus != "current" || report.MigrationStatus != "current" {
+		t.Fatalf("expected repaired workspace to be current: %+v", report)
+	}
+}
+
+func TestAdoptCreatesWorkspaceWithoutTouchingRepoFiles(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+
+	readmePath := filepath.Join(root, "README.md")
+	const readme = "# existing repo\n"
+	if err := os.WriteFile(readmePath, []byte(readme), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := manager.Adopt()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !contains(result.Created, ".plan") || !contains(result.Created, ".plan/PROJECT.md") || !contains(result.Created, ".plan/.meta/workspace.json") {
+		t.Fatalf("expected adopt to create plan workspace surfaces: %+v", result)
+	}
+
+	raw, err := os.ReadFile(readmePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != readme {
+		t.Fatalf("expected non-plan repo files to stay untouched:\n%s", raw)
+	}
+
+	report, err := manager.Doctor()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.WorkspaceStatus != "current" {
+		t.Fatalf("expected adopted workspace to be current: %+v", report)
+	}
+}
+
+func TestAdoptRepairsPartialWorkspace(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+	if err := os.MkdirAll(filepath.Join(root, ".plan"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	projectPath := filepath.Join(root, ".plan", "PROJECT.md")
+	const customProject = "# preserved project\n"
+	if err := os.WriteFile(projectPath, []byte(customProject), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := manager.Adopt()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !contains(result.Created, ".plan/.meta/workspace.json") {
+		t.Fatalf("expected adopt to fill missing managed surfaces: %+v", result)
+	}
+	raw, err := os.ReadFile(projectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != customProject {
+		t.Fatalf("expected adopt to preserve existing plan notes:\n%s", raw)
+	}
+
+	report, err := manager.Doctor()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.WorkspaceStatus != "current" || report.MigrationStatus != "current" {
+		t.Fatalf("expected adopted partial workspace to become current: %+v", report)
+	}
+}
+
+func TestMigrationStateRecordsMeaningfulRepairDetails(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+
+	if _, err := manager.Adopt(); err != nil {
+		t.Fatal(err)
+	}
+	state, err := manager.ReadMigrationState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.LastOperation != "adopt" || len(state.History) != 1 {
+		t.Fatalf("expected adopt run to be recorded: %+v", state)
+	}
+	if !contains(state.LastCreated, ".plan/PROJECT.md") {
+		t.Fatalf("expected adopt details to include created workspace files: %+v", state)
+	}
+
+	if err := os.Remove(filepath.Join(root, ".plan", "ROADMAP.md")); err != nil {
+		t.Fatal(err)
+	}
+	result, err := manager.Update()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !contains(result.Created, ".plan/ROADMAP.md") {
+		t.Fatalf("expected update to repair roadmap: %+v", result)
+	}
+
+	state, err = manager.ReadMigrationState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.LastOperation != "update" || len(state.History) != 2 {
+		t.Fatalf("expected update repair to append migration history: %+v", state)
+	}
+	last := state.History[len(state.History)-1]
+	if last.Operation != "update" || !contains(last.Created, ".plan/ROADMAP.md") {
+		t.Fatalf("expected update run details in migration history: %+v", last)
+	}
+}
+
+func TestRepeatedAdoptAndUpdateRemainIdempotent(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+
+	if _, err := manager.Adopt(); err != nil {
+		t.Fatal(err)
+	}
+	state, err := manager.ReadMigrationState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	initialHistory := len(state.History)
+
+	adoptAgain, err := manager.Adopt()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(adoptAgain.Created) != 0 || len(adoptAgain.Updated) != 0 {
+		t.Fatalf("expected repeated adopt to stay idempotent: %+v", adoptAgain)
+	}
+	updateAgain, err := manager.Update()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(updateAgain.Created) != 0 || len(updateAgain.Updated) != 0 {
+		t.Fatalf("expected repeated update to stay idempotent: %+v", updateAgain)
+	}
+
+	state, err = manager.ReadMigrationState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(state.History) != initialHistory {
+		t.Fatalf("expected no-op adopt/update to avoid mutation churn: %+v", state)
+	}
+}
+
+func TestUpdateRecreatesMissingScaffoldingWithoutOverwritingExistingNotes(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+	if _, err := manager.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	projectPath := filepath.Join(root, ".plan", "PROJECT.md")
+	const customProject = "# kept project note\n"
+	if err := os.WriteFile(projectPath, []byte(customProject), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(root, ".plan", "ROADMAP.md")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(filepath.Join(root, ".plan", "stories")); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := manager.Update()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !contains(result.Created, ".plan/ROADMAP.md") {
+		t.Fatalf("expected roadmap recreation: %+v", result)
+	}
+	if !contains(result.Created, ".plan/stories") {
+		t.Fatalf("expected stories directory recreation: %+v", result)
+	}
+
+	raw, err := os.ReadFile(projectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != customProject {
+		t.Fatalf("project note was overwritten:\n%s", raw)
+	}
+}
+
+func TestUpdateIsIdempotentWhenWorkspaceIsCurrent(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+	if _, err := manager.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := manager.Update()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first.Created) != 0 || len(first.Updated) != 0 {
+		t.Fatalf("expected no changes for current workspace: %+v", first)
+	}
+
+	second, err := manager.Update()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(second.Created) != 0 || len(second.Updated) != 0 {
+		t.Fatalf("expected second update to stay idempotent: %+v", second)
+	}
+}
+
+func TestEnsureInitializedRejectsInvalidWorkspaceMetadata(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+	if _, err := manager.Init(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".plan", ".meta", "workspace.json"), []byte(`{"schema_version":1}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := manager.EnsureInitialized(); err == nil {
+		t.Fatal("expected invalid workspace metadata to fail initialization check")
 	}
 }

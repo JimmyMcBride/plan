@@ -3,11 +3,11 @@ created_at: "2026-04-16T05:33:06Z"
 epic: spec-driven-planning-workflow
 project: plan
 slug: spec-driven-planning-workflow
-status: draft
+status: done
 target_version: v1
 title: Spec-Driven Planning Workflow Spec
 type: spec
-updated_at: "2026-04-16T05:33:06Z"
+updated_at: "2026-04-16T06:18:17Z"
 ---
 
 # Spec-Driven Planning Workflow Spec
@@ -84,10 +84,9 @@ Developers need a planning flow that is simple enough to use constantly and stri
 
 ## Story Breakdown
 
-- [ ] Finalize brainstorm note behavior
-- [ ] Harden epic promotion and spec seeding
-- [ ] Enforce spec approval gate for story creation
-- [ ] Improve status reporting across epics and stories
+- [ ] [Harden brainstorm capture](../stories/harden-brainstorm-capture.md)
+- [ ] [Improve epic promotion and spec seeding](../stories/improve-epic-promotion-and-spec-seeding.md)
+- [ ] [Enforce spec gate and story lifecycle](../stories/enforce-spec-gate-and-story-lifecycle.md)
 
 ## Resources
 

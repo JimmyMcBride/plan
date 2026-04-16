@@ -3,11 +3,11 @@ created_at: "2026-04-16T05:33:06Z"
 epic: workspace-adoption-update-and-migration
 project: plan
 slug: workspace-adoption-update-and-migration
-status: draft
+status: done
 target_version: v2
 title: Workspace Adoption, Update, and Migration Spec
 type: spec
-updated_at: "2026-04-16T05:33:06Z"
+updated_at: "2026-04-16T06:56:00Z"
 ---
 
 # Workspace Adoption, Update, and Migration Spec
@@ -80,9 +80,9 @@ Fresh init alone is not enough for long-lived usage. The tool needs a clear answ
 
 ## Story Breakdown
 
-- [ ] Define adoption behavior for unmanaged repos
-- [ ] Expand doctor reporting around migration state
-- [ ] Add repair tests for partial and broken workspace cases
+- [ ] [Detect adoptable workspace states](../stories/detect-adoptable-workspace-states.md)
+- [ ] [Add adopt command for existing repos](../stories/add-adopt-command-for-existing-repos.md)
+- [ ] [Expand migration tracking and repair coverage](../stories/expand-migration-tracking-and-repair-coverage.md)
 
 ## Resources
 

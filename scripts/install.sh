@@ -15,6 +15,10 @@ die() {
   exit 1
 }
 
+log() {
+  printf 'plan install: %s\n' "$1"
+}
+
 need_cmd() {
   command -v "$1" >/dev/null 2>&1
 }
@@ -66,6 +70,12 @@ fetch() {
 }
 
 latest_version() {
+  version="$(latest_version_from_redirect)"
+  if [ -n "${version}" ]; then
+    printf '%s\n' "${version}"
+    return
+  fi
+
   if need_cmd curl; then
     RESPONSE="$(curl -fsSL "${API_BASE}/repos/${OWNER}/${REPO}/releases/latest" 2>/dev/null || true)"
   elif need_cmd wget; then
@@ -76,6 +86,27 @@ latest_version() {
   printf '%s\n' "${RESPONSE}" |
     sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' |
     head -n 1
+}
+
+latest_version_from_redirect() {
+  RELEASES_LATEST="https://github.com/${OWNER}/${REPO}/releases/latest"
+  if need_cmd curl; then
+    EFFECTIVE_URL="$(curl -fsSL -o /dev/null -w '%{url_effective}' "${RELEASES_LATEST}" 2>/dev/null || true)"
+    printf '%s\n' "${EFFECTIVE_URL}" |
+      sed -n 's#.*/tag/\(v[0-9][^/]*\)/\{0,1\}$#\1#p' |
+      head -n 1
+    return
+  fi
+  if need_cmd wget; then
+    RESPONSE="$(wget -S --spider "${RELEASES_LATEST}" 2>&1 || true)"
+    printf '%s\n' "${RESPONSE}" |
+      awk '/^  Location: / { print $2 }' |
+      tr -d '\r' |
+      sed -n 's#.*/tag/\(v[0-9][^/]*\)/\{0,1\}$#\1#p' |
+      tail -n 1
+    return
+  fi
+  die "need curl or wget"
 }
 
 detect_os() {
@@ -134,7 +165,7 @@ install_from_source_main() {
     chmod 0755 "${INSTALL_DIR}/plan"
   fi
 
-  printf 'Installed to %s/plan by building the current main branch source\n' "${INSTALL_DIR}"
+  log "installed to ${INSTALL_DIR}/plan by building the current main branch source"
   refresh_global_skills
 }
 
@@ -143,6 +174,7 @@ TMPDIR="$(mktemp -d)"
 trap 'rm -rf "${TMPDIR}"' EXIT INT TERM
 
 if [ -z "${VERSION}" ]; then
+  log "no published release found; falling back to a source build from main"
   install_from_source_main
   exit 0
 fi
@@ -157,7 +189,7 @@ ARCHIVE_PATH="${TMPDIR}/${ARCHIVE}"
 CHECKSUMS_PATH="${TMPDIR}/${CHECKSUMS}"
 BIN_PATH="${TMPDIR}/plan"
 
-printf 'Installing plan %s for %s/%s\n' "${VERSION}" "${OS}" "${ARCH}"
+log "installing ${VERSION} for ${OS}/${ARCH}"
 fetch "${ARCHIVE_URL}" "${ARCHIVE_PATH}"
 fetch "${CHECKSUMS_URL}" "${CHECKSUMS_PATH}"
 
@@ -177,5 +209,5 @@ else
   chmod 0755 "${INSTALL_DIR}/plan"
 fi
 
-printf 'Installed to %s/plan\n' "${INSTALL_DIR}"
+log "installed to ${INSTALL_DIR}/plan"
 refresh_global_skills

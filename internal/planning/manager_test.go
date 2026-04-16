@@ -9,7 +9,7 @@ import (
 	"plan/internal/workspace"
 )
 
-func TestPromoteBrainstormSeedsSpec(t *testing.T) {
+func TestPromoteBrainstormSeedsEpicAndSpecWithProvenance(t *testing.T) {
 	root := t.TempDir()
 	ws := workspace.New(root)
 	if _, err := ws.Init(); err != nil {
@@ -17,11 +17,23 @@ func TestPromoteBrainstormSeedsSpec(t *testing.T) {
 	}
 	manager := New(ws)
 
-	brainstorm, err := manager.CreateBrainstorm("Auth System")
+	brainstorm, err := manager.CreateBrainstormWithInput(BrainstormCreateInput{
+		Topic:         "Auth System",
+		FocusQuestion: "How do we make sign-in simpler without lowering trust?",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := manager.AddIdea("auth-system", "Support passwordless sign-in"); err != nil {
+	if _, err := manager.AddBrainstormEntry("auth-system", "desired-outcome", "Deliver an auth flow that feels low-friction for small teams."); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.AddBrainstormEntry("auth-system", "constraints", "Keep setup local-first and avoid hosted auth dependencies."); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.AddBrainstormEntry("auth-system", "ideas", "Support passwordless sign-in"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.AddBrainstormEntry("auth-system", "open-questions", "How should account recovery work?"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -36,10 +48,113 @@ func TestPromoteBrainstormSeedsSpec(t *testing.T) {
 		t.Fatalf("unexpected spec path: %s", bundle.Spec.Path)
 	}
 	if got := bundle.Epic.Metadata["source_brainstorm"]; got != brainstorm.Path {
-		t.Fatalf("unexpected brainstorm link: %v", got)
+		t.Fatalf("unexpected epic brainstorm link: %v", got)
+	}
+	if got := bundle.Spec.Metadata["source_brainstorm"]; got != brainstorm.Path {
+		t.Fatalf("unexpected spec brainstorm link: %v", got)
+	}
+	if !strings.Contains(bundle.Epic.Content, "Deliver an auth flow that feels low-friction for small teams.") {
+		t.Fatalf("expected brainstorm outcome in epic:\n%s", bundle.Epic.Content)
+	}
+	if !strings.Contains(bundle.Epic.Content, "[Source Brainstorm](../brainstorms/auth-system.md)") {
+		t.Fatalf("expected brainstorm link in epic resources:\n%s", bundle.Epic.Content)
+	}
+	if !strings.Contains(bundle.Spec.Content, "How do we make sign-in simpler without lowering trust?") {
+		t.Fatalf("expected brainstorm focus question in spec problem:\n%s", bundle.Spec.Content)
 	}
 	if !strings.Contains(bundle.Spec.Content, "Support passwordless sign-in") {
 		t.Fatalf("expected brainstorm idea in spec:\n%s", bundle.Spec.Content)
+	}
+	if !strings.Contains(bundle.Spec.Content, "Keep setup local-first and avoid hosted auth dependencies.") {
+		t.Fatalf("expected brainstorm constraints in spec:\n%s", bundle.Spec.Content)
+	}
+	if !strings.Contains(bundle.Spec.Content, "How should account recovery work?") {
+		t.Fatalf("expected brainstorm questions in spec:\n%s", bundle.Spec.Content)
+	}
+	if strings.Contains(bundle.Spec.Content, "**") {
+		t.Fatalf("expected seeded spec content to avoid brainstorm timestamp noise:\n%s", bundle.Spec.Content)
+	}
+
+	promotedBrainstorm, err := notes.Read(filepath.Join(root, ".plan", "brainstorms", "auth-system.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if promotedBrainstorm.Metadata["status"] != "promoted" {
+		t.Fatalf("expected brainstorm to be marked promoted: %+v", promotedBrainstorm.Metadata)
+	}
+	if promotedBrainstorm.Metadata["epic"] != "auth-system" || promotedBrainstorm.Metadata["spec"] != "auth-system" {
+		t.Fatalf("expected brainstorm promotion links: %+v", promotedBrainstorm.Metadata)
+	}
+}
+
+func TestCreateBrainstormWithInputSeedsFocusAndIdeas(t *testing.T) {
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := New(ws)
+
+	note, err := manager.CreateBrainstormWithInput(BrainstormCreateInput{
+		Topic:         "Release System",
+		FocusQuestion: "What keeps releases safe and boring?",
+		Ideas: []string{
+			"Add dry-run release validation",
+			"Publish checksums with each build",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	raw, err := notes.Read(filepath.Join(root, ".plan", "brainstorms", "release-system.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if note.Path != ".plan/brainstorms/release-system.md" {
+		t.Fatalf("unexpected brainstorm path: %s", note.Path)
+	}
+	if got := notes.ExtractSection(raw.Content, "Focus Question"); got != "What keeps releases safe and boring?" {
+		t.Fatalf("unexpected focus question:\n%s", got)
+	}
+	ideas := notes.ExtractSection(raw.Content, "Ideas")
+	if !strings.Contains(ideas, "- Add dry-run release validation") || !strings.Contains(ideas, "- Publish checksums with each build") {
+		t.Fatalf("expected seeded brainstorm ideas:\n%s", ideas)
+	}
+	if strings.Contains(ideas, "**") {
+		t.Fatalf("expected brainstorm ideas without timestamp formatting:\n%s", ideas)
+	}
+}
+
+func TestAddBrainstormEntrySupportsSectionsAndMultilineBullets(t *testing.T) {
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := New(ws)
+
+	if _, err := manager.CreateBrainstorm("Agent Workflow"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.AddIdea("agent-workflow", "Capture dependencies\nTrack verification upfront"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.AddBrainstormEntry("agent-workflow", "open-questions", "How strict should approval be?\nShould specs own rollout notes?"); err != nil {
+		t.Fatal(err)
+	}
+
+	raw, err := notes.Read(filepath.Join(root, ".plan", "brainstorms", "agent-workflow.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ideas := notes.ExtractSection(raw.Content, "Ideas")
+	if !strings.Contains(ideas, "- Capture dependencies") || !strings.Contains(ideas, "- Track verification upfront") {
+		t.Fatalf("expected multiline idea capture to produce bullets:\n%s", ideas)
+	}
+	questions := notes.ExtractSection(raw.Content, "Open Questions")
+	if !strings.Contains(questions, "- How strict should approval be?") || !strings.Contains(questions, "- Should specs own rollout notes?") {
+		t.Fatalf("expected open questions bullets:\n%s", questions)
 	}
 }
 
@@ -56,6 +171,28 @@ func TestCreateStoryRequiresApprovedSpec(t *testing.T) {
 	}
 	if _, err := manager.CreateStory("billing", "Implement invoices", "", nil, nil, nil); err == nil {
 		t.Fatal("expected draft spec to block story creation")
+	}
+}
+
+func TestCreateStoryRequiresAcceptanceAndVerification(t *testing.T) {
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := New(ws)
+
+	if _, err := manager.CreateEpic("Billing", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.SetSpecStatus("billing", "approved"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.CreateStory("billing", "Implement invoices", "", nil, []string{"Run focused billing tests"}, nil); err == nil {
+		t.Fatal("expected missing acceptance criteria to be rejected")
+	}
+	if _, err := manager.CreateStory("billing", "Implement invoices", "", []string{"Generate invoices from line items"}, nil, nil); err == nil {
+		t.Fatal("expected missing verification steps to be rejected")
 	}
 }
 
@@ -101,4 +238,263 @@ func TestCreateStoryAddsSpecReferenceAndCriteria(t *testing.T) {
 	if !strings.Contains(raw.Content, "[Canonical Spec](../specs/billing.md)") {
 		t.Fatalf("expected canonical spec link in story:\n%s", raw.Content)
 	}
+}
+
+func TestUpdateStorySyncsSpecLifecycleAndEpicProgress(t *testing.T) {
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := New(ws)
+
+	if _, err := manager.CreateEpic("Billing", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.SetSpecStatus("billing", "approved"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.CreateStory(
+		"billing",
+		"Implement invoices",
+		"Create invoice generation flow",
+		[]string{"Generate invoices from line items"},
+		[]string{"Run focused billing tests"},
+		nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := manager.UpdateStory("implement-invoices", StoryChanges{Status: "in_progress"}); err != nil {
+		t.Fatal(err)
+	}
+	spec, err := manager.ReadSpec("billing")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Metadata["status"] != "implementing" {
+		t.Fatalf("expected spec to move into implementing: %+v", spec.Metadata)
+	}
+
+	status, err := manager.Status()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.InProgressStories != 1 {
+		t.Fatalf("expected project in-progress story count to update: %+v", status)
+	}
+	if len(status.Epics) != 1 || status.Epics[0].InProgressStories != 1 || status.Epics[0].DoneStories != 0 {
+		t.Fatalf("expected epic progress counts to update: %+v", status.Epics)
+	}
+
+	if _, err := manager.UpdateStory("implement-invoices", StoryChanges{Status: "done"}); err != nil {
+		t.Fatal(err)
+	}
+	spec, err = manager.ReadSpec("billing")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Metadata["status"] != "done" {
+		t.Fatalf("expected spec to move into done: %+v", spec.Metadata)
+	}
+
+	status, err = manager.Status()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.DoneStories != 1 || status.InProgressStories != 0 {
+		t.Fatalf("expected project status to reflect completed story: %+v", status)
+	}
+	if len(status.Epics) != 1 || status.Epics[0].DoneStories != 1 || status.Epics[0].InProgressStories != 0 {
+		t.Fatalf("expected epic status to reflect completed story: %+v", status.Epics)
+	}
+}
+
+func TestStatusBuildsRoadmapVersionSummaries(t *testing.T) {
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := New(ws)
+
+	if _, err := manager.CreateEpic("Roadmap Work", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.UpdateSpec("roadmap-work", notes.UpdateInput{
+		Metadata: map[string]any{"status": "approved", "target_version": "v2"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.CreateStory(
+		"roadmap-work",
+		"Ship roadmap parser",
+		"Parse version sections from roadmap",
+		[]string{"Version sections are parsed"},
+		[]string{"go test ./internal/planning"},
+		nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.UpdateStory("ship-roadmap-parser", StoryChanges{Status: "in_progress"}); err != nil {
+		t.Fatal(err)
+	}
+
+	status, err := manager.Status()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.RoadmapPath != ".plan/ROADMAP.md" {
+		t.Fatalf("expected roadmap path in status: %+v", status)
+	}
+	if len(status.Versions) < 2 {
+		t.Fatalf("expected roadmap versions in status: %+v", status.Versions)
+	}
+	if status.Versions[1].Key != "v2" || len(status.Versions[1].Epics) != 1 {
+		t.Fatalf("expected v2 version grouping: %+v", status.Versions)
+	}
+	if status.Versions[1].Epics[0].Title != "Roadmap Work" {
+		t.Fatalf("expected roadmap epic in v2 group: %+v", status.Versions[1].Epics)
+	}
+	if len(status.UnassignedEpics) != 0 {
+		t.Fatalf("expected no unassigned epics: %+v", status.UnassignedEpics)
+	}
+}
+
+func TestUpdateStoryStoresNormalizedBlockerMetadata(t *testing.T) {
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := New(ws)
+
+	if _, err := manager.CreateEpic("Billing", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.SetSpecStatus("billing", "approved"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.CreateStory(
+		"billing",
+		"Implement invoices",
+		"Create invoice generation flow",
+		[]string{"Generate invoices from line items"},
+		[]string{"Run focused billing tests"},
+		nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.CreateStory(
+		"billing",
+		"Ship exports",
+		"Create export flow",
+		[]string{"Export invoices"},
+		[]string{"Run export tests"},
+		nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := manager.UpdateStory("ship-exports", StoryChanges{
+		SetBlockers: []string{"Implement invoices", "implement-invoices", " "},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	stories, err := manager.ListStories("billing", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, story := range stories {
+		if story.Title != "Ship exports" {
+			continue
+		}
+		if len(story.Blockers) != 1 || story.Blockers[0] != "implement-invoices" {
+			t.Fatalf("expected normalized blocker slugs: %+v", story)
+		}
+		return
+	}
+	t.Fatal("expected updated story in listing")
+}
+
+func TestReadyWorkSeparatesReadyAndBlockedStories(t *testing.T) {
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := New(ws)
+
+	if _, err := manager.CreateEpic("Billing", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.SetSpecStatus("billing", "approved"); err != nil {
+		t.Fatal(err)
+	}
+	for _, input := range []struct {
+		title string
+		body  string
+	}{
+		{title: "Implement invoices", body: "Create invoice generation flow"},
+		{title: "Ship exports", body: "Create export flow"},
+		{title: "Manual blocker", body: "Needs external review"},
+	} {
+		if _, err := manager.CreateStory(
+			"billing",
+			input.title,
+			input.body,
+			[]string{"Acceptance for " + input.title},
+			[]string{"Verify " + input.title},
+			nil,
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := manager.UpdateStory("ship-exports", StoryChanges{SetBlockers: []string{"implement-invoices"}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.UpdateStory("manual-blocker", StoryChanges{Status: "blocked"}); err != nil {
+		t.Fatal(err)
+	}
+
+	work, err := manager.ReadyWork()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(work.Ready) != 1 || work.Ready[0].Title != "Implement invoices" {
+		t.Fatalf("expected only invoices story to be ready: %+v", work.Ready)
+	}
+	if len(work.Blocked) != 2 {
+		t.Fatalf("expected blocked stories to be returned: %+v", work.Blocked)
+	}
+	assertBlockedReason(t, work.Blocked, "Ship exports", "blocked by implement-invoices [todo]")
+	assertBlockedReason(t, work.Blocked, "Manual blocker", "story status is blocked")
+
+	if _, err := manager.UpdateStory("implement-invoices", StoryChanges{Status: "done"}); err != nil {
+		t.Fatal(err)
+	}
+	work, err = manager.ReadyWork()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(work.Ready) != 1 || work.Ready[0].Title != "Ship exports" {
+		t.Fatalf("expected exports story to become ready once blocker is done: %+v", work.Ready)
+	}
+}
+
+func assertBlockedReason(t *testing.T, blocked []BlockedStory, title, reason string) {
+	t.Helper()
+	for _, item := range blocked {
+		if item.Story.Title != title {
+			continue
+		}
+		for _, current := range item.Reasons {
+			if current == reason {
+				return
+			}
+		}
+		t.Fatalf("expected blocker reason %q for %s: %+v", reason, title, item)
+	}
+	t.Fatalf("expected blocked story %s: %+v", title, blocked)
 }

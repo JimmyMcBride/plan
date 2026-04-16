@@ -3,11 +3,11 @@ created_at: "2026-04-16T05:33:06Z"
 epic: skill-installer-and-release-delivery
 project: plan
 slug: skill-installer-and-release-delivery
-status: draft
+status: done
 target_version: v1
 title: Skill, Installer, and Release Delivery Spec
 type: spec
-updated_at: "2026-04-16T05:33:06Z"
+updated_at: "2026-04-16T06:24:54Z"
 ---
 
 # Skill, Installer, and Release Delivery Spec
@@ -82,10 +82,9 @@ Without a real installer, skill install path, and release automation, every user
 
 ## Story Breakdown
 
-- [ ] Harden installer behavior and checksum validation
-- [ ] Harden skill installation and manifest behavior
-- [ ] Validate tag-and-release workflow from `main`
-- [ ] Tighten README and PR template for release-note-friendly changes
+- [ ] [Harden install and checksum flow](../stories/harden-install-and-checksum-flow.md)
+- [ ] [Harden skill installation behavior](../stories/harden-skill-installation-behavior.md)
+- [ ] [Validate release automation and maintainer docs](../stories/validate-release-automation-and-maintainer-docs.md)
 
 ## Resources
 

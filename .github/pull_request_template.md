@@ -1,16 +1,21 @@
 ## Summary
-- describe the user-facing change in release-note language
-- keep this focused on shipped behavior, not implementation mechanics
+
+- What changed?
+- Why does it matter?
+
+## Testing
+
+- [ ] `go test ./...`
+- [ ] `go build ./...`
+- [ ] Other:
 
 ## Release Notes
-- list the 1-5 highest-signal user-visible changes
-- write these as human-readable bullets that can survive into GitHub-generated release notes
-- if the PR is mainly a fix, say what was broken and what is now correct
 
-## Verification
-- go test ./...
-- go build ./...
+<!-- This section is promoted into the published GitHub release body when this PR ships. -->
+- User-facing change:
+- Planning or workflow impact:
+- Follow-up work:
 
-## Maintainer Notes
-- if this PR changes `skills/plan/`, reinstall the local Plan skill before closeout:
-  - `plan skills install --scope local --agent codex --project .`
+## Planning
+
+- Related epic/spec/story:

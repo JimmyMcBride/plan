@@ -37,6 +37,18 @@ Supporting surfaces:
 - `ROADMAP.md`
 - optional future dependency and ready views
 
+Simple default path:
+
+1. brainstorm
+2. promote
+3. approve spec
+4. create stories
+5. execute
+
+Advanced path stays optional. When a repo grows, you can add roadmap versions,
+dependency blockers, ready-work views, Brain imports, and filtered status views
+without changing the base model.
+
 ## Workspace
 
 ```text
@@ -49,7 +61,26 @@ my-project/
     specs/
     stories/
     .meta/
+      workspace.json
+      migrations.json
 ```
+
+User-authored planning material lives in:
+
+- `.plan/PROJECT.md`
+- `.plan/ROADMAP.md`
+- `.plan/brainstorms/`
+- `.plan/epics/`
+- `.plan/specs/`
+- `.plan/stories/`
+
+Tool-owned state lives only in:
+
+- `.plan/.meta/workspace.json`
+- `.plan/.meta/migrations.json`
+
+`plan update` may repair or normalize tool-owned state. It must not rewrite
+user-authored planning notes.
 
 ## Quick Start
 
@@ -62,6 +93,29 @@ plan spec status --project . newsletter-system --set approved
 plan story create --project . newsletter-system "Build template editor"
 plan status --project .
 ```
+
+## Advanced Local Workflows
+
+These stay optional. If you do not need them, ignore them.
+
+- adopt an existing repo into a managed workspace:
+  `plan adopt --project .`
+- run structural planning checks:
+  `plan check --project .`
+- inspect version slices of the roadmap:
+  `plan roadmap versions --project . --version v2`
+- filter status for larger plans:
+  `plan status --project . --version v3 --epic power-user-local-workflows --story-status todo`
+- surface ready and blocked work:
+  `plan ready --project .`
+- narrow story lists by roadmap version:
+  `plan story list --project . --version v3`
+- inspect or import planning notes from a local Brain workspace:
+  `plan import brain inspect --workspace ../brain`
+  `plan import brain apply --project . --workspace ../brain --epic planning-and-brainstorming-ux`
+
+The rule stays the same: use the advanced surfaces only when the simple default
+stops being enough.
 
 ## Install
 
@@ -99,3 +153,16 @@ Preview install targets:
 ```bash
 plan skills targets --scope both --agent codex --project .
 ```
+
+## Release Flow
+
+- Pull requests run `go test ./...` and `go build ./...` in CI.
+- Every push to `main` tags the next patch release if `HEAD` is not already tagged.
+- The release workflow builds platform archives and publishes a checksum file with the release assets.
+- `scripts/install.sh` only falls back to a source build when no published release can be resolved. Download or checksum failures stay hard failures.
+
+## Maintainers
+
+- Keep pull request titles and descriptions release-note-friendly. The `## Release Notes` section in the PR template is the source of truth for published release changelogs.
+- Include the verification commands you ran in the PR so the release notes have a clean audit trail.
+- Use `scripts/next-release-tag.sh` if you need to preview the next patch tag locally.

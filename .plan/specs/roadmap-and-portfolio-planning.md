@@ -3,11 +3,11 @@ created_at: "2026-04-16T05:33:06Z"
 epic: roadmap-and-portfolio-planning
 project: plan
 slug: roadmap-and-portfolio-planning
-status: draft
+status: done
 target_version: v2
 title: Roadmap and Portfolio Planning Spec
 type: spec
-updated_at: "2026-04-16T05:33:06Z"
+updated_at: "2026-04-16T06:39:51Z"
 ---
 
 # Roadmap and Portfolio Planning Spec
@@ -79,9 +79,9 @@ The core workflow handles individual pieces of work well, but there is not yet a
 
 ## Story Breakdown
 
-- [ ] Finalize roadmap markdown format
-- [ ] Add version-target mapping rules for epics
-- [ ] Add roadmap editing and summary helpers
+- [ ] [Define roadmap version structure and parsing](../stories/define-roadmap-version-structure-and-parsing.md)
+- [ ] [Add roadmap CLI helpers for version views](../stories/add-roadmap-cli-helpers-for-version-views.md)
+- [ ] [Surface roadmap progress in status output](../stories/surface-roadmap-progress-in-status-output.md)
 
 ## Resources
 

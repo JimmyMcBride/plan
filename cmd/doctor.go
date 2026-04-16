@@ -24,10 +24,23 @@ func newDoctorCommand() *cobra.Command {
 			if report.SchemaVersion != 0 {
 				fmt.Printf("schema_version: %d\n", report.SchemaVersion)
 			}
+			fmt.Printf("workspace_status: %s\n", report.WorkspaceStatus)
 			fmt.Printf("migration_status: %s\n", report.MigrationStatus)
 			if len(report.Missing) > 0 {
 				fmt.Println("missing:")
 				for _, item := range report.Missing {
+					fmt.Printf("  - %s\n", item)
+				}
+			}
+			if len(report.Broken) > 0 {
+				fmt.Println("broken:")
+				for _, item := range report.Broken {
+					fmt.Printf("  - %s\n", item)
+				}
+			}
+			if len(report.Guidance) > 0 {
+				fmt.Println("guidance:")
+				for _, item := range report.Guidance {
 					fmt.Printf("  - %s\n", item)
 				}
 			}
