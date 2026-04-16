@@ -174,6 +174,28 @@ func TestCreateStoryRequiresApprovedSpec(t *testing.T) {
 	}
 }
 
+func TestCreateStoryRequiresAcceptanceAndVerification(t *testing.T) {
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := New(ws)
+
+	if _, err := manager.CreateEpic("Billing", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.SetSpecStatus("billing", "approved"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.CreateStory("billing", "Implement invoices", "", nil, []string{"Run focused billing tests"}, nil); err == nil {
+		t.Fatal("expected missing acceptance criteria to be rejected")
+	}
+	if _, err := manager.CreateStory("billing", "Implement invoices", "", []string{"Generate invoices from line items"}, nil, nil); err == nil {
+		t.Fatal("expected missing verification steps to be rejected")
+	}
+}
+
 func TestCreateStoryAddsSpecReferenceAndCriteria(t *testing.T) {
 	root := t.TempDir()
 	ws := workspace.New(root)
@@ -215,5 +237,75 @@ func TestCreateStoryAddsSpecReferenceAndCriteria(t *testing.T) {
 	}
 	if !strings.Contains(raw.Content, "[Canonical Spec](../specs/billing.md)") {
 		t.Fatalf("expected canonical spec link in story:\n%s", raw.Content)
+	}
+}
+
+func TestUpdateStorySyncsSpecLifecycleAndEpicProgress(t *testing.T) {
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := New(ws)
+
+	if _, err := manager.CreateEpic("Billing", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.SetSpecStatus("billing", "approved"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.CreateStory(
+		"billing",
+		"Implement invoices",
+		"Create invoice generation flow",
+		[]string{"Generate invoices from line items"},
+		[]string{"Run focused billing tests"},
+		nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := manager.UpdateStory("implement-invoices", StoryChanges{Status: "in_progress"}); err != nil {
+		t.Fatal(err)
+	}
+	spec, err := manager.ReadSpec("billing")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Metadata["status"] != "implementing" {
+		t.Fatalf("expected spec to move into implementing: %+v", spec.Metadata)
+	}
+
+	status, err := manager.Status()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.InProgressStories != 1 {
+		t.Fatalf("expected project in-progress story count to update: %+v", status)
+	}
+	if len(status.Epics) != 1 || status.Epics[0].InProgressStories != 1 || status.Epics[0].DoneStories != 0 {
+		t.Fatalf("expected epic progress counts to update: %+v", status.Epics)
+	}
+
+	if _, err := manager.UpdateStory("implement-invoices", StoryChanges{Status: "done"}); err != nil {
+		t.Fatal(err)
+	}
+	spec, err = manager.ReadSpec("billing")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Metadata["status"] != "done" {
+		t.Fatalf("expected spec to move into done: %+v", spec.Metadata)
+	}
+
+	status, err = manager.Status()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.DoneStories != 1 || status.InProgressStories != 0 {
+		t.Fatalf("expected project status to reflect completed story: %+v", status)
+	}
+	if len(status.Epics) != 1 || status.Epics[0].DoneStories != 1 || status.Epics[0].InProgressStories != 0 {
+		t.Fatalf("expected epic status to reflect completed story: %+v", status.Epics)
 	}
 }

@@ -4,10 +4,10 @@ epic: spec-driven-planning-workflow
 project: plan
 slug: enforce-spec-gate-and-story-lifecycle
 spec: spec-driven-planning-workflow
-status: todo
+status: done
 title: Enforce spec gate and story lifecycle
 type: story
-updated_at: "2026-04-16T05:46:34Z"
+updated_at: "2026-04-16T06:18:17Z"
 ---
 
 # Enforce spec gate and story lifecycle

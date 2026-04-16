@@ -44,13 +44,15 @@ type brainstormSectionSpec struct {
 }
 
 type EpicInfo struct {
-	Path             string
-	Title            string
-	Spec             string
-	SpecStatus       string
-	SourceBrainstorm string
-	TotalStories     int
-	DoneStories      int
+	Path              string
+	Title             string
+	Spec              string
+	SpecStatus        string
+	SourceBrainstorm  string
+	TotalStories      int
+	DoneStories       int
+	InProgressStories int
+	BlockedStories    int
 }
 
 type StoryInfo struct {
@@ -293,15 +295,23 @@ func (m *Manager) ListEpics() ([]EpicInfo, error) {
 			SpecStatus:       specStatus,
 			SourceBrainstorm: stringValue(epic.Metadata["source_brainstorm"]),
 		}
+		var epicStories []StoryInfo
 		for _, story := range stories {
 			if story.Epic != epicSlug {
 				continue
 			}
+			epicStories = append(epicStories, story)
 			item.TotalStories++
-			if story.Status == "done" {
+			switch story.Status {
+			case "done":
 				item.DoneStories++
+			case "in_progress":
+				item.InProgressStories++
+			case "blocked":
+				item.BlockedStories++
 			}
 		}
+		item.SpecStatus = deriveSpecStatus(item.SpecStatus, epicStories)
 		out = append(out, item)
 	}
 	sort.Slice(out, func(i, j int) bool {
@@ -375,6 +385,12 @@ func (m *Manager) CreateStory(epicSlug, title, description string, criteria, ver
 	if err != nil {
 		return nil, err
 	}
+	if len(trimmedItems(criteria)) == 0 {
+		return nil, fmt.Errorf("at least one acceptance criterion is required")
+	}
+	if len(trimmedItems(verification)) == 0 {
+		return nil, fmt.Errorf("at least one verification step is required")
+	}
 	epic, err := notes.Read(filepath.Join(info.EpicsDir, slugify(epicSlug)+".md"))
 	if err != nil {
 		return nil, err
@@ -411,11 +427,14 @@ func (m *Manager) CreateStory(epicSlug, title, description string, criteria, ver
 	resourceLinks := append([]string{
 		fmt.Sprintf("- [Canonical Spec](%s)", relativeLinkPath(filepath.Dir(story.Path), spec.Path)),
 	}, resources...)
-	updated, err := m.applyStoryUpdates(story.Path, StoryChanges{
+	body = composeStoryBody(story, StoryChanges{
 		AddCriteria:     criteria,
 		AddVerification: verification,
 		AddResources:    resourceLinks,
 	}, description)
+	updated, err := notes.Update(story.Path, notes.UpdateInput{
+		Body: &body,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -431,19 +450,31 @@ func (m *Manager) UpdateStory(storySlug string, changes StoryChanges) (*notes.No
 		return nil, fmt.Errorf("invalid story status %q", changes.Status)
 	}
 	path := filepath.Join(info.StoriesDir, slugify(storySlug)+".md")
-	note, err := m.applyStoryUpdates(path, changes, "")
+	note, err := notes.Read(path)
 	if err != nil {
 		return nil, err
 	}
+	body := composeStoryBody(note, changes, "")
+	nextStatus := stringValue(note.Metadata["status"])
 	if changes.Status != "" {
-		note, err = notes.Update(path, notes.UpdateInput{
-			Metadata: map[string]any{"status": changes.Status},
-		})
-		if err != nil {
-			return nil, err
-		}
+		nextStatus = changes.Status
 	}
-	return m.relNote(note, info.ProjectDir), nil
+	if requiresExecutionExpectations(nextStatus) && !storyBodyHasExecutionExpectations(body) {
+		return nil, fmt.Errorf("story %s needs acceptance criteria and verification steps before it can be marked %q", rel(info.ProjectDir, path), nextStatus)
+	}
+
+	input := notes.UpdateInput{Body: &body}
+	if changes.Status != "" {
+		input.Metadata = map[string]any{"status": changes.Status}
+	}
+	updated, err := notes.Update(path, input)
+	if err != nil {
+		return nil, err
+	}
+	if err := m.syncSpecStatusForStory(info, updated); err != nil {
+		return nil, err
+	}
+	return m.relNote(updated, info.ProjectDir), nil
 }
 
 func (m *Manager) ListStories(filterEpic, filterStatus string) ([]StoryInfo, error) {
@@ -577,27 +608,30 @@ func (m *Manager) seedSpecFromBrainstorm(info *workspace.Info, spec *notes.Note,
 	return updated, nil
 }
 
-func (m *Manager) applyStoryUpdates(path string, changes StoryChanges, description string) (*notes.Note, error) {
-	note, err := notes.Read(path)
-	if err != nil {
-		return nil, err
-	}
+func composeStoryBody(note *notes.Note, changes StoryChanges, description string) string {
 	body := note.Content
 	if strings.TrimSpace(description) != "" {
 		body = notes.AppendUnderHeading(body, "Description", strings.TrimSpace(description))
 	}
 	for _, item := range changes.AddCriteria {
+		if strings.TrimSpace(item) == "" {
+			continue
+		}
 		body = notes.AppendUnderHeading(body, "Acceptance Criteria", checklist(item))
 	}
 	for _, item := range changes.AddVerification {
+		if strings.TrimSpace(item) == "" {
+			continue
+		}
 		body = notes.AppendUnderHeading(body, "Verification", bullet(item))
 	}
 	for _, item := range changes.AddResources {
+		if strings.TrimSpace(item) == "" {
+			continue
+		}
 		body = notes.AppendUnderHeading(body, "Resources", bullet(item))
 	}
-	return notes.Update(path, notes.UpdateInput{
-		Body: ptr(body),
-	})
+	return body
 }
 
 func (m *Manager) specSlugForEpic(epicSlug string) string {
@@ -755,4 +789,86 @@ func formatBrainstormEntry(section brainstormSectionSpec, body string) string {
 		items = append(items, bullet(line))
 	}
 	return strings.Join(items, "\n")
+}
+
+func requiresExecutionExpectations(status string) bool {
+	switch status {
+	case "in_progress", "done":
+		return true
+	default:
+		return false
+	}
+}
+
+func storyBodyHasExecutionExpectations(body string) bool {
+	return notes.ExtractSection(body, "Acceptance Criteria") != "" && notes.ExtractSection(body, "Verification") != ""
+}
+
+func trimmedItems(items []string) []string {
+	var out []string
+	for _, item := range items {
+		if strings.TrimSpace(item) == "" {
+			continue
+		}
+		out = append(out, item)
+	}
+	return out
+}
+
+func deriveSpecStatus(current string, stories []StoryInfo) string {
+	if len(stories) == 0 {
+		return current
+	}
+
+	nextStatus := "approved"
+	allDone := true
+	anyStarted := false
+	for _, item := range stories {
+		switch item.Status {
+		case "done":
+			anyStarted = true
+		case "in_progress", "blocked":
+			anyStarted = true
+			allDone = false
+		default:
+			allDone = false
+		}
+	}
+	if allDone {
+		return "done"
+	}
+	if anyStarted {
+		return "implementing"
+	}
+	return nextStatus
+}
+
+func (m *Manager) syncSpecStatusForStory(info *workspace.Info, story *notes.Note) error {
+	epicSlug := stringValue(story.Metadata["epic"])
+	specSlug := stringValue(story.Metadata["spec"])
+	if epicSlug == "" || specSlug == "" {
+		return nil
+	}
+
+	stories, err := m.ListStories(epicSlug, "")
+	if err != nil {
+		return err
+	}
+	if len(stories) == 0 {
+		return nil
+	}
+
+	specPath := filepath.Join(info.SpecsDir, specSlug+".md")
+	spec, err := notes.Read(specPath)
+	if err != nil {
+		return err
+	}
+	nextStatus := deriveSpecStatus(stringValue(spec.Metadata["status"]), stories)
+	if stringValue(spec.Metadata["status"]) == nextStatus {
+		return nil
+	}
+	_, err = notes.Update(specPath, notes.UpdateInput{
+		Metadata: map[string]any{"status": nextStatus},
+	})
+	return err
 }

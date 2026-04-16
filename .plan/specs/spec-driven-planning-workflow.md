@@ -3,11 +3,11 @@ created_at: "2026-04-16T05:33:06Z"
 epic: spec-driven-planning-workflow
 project: plan
 slug: spec-driven-planning-workflow
-status: approved
+status: done
 target_version: v1
 title: Spec-Driven Planning Workflow Spec
 type: spec
-updated_at: "2026-04-16T05:46:33Z"
+updated_at: "2026-04-16T06:18:17Z"
 ---
 
 # Spec-Driven Planning Workflow Spec
