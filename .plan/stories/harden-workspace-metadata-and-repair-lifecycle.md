@@ -4,10 +4,10 @@ epic: core-workspace-and-artifact-system
 project: plan
 slug: harden-workspace-metadata-and-repair-lifecycle
 spec: core-workspace-and-artifact-system
-status: todo
+status: done
 title: Harden workspace metadata and repair lifecycle
 type: story
-updated_at: "2026-04-16T05:46:33Z"
+updated_at: "2026-04-16T06:05:34Z"
 ---
 
 # Harden workspace metadata and repair lifecycle

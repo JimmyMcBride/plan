@@ -24,7 +24,7 @@ type WorkspaceMeta struct {
 
 type MigrationState struct {
 	SchemaVersion int      `json:"schema_version"`
-	Known         []string `json:"known,omitempty"`
+	Known         []string `json:"known"`
 	LastRunAt     string   `json:"last_run_at,omitempty"`
 	Status        string   `json:"status,omitempty"`
 }
@@ -75,8 +75,10 @@ type DoctorReport struct {
 	Initialized     bool     `json:"initialized"`
 	PlanningModel   string   `json:"planning_model,omitempty"`
 	SchemaVersion   int      `json:"schema_version,omitempty"`
+	WorkspaceStatus string   `json:"workspace_status"`
 	MigrationStatus string   `json:"migration_status"`
 	Missing         []string `json:"missing,omitempty"`
+	Broken          []string `json:"broken,omitempty"`
 }
 
 type Manager struct {
@@ -227,8 +229,12 @@ func (m *Manager) EnsureInitialized() (*Info, error) {
 		}
 		return nil, err
 	}
-	if _, err := m.ReadWorkspaceMeta(); err != nil {
+	meta, err := m.ReadWorkspaceMeta()
+	if err != nil {
 		return nil, err
+	}
+	if err := validateWorkspaceMeta(meta); err != nil {
+		return nil, fmt.Errorf("validate workspace metadata: %w", err)
 	}
 	return info, nil
 }
@@ -238,7 +244,11 @@ func (m *Manager) ReadWorkspaceMeta() (*WorkspaceMeta, error) {
 	if err != nil {
 		return nil, err
 	}
-	raw, err := os.ReadFile(info.WorkspaceFile)
+	return readWorkspaceMetaFile(info.WorkspaceFile)
+}
+
+func readWorkspaceMetaFile(path string) (*WorkspaceMeta, error) {
+	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read workspace metadata: %w", err)
 	}
@@ -249,6 +259,26 @@ func (m *Manager) ReadWorkspaceMeta() (*WorkspaceMeta, error) {
 	return &meta, nil
 }
 
+func (m *Manager) ReadMigrationState() (*MigrationState, error) {
+	info, err := m.Resolve()
+	if err != nil {
+		return nil, err
+	}
+	return readMigrationStateFile(info.MigrationsFile)
+}
+
+func readMigrationStateFile(path string) (*MigrationState, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read migration state: %w", err)
+	}
+	var state MigrationState
+	if err := json.Unmarshal(raw, &state); err != nil {
+		return nil, fmt.Errorf("parse migration state: %w", err)
+	}
+	return &state, nil
+}
+
 func (m *Manager) Doctor() (*DoctorReport, error) {
 	info, err := m.Resolve()
 	if err != nil {
@@ -257,6 +287,7 @@ func (m *Manager) Doctor() (*DoctorReport, error) {
 	report := &DoctorReport{
 		ProjectDir:      info.ProjectDir,
 		PlanDir:         info.PlanDir,
+		WorkspaceStatus: "not_initialized",
 		MigrationStatus: "not_initialized",
 	}
 	if _, err := os.Stat(info.PlanDir); err != nil {
@@ -267,41 +298,53 @@ func (m *Manager) Doctor() (*DoctorReport, error) {
 	}
 	report.Initialized = true
 
-	for _, path := range []struct {
-		label string
-		path  string
-	}{
-		{"PROJECT.md", info.ProjectFile},
-		{"ROADMAP.md", info.RoadmapFile},
-		{"brainstorms/", info.BrainstormsDir},
-		{"epics/", info.EpicsDir},
-		{"specs/", info.SpecsDir},
-		{"stories/", info.StoriesDir},
-		{"workspace.json", info.WorkspaceFile},
-		{"migrations.json", info.MigrationsFile},
-	} {
-		if _, err := os.Stat(path.path); err != nil {
+	for _, surface := range info.RequiredSurfaces() {
+		if _, err := os.Stat(surface.absPath); err != nil {
 			if os.IsNotExist(err) {
-				report.Missing = append(report.Missing, path.label)
+				report.Missing = append(report.Missing, surface.Label)
 				continue
 			}
 			return nil, err
 		}
 	}
 
-	meta, err := m.ReadWorkspaceMeta()
+	meta, err := readWorkspaceMetaFile(info.WorkspaceFile)
 	if err != nil {
-		report.MigrationStatus = "broken"
-		return report, nil
+		if !contains(report.Missing, "workspace.json") {
+			report.Broken = append(report.Broken, "workspace.json")
+		}
+	} else {
+		report.PlanningModel = meta.PlanningModel
+		report.SchemaVersion = meta.SchemaVersion
+		if err := validateWorkspaceMeta(meta); err != nil {
+			report.Broken = append(report.Broken, "workspace.json")
+		}
 	}
-	report.PlanningModel = meta.PlanningModel
-	report.SchemaVersion = meta.SchemaVersion
 
-	switch {
-	case len(report.Missing) > 0:
-		report.MigrationStatus = "missing"
-	default:
-		report.MigrationStatus = "current"
+	state, err := readMigrationStateFile(info.MigrationsFile)
+	if err != nil {
+		if !contains(report.Missing, "migrations.json") {
+			report.Broken = append(report.Broken, "migrations.json")
+		}
+	} else {
+		report.MigrationStatus = state.Status
+		if err := validateMigrationState(state); err != nil {
+			if !contains(report.Broken, "migrations.json") {
+				report.Broken = append(report.Broken, "migrations.json")
+			}
+		}
+	}
+
+	report.WorkspaceStatus = classifyHealth(report.Missing, report.Broken)
+	if report.MigrationStatus == "" {
+		switch {
+		case contains(report.Broken, "migrations.json"):
+			report.MigrationStatus = "broken"
+		case contains(report.Missing, "migrations.json"):
+			report.MigrationStatus = "missing"
+		default:
+			report.MigrationStatus = "current"
+		}
 	}
 	return report, nil
 }
@@ -319,13 +362,7 @@ func (m *Manager) Update() (*UpdateResult, error) {
 	}
 
 	result := &UpdateResult{Info: info}
-	for _, dir := range []string{
-		info.BrainstormsDir,
-		info.EpicsDir,
-		info.SpecsDir,
-		info.StoriesDir,
-		info.MetaDir,
-	} {
+	for _, dir := range info.directoryPaths() {
 		created, err := ensureDir(dir)
 		if err != nil {
 			return nil, err
@@ -357,20 +394,26 @@ func (m *Manager) Update() (*UpdateResult, error) {
 	} else if created {
 		result.Created = append(result.Created, rel(info.ProjectDir, info.WorkspaceFile))
 	} else {
-		if err := touchWorkspaceMeta(info.WorkspaceFile, now); err != nil {
+		updated, err := reconcileWorkspaceMeta(info.WorkspaceFile, now)
+		if err != nil {
 			return nil, err
 		}
-		result.Updated = append(result.Updated, rel(info.ProjectDir, info.WorkspaceFile))
+		if updated {
+			result.Updated = append(result.Updated, rel(info.ProjectDir, info.WorkspaceFile))
+		}
 	}
 	if created, err := ensureMigrationState(info.MigrationsFile, now); err != nil {
 		return nil, err
 	} else if created {
 		result.Created = append(result.Created, rel(info.ProjectDir, info.MigrationsFile))
 	} else {
-		if err := touchMigrationState(info.MigrationsFile, now); err != nil {
+		updated, err := reconcileMigrationState(info.MigrationsFile, now)
+		if err != nil {
 			return nil, err
 		}
-		result.Updated = append(result.Updated, rel(info.ProjectDir, info.MigrationsFile))
+		if updated {
+			result.Updated = append(result.Updated, rel(info.ProjectDir, info.MigrationsFile))
+		}
 	}
 
 	return result, nil
@@ -410,35 +453,27 @@ func ensureWorkspaceMeta(path, now string) (bool, error) {
 	} else if !os.IsNotExist(err) {
 		return false, err
 	}
-	meta := WorkspaceMeta{
-		SchemaVersion: CurrentSchemaVersion,
-		PlanningModel: PlanningModel,
-		CreatedAt:     now,
-		UpdatedAt:     now,
-	}
+	meta := defaultWorkspaceMeta(now)
 	return true, writeJSON(path, meta)
 }
 
-func touchWorkspaceMeta(path, now string) error {
+func reconcileWorkspaceMeta(path, now string) (bool, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		return err
+		return false, err
 	}
 	var meta WorkspaceMeta
 	if err := json.Unmarshal(raw, &meta); err != nil {
-		return err
+		return true, writeJSON(path, defaultWorkspaceMeta(now))
 	}
-	if meta.SchemaVersion == 0 {
-		meta.SchemaVersion = CurrentSchemaVersion
+	normalized, changed, err := normalizeWorkspaceMeta(meta, now)
+	if err != nil {
+		return false, err
 	}
-	if meta.PlanningModel == "" {
-		meta.PlanningModel = PlanningModel
+	if !changed {
+		return false, nil
 	}
-	if meta.CreatedAt == "" {
-		meta.CreatedAt = now
-	}
-	meta.UpdatedAt = now
-	return writeJSON(path, meta)
+	return true, writeJSON(path, normalized)
 }
 
 func ensureMigrationState(path, now string) (bool, error) {
@@ -447,33 +482,140 @@ func ensureMigrationState(path, now string) (bool, error) {
 	} else if !os.IsNotExist(err) {
 		return false, err
 	}
-	state := MigrationState{
+	state := defaultMigrationState(now)
+	return true, writeJSON(path, state)
+}
+
+func reconcileMigrationState(path, now string) (bool, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return false, err
+	}
+	var state MigrationState
+	if err := json.Unmarshal(raw, &state); err != nil {
+		return true, writeJSON(path, defaultMigrationState(now))
+	}
+	normalized, changed, err := normalizeMigrationState(state, now)
+	if err != nil {
+		return false, err
+	}
+	if !changed {
+		return false, nil
+	}
+	return true, writeJSON(path, normalized)
+}
+
+func defaultWorkspaceMeta(now string) WorkspaceMeta {
+	return WorkspaceMeta{
+		SchemaVersion: CurrentSchemaVersion,
+		PlanningModel: PlanningModel,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
+}
+
+func defaultMigrationState(now string) MigrationState {
+	return MigrationState{
 		SchemaVersion: CurrentSchemaVersion,
 		Known:         []string{},
 		LastRunAt:     now,
 		Status:        "current",
 	}
-	return true, writeJSON(path, state)
 }
 
-func touchMigrationState(path, now string) error {
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return err
+func normalizeWorkspaceMeta(meta WorkspaceMeta, now string) (WorkspaceMeta, bool, error) {
+	if meta.SchemaVersion > CurrentSchemaVersion {
+		return WorkspaceMeta{}, false, fmt.Errorf("workspace schema version %d is newer than supported version %d", meta.SchemaVersion, CurrentSchemaVersion)
 	}
-	var state MigrationState
-	if err := json.Unmarshal(raw, &state); err != nil {
-		return err
+	if meta.PlanningModel != "" && meta.PlanningModel != PlanningModel {
+		return WorkspaceMeta{}, false, fmt.Errorf("workspace planning model %q is not supported by this build", meta.PlanningModel)
 	}
-	if state.SchemaVersion == 0 {
-		state.SchemaVersion = CurrentSchemaVersion
+
+	normalized := meta
+	changed := false
+	if normalized.SchemaVersion == 0 {
+		normalized.SchemaVersion = CurrentSchemaVersion
+		changed = true
 	}
-	if state.Known == nil {
-		state.Known = []string{}
+	if normalized.PlanningModel == "" {
+		normalized.PlanningModel = PlanningModel
+		changed = true
 	}
-	state.LastRunAt = now
-	state.Status = "current"
-	return writeJSON(path, state)
+	if normalized.CreatedAt == "" {
+		normalized.CreatedAt = now
+		changed = true
+	}
+	if normalized.UpdatedAt == "" {
+		normalized.UpdatedAt = now
+		changed = true
+	}
+	if changed {
+		normalized.UpdatedAt = now
+	}
+	return normalized, changed, nil
+}
+
+func normalizeMigrationState(state MigrationState, now string) (MigrationState, bool, error) {
+	if state.SchemaVersion > CurrentSchemaVersion {
+		return MigrationState{}, false, fmt.Errorf("migration schema version %d is newer than supported version %d", state.SchemaVersion, CurrentSchemaVersion)
+	}
+
+	normalized := state
+	changed := false
+	if normalized.SchemaVersion == 0 {
+		normalized.SchemaVersion = CurrentSchemaVersion
+		changed = true
+	}
+	if normalized.Known == nil {
+		normalized.Known = []string{}
+		changed = true
+	}
+	if normalized.LastRunAt == "" {
+		normalized.LastRunAt = now
+		changed = true
+	}
+	if normalized.Status == "" {
+		normalized.Status = "current"
+		changed = true
+	}
+	if changed {
+		normalized.LastRunAt = now
+	}
+	return normalized, changed, nil
+}
+
+func validateWorkspaceMeta(meta *WorkspaceMeta) error {
+	switch {
+	case meta.SchemaVersion == 0:
+		return fmt.Errorf("schema_version is required")
+	case meta.SchemaVersion > CurrentSchemaVersion:
+		return fmt.Errorf("schema_version %d is newer than supported %d", meta.SchemaVersion, CurrentSchemaVersion)
+	case meta.PlanningModel == "":
+		return fmt.Errorf("planning_model is required")
+	case meta.PlanningModel != PlanningModel:
+		return fmt.Errorf("planning_model %q is not supported", meta.PlanningModel)
+	case meta.CreatedAt == "":
+		return fmt.Errorf("created_at is required")
+	case meta.UpdatedAt == "":
+		return fmt.Errorf("updated_at is required")
+	default:
+		return nil
+	}
+}
+
+func validateMigrationState(state *MigrationState) error {
+	switch {
+	case state.SchemaVersion == 0:
+		return fmt.Errorf("schema_version is required")
+	case state.SchemaVersion > CurrentSchemaVersion:
+		return fmt.Errorf("schema_version %d is newer than supported %d", state.SchemaVersion, CurrentSchemaVersion)
+	case state.LastRunAt == "":
+		return fmt.Errorf("last_run_at is required")
+	case state.Status == "":
+		return fmt.Errorf("status is required")
+	default:
+		return nil
+	}
 }
 
 func writeJSON(path string, v any) error {
@@ -491,4 +633,24 @@ func rel(root, path string) string {
 		return path
 	}
 	return filepath.ToSlash(r)
+}
+
+func classifyHealth(missing, broken []string) string {
+	switch {
+	case len(broken) > 0:
+		return "broken"
+	case len(missing) > 0:
+		return "missing"
+	default:
+		return "current"
+	}
+}
+
+func contains(items []string, target string) bool {
+	for _, item := range items {
+		if item == target {
+			return true
+		}
+	}
+	return false
 }

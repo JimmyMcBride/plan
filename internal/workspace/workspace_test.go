@@ -93,3 +93,121 @@ func TestDoctorReportsCurrentAfterInit(t *testing.T) {
 		t.Fatalf("unexpected planning model: %+v", report)
 	}
 }
+
+func TestDoctorReportsMissingWorkspaceSurfaces(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+	if _, err := manager.Init(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(root, ".plan", "ROADMAP.md")); err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := manager.Doctor()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.WorkspaceStatus != "missing" {
+		t.Fatalf("unexpected workspace status: %+v", report)
+	}
+	if !contains(report.Missing, "ROADMAP.md") {
+		t.Fatalf("expected missing roadmap in report: %+v", report)
+	}
+	if report.MigrationStatus != "current" {
+		t.Fatalf("unexpected migration status: %+v", report)
+	}
+}
+
+func TestDoctorReportsBrokenToolManagedState(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+	if _, err := manager.Init(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".plan", ".meta", "workspace.json"), []byte("{broken"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := manager.Doctor()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.WorkspaceStatus != "broken" {
+		t.Fatalf("unexpected workspace status: %+v", report)
+	}
+	if !contains(report.Broken, "workspace.json") {
+		t.Fatalf("expected broken workspace metadata in report: %+v", report)
+	}
+}
+
+func TestUpdateRepairsToolManagedStateWithoutTouchingUserNotes(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+	if _, err := manager.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	projectPath := filepath.Join(root, ".plan", "PROJECT.md")
+	const customProject = "# custom project\n"
+	if err := os.WriteFile(projectPath, []byte(customProject), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".plan", ".meta", "workspace.json"), []byte("{broken"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(root, ".plan", ".meta", "migrations.json")); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := manager.Update()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !contains(result.Updated, ".plan/.meta/workspace.json") {
+		t.Fatalf("expected workspace metadata repair: %+v", result)
+	}
+	if !contains(result.Created, ".plan/.meta/migrations.json") {
+		t.Fatalf("expected migration state recreation: %+v", result)
+	}
+
+	raw, err := os.ReadFile(projectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != customProject {
+		t.Fatalf("project note was modified:\n%s", raw)
+	}
+
+	report, err := manager.Doctor()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.WorkspaceStatus != "current" || report.MigrationStatus != "current" {
+		t.Fatalf("expected repaired workspace to be current: %+v", report)
+	}
+}
+
+func TestUpdateIsIdempotentWhenWorkspaceIsCurrent(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+	if _, err := manager.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := manager.Update()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first.Created) != 0 || len(first.Updated) != 0 {
+		t.Fatalf("expected no changes for current workspace: %+v", first)
+	}
+
+	second, err := manager.Update()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(second.Created) != 0 || len(second.Updated) != 0 {
+		t.Fatalf("expected second update to stay idempotent: %+v", second)
+	}
+}
