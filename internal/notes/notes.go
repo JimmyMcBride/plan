@@ -100,7 +100,8 @@ func Update(path string, input UpdateInput) (*Note, error) {
 }
 
 func parse(raw []byte) (map[string]any, string, error) {
-	content := string(raw)
+	content := strings.ReplaceAll(string(raw), "\r\n", "\n")
+	content = strings.ReplaceAll(content, "\r", "\n")
 	meta := map[string]any{}
 	if !strings.HasPrefix(content, "---\n") {
 		return meta, strings.TrimLeft(content, "\n"), nil
