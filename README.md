@@ -158,7 +158,7 @@ plan skills targets --scope both --agent codex --project .
 
 - Pull requests run `go test ./...` and `go build ./...` in CI.
 - Every push to `main` tags the next patch release if `HEAD` is not already tagged.
-- The release workflow verifies the tagged commit, builds platform archives, and publishes a checksum file with the release assets.
+- The release workflow builds platform archives and publishes a checksum file with the release assets.
 - `scripts/install.sh` only falls back to a source build when no published release can be resolved. Download or checksum failures stay hard failures.
 
 ## Maintainers
