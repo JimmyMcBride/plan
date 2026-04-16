@@ -10,7 +10,7 @@ import (
 )
 
 func TestInspectBrainWorkspaceOnlyReturnsPlanningArtifacts(t *testing.T) {
-	preview, err := InspectBrainWorkspace("../../examples/brain")
+	preview, err := InspectBrainWorkspace(brainFixturePath(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,11 +40,11 @@ func TestInspectBrainWorkspaceOnlyReturnsPlanningArtifacts(t *testing.T) {
 }
 
 func TestInspectBrainWorkspaceSupportsDotBrainPath(t *testing.T) {
-	preview, err := InspectBrainWorkspace("../../examples/brain/.brain")
+	preview, err := InspectBrainWorkspace(filepath.Join(brainFixturePath(t), ".brain"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasSuffix(preview.WorkspacePath, "examples/brain") {
+	if !strings.HasSuffix(filepath.ToSlash(preview.WorkspacePath), "testdata/brain-workspace") {
 		t.Fatalf("expected repo root path in preview: %+v", preview)
 	}
 }
@@ -58,7 +58,7 @@ func TestImportBrainPlanningCreatesCanonicalPlanArtifacts(t *testing.T) {
 	manager := New(ws)
 
 	result, err := manager.ImportBrainPlanning(BrainImportSelection{
-		WorkspacePath: "../../examples/brain",
+		WorkspacePath: brainFixturePath(t),
 		Brainstorms:   []string{"mempalace-inspired-brain-improvements"},
 		Epics:         []string{"planning-and-brainstorming-ux"},
 		Specs:         []string{"planning-and-brainstorming-ux"},
@@ -102,7 +102,7 @@ func TestImportBrainPlanningAddsVisibleProvenanceAndReviewGuidance(t *testing.T)
 	manager := New(ws)
 
 	if _, err := manager.ImportBrainPlanning(BrainImportSelection{
-		WorkspacePath: "../../examples/brain",
+		WorkspacePath: brainFixturePath(t),
 		Stories:       []string{"add-session-aware-memory-distillation"},
 	}); err != nil {
 		t.Fatal(err)
@@ -121,4 +121,14 @@ func TestImportBrainPlanningAddsVisibleProvenanceAndReviewGuidance(t *testing.T)
 	if !strings.Contains(note.Content, "Review and normalize this artifact before relying on it for deeper execution work.") {
 		t.Fatalf("expected review guidance in imported note:\n%s", note.Content)
 	}
+}
+
+func brainFixturePath(t *testing.T) string {
+	t.Helper()
+
+	path, err := filepath.Abs(filepath.Join("..", "..", "testdata", "brain-workspace"))
+	if err != nil {
+		t.Fatalf("resolve brain fixture path: %v", err)
+	}
+	return path
 }

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -9,11 +10,13 @@ import (
 )
 
 func TestBrainImportInspectCommandPrintsPlanningCandidates(t *testing.T) {
+	workspacePath := brainFixturePath(t)
+
 	var buf bytes.Buffer
 	command := newRootCmd()
 	command.SetOut(&buf)
 	command.SetErr(&buf)
-	command.SetArgs([]string{"import", "brain", "inspect", "--workspace", "../examples/brain"})
+	command.SetArgs([]string{"import", "brain", "inspect", "--workspace", workspacePath})
 	if err := command.Execute(); err != nil {
 		t.Fatalf("expected inspect command to succeed: %v\n%s", err, buf.String())
 	}
@@ -35,6 +38,7 @@ func TestBrainImportApplyCommandPrintsMappings(t *testing.T) {
 	if _, err := workspace.New(root).Init(); err != nil {
 		t.Fatal(err)
 	}
+	workspacePath := brainFixturePath(t)
 
 	var buf bytes.Buffer
 	command := newRootCmd()
@@ -43,7 +47,7 @@ func TestBrainImportApplyCommandPrintsMappings(t *testing.T) {
 	command.SetArgs([]string{
 		"--project", root,
 		"import", "brain", "apply",
-		"--workspace", "../examples/brain",
+		"--workspace", workspacePath,
 		"--epic", "planning-and-brainstorming-ux",
 	})
 	if err := command.Execute(); err != nil {
@@ -60,4 +64,14 @@ func TestBrainImportApplyCommandPrintsMappings(t *testing.T) {
 	if !strings.Contains(output, "review: inspect imported notes before execution work") {
 		t.Fatalf("expected review guidance in output:\n%s", output)
 	}
+}
+
+func brainFixturePath(t *testing.T) string {
+	t.Helper()
+
+	path, err := filepath.Abs(filepath.Join("..", "testdata", "brain-workspace"))
+	if err != nil {
+		t.Fatalf("resolve brain fixture path: %v", err)
+	}
+	return path
 }

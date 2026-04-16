@@ -8,24 +8,26 @@ import (
 )
 
 func TestResolveTargetsGlobalAndLocal(t *testing.T) {
-	installer := NewInstaller("/home/tester")
+	home := t.TempDir()
+	projectDir := t.TempDir()
+	installer := NewInstaller(home)
 	targets, err := installer.ResolveTargets(InstallRequest{
 		Scope:      ScopeBoth,
 		Agents:     []string{"codex", "copilot", "pi", "zed"},
-		ProjectDir: "/tmp/project",
+		ProjectDir: projectDir,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := map[string]bool{
-		filepath.Join("/home/tester", ".codex", "skills", "plan"):       true,
-		filepath.Join("/home/tester", ".copilot", "skills", "plan"):     true,
-		filepath.Join("/home/tester", ".pi", "agent", "skills", "plan"): true,
-		filepath.Join("/home/tester", ".zed", "skills", "plan"):         true,
-		filepath.Join("/tmp/project", ".codex", "skills", "plan"):       true,
-		filepath.Join("/tmp/project", ".github", "skills", "plan"):      true,
-		filepath.Join("/tmp/project", ".pi", "skills", "plan"):          true,
-		filepath.Join("/tmp/project", ".zed", "skills", "plan"):         true,
+		filepath.Join(home, ".codex", "skills", "plan"):        true,
+		filepath.Join(home, ".copilot", "skills", "plan"):      true,
+		filepath.Join(home, ".pi", "agent", "skills", "plan"):  true,
+		filepath.Join(home, ".zed", "skills", "plan"):          true,
+		filepath.Join(projectDir, ".codex", "skills", "plan"):  true,
+		filepath.Join(projectDir, ".github", "skills", "plan"): true,
+		filepath.Join(projectDir, ".pi", "skills", "plan"):     true,
+		filepath.Join(projectDir, ".zed", "skills", "plan"):    true,
 	}
 	if len(targets) != len(want) {
 		t.Fatalf("expected %d targets, got %d", len(want), len(targets))
