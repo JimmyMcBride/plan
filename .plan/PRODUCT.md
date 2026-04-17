@@ -1,277 +1,88 @@
 # Product Direction
 
-Date: 2026-04-15
+Date: 2026-04-17
 
 ## Thesis
 
-`plan` is a local-first planning tool for AI-assisted software projects.
+`plan` is a local-first shaping and execution-readiness engine for AI-assisted
+software projects.
 
-It exists to turn messy ideas into execution-ready plans that agents can follow reliably.
+It should improve the quality of the existing flow more than it expands the
+surface area of the product. The best next versions add better refinement,
+analysis, shaping, slicing, and critique passes around `Brainstorm -> Epic ->
+Spec -> Story`.
 
-It does not own memory, retrieval, or context management. That belongs to `brain`. `plan` owns planning only.
-
-## Non-negotiables
+## Product Rules
 
 - Local-first.
-- All project planning material lives in `.plan/` at repo root.
-- Strong skill integration like `brain`.
-- Release and GitHub workflow should follow the clean `brain` pattern.
-- Default workflow should preserve:
-  - brainstorm
-  - epic
-  - spec
-  - stories
+- Markdown-first.
+- Planning only.
+- All durable planning material lives in `.plan/`.
+- Specs are the canonical execution contract.
+- Stories are created only after spec approval.
+- Stories should be execution-ready and verification-aware.
+- Default workflow stays simple; advanced passes stay optional.
 
-## Product principles
+## Current Reset
 
-### 1. Default simple, advanced optional
+The old power-first direction is no longer the product story.
 
-New user path should feel obvious in minutes.
+That means:
 
-Power users should be able to add structure without switching tools.
+- `ready` is not a headline feature
+- dependency-heavy workflow features are not the next step
+- external sync is explicitly later
+- the next release work should favor refinement quality over coordination power
 
-### 2. Specs are the contract
+## Roadmap Phases
 
-Brainstorms are exploratory.
-Epics define scope.
-Specs become canonical.
-Stories execute the approved spec.
+### v4: Planning Refinement Foundation
 
-### 3. Planning artifacts must be useful to agents
+- converge the docs and templates on one thesis
+- remove the older power-first command surface
+- ship `plan brainstorm refine`
+- ship `plan spec analyze`
 
-Every durable artifact should improve execution quality:
+### v5: Planning Skills, Shaping, and Evals
 
-- clear scope
-- explicit constraints
-- verification expectations
-- linked upstream source of truth
+- add model-aware planning skill guidance
+- add benchmark fixtures and rubric-based evals
+- ship `plan brainstorm challenge`
+- ship `plan epic shape`
+- ship `plan spec checklist`
 
-### 4. No planning theater
+### v6: Story Slicing and Execution Readiness
 
-No story points.
-No fake sprint rituals.
-No stakeholder roleplay.
-No PM dashboard cosplay.
+- ship `plan story slice`
+- ship `plan story critique`
+- make the spec-to-story transition materially better
 
-### 5. Migrations only if they stay small
+### v7: External Sync, Only If Still Needed
 
-Use workspace upgrades only for:
+- GitHub first, only if the local loop is clearly winning
+- `.plan` stays canonical
+- external tools remain projections, not source of truth
 
-- directory normalization
-- template changes
-- metadata repair
-- new required fields
-
-Avoid heavy schemas and avoid migrations as a product identity.
-
-## Recommended core model
-
-### Canonical hierarchy
-
-1. Epic
-2. Spec
-3. Story
-
-### Workflow entry
-
-1. Brainstorm
-2. Promote to epic
-3. Write and approve spec
-4. Split into stories
-
-### Supporting surfaces
-
-1. Roadmap
-2. Dependency graph
-3. Ready queue
-4. External sync adapters
-
-## Recommended `.plan/` file model
-
-```text
-.plan/
-  PROJECT.md
-  ROADMAP.md
-  brainstorms/
-  epics/
-  specs/
-  stories/
-  .meta/
-    workspace.json
-    migrations.json
-```
-
-Notes:
-
-- `PROJECT.md` holds enduring planning direction only.
-- `ROADMAP.md` is the lightweight portfolio and ordering layer above epics.
-- `brainstorms/` is divergent scratch space and promotion input, not a canonical planning level.
-- `epics/` is scoped initiative layer.
-- `specs/` is canonical execution contract layer.
-- `stories/` is smallest tracked execution layer.
-- `.meta/` is tool-owned state, not user-authored planning content.
-
-## Recommended workflow
-
-### Default path
-
-1. `plan init`
-2. `plan brainstorm start "idea"`
-3. `plan epic promote <brainstorm>`
-4. `plan spec edit <epic>`
-5. `plan spec approve <epic>`
-6. `plan story create <epic> "story title"`
-7. `plan status`
-
-Mental model:
-
-- brainstorm = discovery
-- epic = outcome boundary
-- spec = canonical contract
-- story = execution unit
-
-### Key gates
-
-- No stories before spec approval.
-- Every story links back to one canonical spec.
-- Stories should be execution-ready, not vague placeholders.
-- Specs must include explicit non-goals and verification expectations.
-- Closing an epic requires story completion or explicit abandoned/deferred decisions.
-
-## Recommended CLI shape
-
-### v1 core
-
-- `plan init`
-- `plan doctor`
-- `plan update`
-- `plan brainstorm ...`
-- `plan epic ...`
-- `plan spec ...`
-- `plan story ...`
-- `plan roadmap ...`
-- `plan status`
-- `plan skills install`
-
-### Commands to delay
-
-- external integrations
-- hosted sync
-- heavy dashboards
-- database mode
-- multi-user locks
-
-## Recommended artifact expectations
+## Artifact Expectations
 
 ### Brainstorm
 
-Loose. Idea capture. Questions. raw notes. possible themes.
+Discovery material plus a durable refinement pass.
 
 ### Epic
 
-Outcome, scope, why now, source links, current state.
+Outcome boundary. Later shaping adds appetite, out-of-scope, and success signal.
 
 ### Spec
 
-Problem, goals, non-goals, constraints, solution shape, flows, data/interfaces, risks, rollout, verification, story breakdown.
+Canonical contract plus non-destructive analysis and checklist passes.
 
 ### Story
 
-Concrete execution unit with:
+Small execution unit with acceptance criteria and verification. Later critique
+and slicing make the boundary tighter, not larger.
 
-- description
-- acceptance criteria
-- references
-- verification steps
-- status
+## Release Position
 
-## Migration stance
-
-Recommendation: yes, but only as a small safety feature.
-
-Rules:
-
-- migrations must be idempotent
-- migrations must be inspectable
-- migrations must be reversible when possible
-- migrations must only touch `plan`-managed surfaces
-- `plan doctor` must explain current, pending, or broken state
-
-This should feel like workspace repair, not ORM migration culture.
-
-## What to copy from reference tools
-
-### Copy from `brain`
-
-- local markdown ownership
-- skill install model
-- release workflow
-- migration philosophy
-- epic/spec/story gate
-
-### Copy from `get-shit-done`
-
-- verification-aware planning
-- roadmap layer
-- plan quality checks
-- advanced workflows as opt-in
-
-### Copy later from `beads`
-
-- dependency graph
-- ready queue
-- branch-safe IDs if needed
-
-## Initial roadmap
-
-### v0.1
-
-- initialize `.plan/`
-- create/edit/list core artifacts
-- lightweight `ROADMAP.md`
-- promote brainstorm -> epic -> spec
-- spec approval gate
-- story creation and status
-- skill installation
-- doctor/update/migrate support
-
-### v0.2
-
-- roadmap management
-- story verification fields
-- plan quality checks
-- story decomposition helpers
-
-### v0.3
-
-- dependencies between stories/epics
-- ready view
-- import from existing `brain` planning notes
-
-### v0.4+
-
-- external sync adapters
-- GitHub/Jira/Linear export-sync
-- small-team collaboration patterns
-
-## Open questions for user
-
-### 1. Roadmap in v1 or later?
-
-Recommendation: yes in v1, but lightweight. One `ROADMAP.md`, not full phase machinery.
-
-### 2. Story format: plain tracking or execution-ready?
-
-Recommendation: execution-ready. Every story should include verification instructions, not just status.
-
-### 3. IDs: human slugs only or stable IDs too?
-
-Recommendation: human slugs in v1. Add stable IDs only when dependency graphs or merge collisions become real pain.
-
-### 4. Should `plan` own approvals?
-
-Recommendation: yes, but lightly. Status gates on specs and stories. No enterprise approval workflows.
-
-### 5. Should `plan` import from `brain`?
-
-Recommendation: yes, later. `brain` and `plan` should interoperate cleanly, but `plan` should first prove its own native model.
+Product phases are `v4+`. Release tags can remain `v0.x.y` until a separate
+`1.0` decision is justified.

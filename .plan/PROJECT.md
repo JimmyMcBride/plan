@@ -7,32 +7,35 @@ Created: 2026-04-16T05:33:06Z
 Build the best local-first planning tool for AI-assisted software projects.
 
 `plan` should help indie developers and small teams turn rough ideas into
-execution-ready specs and stories without PM theater, cloud lock-in, or context
-management bloat.
+shaped, execution-ready specs and stories without PM theater, cloud lock-in, or
+memory/context-management bloat.
 
 ## Principles
 
 - Local-first and markdown-first.
-- Planning only. No memory or context ownership.
+- Planning only.
 - Specs are the contract.
-- Simple default flow, deeper power later.
-- Versions 1 through 3 stay focused on perfecting local planning before external integrations.
+- Simple default flow, deeper shaping later.
+- Improve the existing artifacts before inventing new ones.
 
 ## Constraints
 
 - All durable planning material lives in `.plan/`.
-- No hosted dependency required for core workflows.
-- No issue-tracker clone behavior in v1-v3.
-- Integrations with GitHub/Jira/Linear are explicitly post-v3.
+- No hosted dependency is required for core workflows.
+- No issue-tracker clone behavior in the planning core.
+- External sync is later than local refinement quality.
 
 ## Planning Rules
 
+- Brainstorm is discovery, not a canonical hierarchy level.
 - Specs are the canonical execution contract.
 - Stories are created only after spec approval.
 - Stories should be execution-ready and verification-aware.
+- New passes should improve clarity, boundedness, and agent executability.
 
 ## Notes
 
-- v1 builds the trustworthy local core.
-- v2 adds planning rigor and adoption workflows.
-- v3 adds local power features for bigger projects and small teams.
+- v4 focuses on refinement and simplification.
+- v5 focuses on skill quality, shaping, and evals.
+- v6 focuses on story slicing and critique.
+- v7 is GitHub sync only if local planning quality clearly earns the added complexity.

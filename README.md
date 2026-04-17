@@ -2,8 +2,8 @@
 
 `plan` is a local-first planning CLI for AI-assisted software work.
 
-It keeps planning material in `.plan/` inside the repo and focuses on one job:
-turning rough ideas into execution-ready plans that agents can follow cleanly.
+It keeps planning material in `.plan/` and focuses on one job: turning rough
+ideas into shaped, execution-ready plans that agents can follow cleanly.
 
 ## Philosophy
 
@@ -11,10 +11,11 @@ turning rough ideas into execution-ready plans that agents can follow cleanly.
 - markdown-first
 - planning only
 - simple default workflow
-- deeper power available later
+- optional deeper shaping passes
 
-`plan` does not own memory, retrieval, or context management. That belongs to
-other tools. `plan` owns planning.
+`plan` does not own memory, retrieval, or context management. Pair it with a
+companion tool such as [`brain`](https://github.com/JimmyMcBride/brain) if you
+need that layer.
 
 ## Core Model
 
@@ -27,27 +28,14 @@ Canonical hierarchy:
 Workflow entry:
 
 1. Brainstorm
-2. Promote to epic
-3. Write and approve spec
-4. Split into stories
+2. Refine
+3. Promote to epic
+4. Write and approve spec
+5. Analyze the spec
+6. Split into stories
 
-Supporting surfaces:
-
-- `PROJECT.md`
-- `ROADMAP.md`
-- optional future dependency and ready views
-
-Simple default path:
-
-1. brainstorm
-2. promote
-3. approve spec
-4. create stories
-5. execute
-
-Advanced path stays optional. When a repo grows, you can add roadmap versions,
-dependency blockers, ready-work views, Brain imports, and filtered status views
-without changing the base model.
+The default path stays small. New shaping passes should improve the same
+artifacts rather than add new top-level planning objects.
 
 ## Workspace
 
@@ -80,42 +68,49 @@ Tool-owned state lives only in:
 - `.plan/.meta/migrations.json`
 
 `plan update` may repair or normalize tool-owned state. It must not rewrite
-user-authored planning notes.
+user-authored planning notes just to migrate product direction.
 
 ## Quick Start
 
 ```bash
 plan init --project .
 plan brainstorm start --project . "Newsletter system"
+plan brainstorm refine --project . newsletter-system
 plan epic promote --project . newsletter-system
 plan spec show --project . newsletter-system
+plan spec analyze --project . newsletter-system
 plan spec status --project . newsletter-system --set approved
-plan story create --project . newsletter-system "Build template editor"
+plan story create --project . newsletter-system "Build template editor" \
+  --criteria "Templates can be created and edited" \
+  --verify "go test ./..."
 plan status --project .
 ```
 
-## Advanced Local Workflows
+## Current Command Surface
 
-These stay optional. If you do not need them, ignore them.
+- `plan init`
+- `plan adopt`
+- `plan doctor`
+- `plan update`
+- `plan brainstorm start|idea|show|refine`
+- `plan epic create|promote|list|show`
+- `plan spec show|edit|status|analyze`
+- `plan story create|update|list|show`
+- `plan roadmap show|edit`
+- `plan check`
+- `plan status`
+- `plan skills install|targets`
 
-- adopt an existing repo into a managed workspace:
-  `plan adopt --project .`
-- run structural planning checks:
-  `plan check --project .`
-- inspect version slices of the roadmap:
-  `plan roadmap versions --project . --version v2`
-- filter status for larger plans:
-  `plan status --project . --version v3 --epic power-user-local-workflows --story-status todo`
-- surface ready and blocked work:
-  `plan ready --project .`
-- narrow story lists by roadmap version:
-  `plan story list --project . --version v3`
-- inspect or import planning notes from a local Brain workspace:
-  `plan import brain inspect --workspace ../brain`
-  `plan import brain apply --project . --workspace ../brain --epic planning-and-brainstorming-ux`
+## Roadmap Direction
 
-The rule stays the same: use the advanced surfaces only when the simple default
-stops being enough.
+Product phases, not release-tag numbers:
+
+- `v4`: Planning Refinement Foundation
+- `v5`: Planning Skills, Shaping, and Evals
+- `v6`: Story Slicing and Execution Readiness
+- `v7`: External Sync, only if the local loop clearly wins
+
+Release tags can stay in `v0.x.y` semver until a separate `1.0` decision.
 
 ## Install
 

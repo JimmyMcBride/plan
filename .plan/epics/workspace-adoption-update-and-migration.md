@@ -32,7 +32,7 @@ Not in scope:
 
 - giant migration systems
 - cloud sync or hosted upgrade logic
-- `brain` import behavior beyond future compatibility design
+- external sync behavior beyond future compatibility design
 
 ## Spec
 

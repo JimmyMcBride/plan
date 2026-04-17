@@ -1,64 +1,85 @@
 # Roadmap: plan
 
-Created: 2026-04-16T05:33:06Z
+Created: 2026-04-17T00:00:00Z
 
 ## Overview
 
-`plan` ships in three local-first versions. v1 proves the core workflow and
-workspace model. v2 makes plans sharper, safer, and easier to maintain. v3 adds
-power-user features that help larger projects and small teams stay local while
-planning more complex work.
+`plan` is resetting around planning refinement rather than older power-first
+local workflows. The next few product phases focus on shaping quality, better
+prompts and evals, and stronger execution-readiness before any external sync is
+considered.
 
-## v1: Local-First Core
+## v4: Planning Refinement Foundation
 
-Goal: Ship the trustworthy foundation for `plan` as a daily driver.
+Goal: Reset the product story, simplify the CLI, and ship the first two
+high-leverage shaping passes.
 
-- [ ] Core Workspace and Artifact System
-- [ ] Spec-Driven Planning Workflow
-- [ ] Skill, Installer, and Release Delivery
-
-Summary:
-- establish `.plan/` as the durable workspace
-- make `brainstorm -> epic -> spec -> story` work cleanly
-- ship install, skill, docs, and release flow so `plan` is usable outside this repo
-
-## v2: Planning Rigor
-
-Goal: Make plans more reliable and easier to scale without bloating the model.
-
-- [ ] Roadmap and Portfolio Planning
-- [ ] Plan Quality and Verification Engine
-- [ ] Workspace Adoption, Update, and Migration
+- [ ] Product Reset and Docs Convergence
+- [ ] CLI Surface Simplification
+- [ ] Guided Brainstorm Refinement
+- [ ] Spec Analysis Foundation
 
 Summary:
-- make roadmap planning first-class
-- tighten spec and story quality with explicit checks
-- support repo adoption and safe workspace evolution
+- converge README, product docs, roadmap, project notes, templates, and skill text
+- remove old power-first commands from the main CLI surface
+- add `plan brainstorm refine`
+- add `plan spec analyze`
 
-## v3: Local Power
+## v5: Planning Skills, Shaping, and Evals
 
-Goal: Add the power features that make `plan` strong on big projects while staying local-first.
+Goal: Make prompt quality, shaping passes, and benchmarked improvements
+first-class product work.
 
-- [ ] Dependency Graph and Ready Work
-- [ ] Brain Interop and Planning Imports
-- [ ] Power-User Local Workflows
+- [ ] Model-Aware Planning Skills
+- [ ] Benchmark Fixtures and Rubric Evals
+- [ ] Brainstorm Challenge
+- [ ] Epic Shaping
+- [ ] Spec Checklist Profiles
 
 Summary:
-- model dependencies and surface ready work
-- interoperate cleanly with `brain`
-- support richer local workflows for advanced users and small teams
+- ship model-aware planning skill guidance
+- benchmark prompt and workflow improvements before expanding the surface
+- add the next shaping passes around brainstorms, epics, and specs
+
+## v6: Story Slicing and Execution Readiness
+
+Goal: Make the spec-to-story transition materially better before reintroducing
+larger-plan power.
+
+- [ ] Story Slice Preview and Apply Flow
+- [ ] Story Critique and Rejection Rules
+- [ ] Execution-Readiness Integration in `plan check`
+
+Summary:
+- add `plan story slice`
+- add `plan story critique`
+- keep the default path small while making optional story quality passes stronger
+
+## v7: External Sync, Only If Still Needed
+
+Goal: Connect outward only after the local shaping loop is clearly excellent.
+
+- [ ] GitHub Projection Model
+- [ ] Issue and PR Linking
+- [ ] Selective Publish and Back-Sync
+
+Summary:
+- keep `.plan` canonical
+- treat external tools as projections, not source of truth
+- defer broader integrations until GitHub-only sync proves worthwhile
 
 ## Ordering Notes
 
-- v1 proves the core file model and daily workflow.
-- v2 improves rigor before widening scope.
-- v3 adds power features after the core is stable.
-- External integrations stay out of scope for the first three versions.
+- fix the product story before adding more product surface
+- benchmark quality improvements before stacking more passes
+- keep the default path simple even as optional shaping modes deepen
+- do not revive older power-first local workflow features without clear eval wins
 
 ## Parking Lot
 
-- GitHub sync/export workflows
+- generic ready queues
+- dependency graphs as headline features
 - Jira or Linear adapters
 - hosted dashboards
-- database-backed multi-user mode
-- any memory, retrieval, or context-engineering features
+- cloud-first collaboration
+- memory, retrieval, or context-engineering features

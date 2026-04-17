@@ -4,19 +4,25 @@ Created: {{ .Now }}
 
 ## Overview
 
-## v1: Core
+## v4: Planning Refinement Foundation
 
 Goal:
 
 Summary:
 
-## v2: Rigor
+## v5: Planning Skills, Shaping, and Evals
 
 Goal:
 
 Summary:
 
-## v3: Power
+## v6: Story Slicing and Execution Readiness
+
+Goal:
+
+Summary:
+
+## v7: External Sync, Only If Still Needed
 
 Goal:
 

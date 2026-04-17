@@ -576,97 +576,7 @@ func (m *Manager) Status() (*ProjectStatus, error) {
 			status.InProgressStories++
 		}
 	}
-	if ready, err := m.ReadyWork(); err == nil {
-		status.ReadyStories = len(ready.Ready)
-		status.DependencyBlocked = len(ready.Blocked)
-	}
-	if roadmap, err := m.ReadRoadmap(); err == nil {
-		status.RoadmapPath = roadmap.Path
-		status.ParkingLotCount = len(roadmap.ParkingLot)
-		status.Versions, status.UnassignedEpics = buildVersionStatuses(epics, roadmap)
-	}
 	return status, nil
-}
-
-func buildVersionStatuses(epics []EpicInfo, roadmap *Roadmap) ([]VersionStatus, []EpicInfo) {
-	versionEpics := make(map[string][]EpicInfo)
-	var unassigned []EpicInfo
-	for _, epic := range epics {
-		key := strings.TrimSpace(epic.TargetVersion)
-		if key == "" {
-			unassigned = append(unassigned, epic)
-			continue
-		}
-		versionEpics[key] = append(versionEpics[key], epic)
-	}
-
-	versions := make([]VersionStatus, 0, len(roadmap.Versions))
-	for _, version := range roadmap.Versions {
-		status := VersionStatus{
-			Key:   strings.TrimSpace(version.Key),
-			Title: version.Title,
-			Goal:  version.Goal,
-			Epics: orderEpicsForVersion(versionEpics[strings.TrimSpace(version.Key)], version),
-		}
-		accumulateVersionCounts(&status)
-		versions = append(versions, status)
-		delete(versionEpics, status.Key)
-	}
-
-	extraKeys := make([]string, 0, len(versionEpics))
-	for key := range versionEpics {
-		extraKeys = append(extraKeys, key)
-	}
-	sort.Strings(extraKeys)
-	for _, key := range extraKeys {
-		status := VersionStatus{
-			Key:   key,
-			Title: key,
-			Epics: append([]EpicInfo(nil), versionEpics[key]...),
-		}
-		accumulateVersionCounts(&status)
-		versions = append(versions, status)
-	}
-
-	return versions, unassigned
-}
-
-func orderEpicsForVersion(epics []EpicInfo, version RoadmapVersion) []EpicInfo {
-	if len(epics) == 0 {
-		return nil
-	}
-	ordered := make([]EpicInfo, 0, len(epics))
-	used := make([]bool, len(epics))
-	for _, roadmapEpic := range version.Epics {
-		for idx, epic := range epics {
-			if used[idx] || epic.Title != roadmapEpic.Title {
-				continue
-			}
-			ordered = append(ordered, epic)
-			used[idx] = true
-			break
-		}
-	}
-	var extras []EpicInfo
-	for idx, epic := range epics {
-		if used[idx] {
-			continue
-		}
-		extras = append(extras, epic)
-	}
-	sort.Slice(extras, func(i, j int) bool {
-		return extras[i].Title < extras[j].Title
-	})
-	return append(ordered, extras...)
-}
-
-func accumulateVersionCounts(version *VersionStatus) {
-	for _, epic := range version.Epics {
-		version.TotalStories += epic.TotalStories
-		version.DoneStories += epic.DoneStories
-		version.InProgressStories += epic.InProgressStories
-		version.BlockedStories += epic.BlockedStories
-	}
 }
 
 func (m *Manager) createSpecForEpic(info *workspace.Info, epic *notes.Note) (*notes.Note, error) {
@@ -695,6 +605,9 @@ func (m *Manager) seedEpicFromBrainstorm(info *workspace.Info, epic *notes.Note,
 	if desiredOutcome := notes.ExtractSection(brainstorm.Content, "Desired Outcome"); desiredOutcome != "" {
 		body = notes.AppendUnderHeading(body, "Outcome", desiredOutcome)
 	}
+	if snapshot := notes.ExtractSection(brainstorm.Content, "Decision Snapshot"); snapshot != "" {
+		body = notes.AppendUnderHeading(body, "Scope Boundary", snapshot)
+	}
 	if focus := notes.ExtractSection(brainstorm.Content, "Focus Question"); focus != "" {
 		body = notes.AppendUnderHeading(body, "Why Now", focus)
 	}
@@ -706,14 +619,22 @@ func (m *Manager) seedEpicFromBrainstorm(info *workspace.Info, epic *notes.Note,
 
 func (m *Manager) seedSpecFromBrainstorm(info *workspace.Info, spec *notes.Note, brainstorm *notes.Note) (*notes.Note, error) {
 	body := spec.Content
-	if focus := notes.ExtractSection(brainstorm.Content, "Focus Question"); focus != "" {
+	if problem := notes.ExtractSection(brainstorm.Content, "Problem"); problem != "" {
+		body = notes.AppendUnderHeading(body, "Problem", problem)
+	} else if focus := notes.ExtractSection(brainstorm.Content, "Focus Question"); focus != "" {
 		body = notes.AppendUnderHeading(body, "Problem", focus)
+	}
+	if userValue := notes.ExtractSection(brainstorm.Content, "User / Value"); userValue != "" {
+		body = notes.AppendUnderHeading(body, "Why", userValue)
 	}
 	if desiredOutcome := notes.ExtractSection(brainstorm.Content, "Desired Outcome"); desiredOutcome != "" {
 		body = notes.AppendUnderHeading(body, "Goals", desiredOutcome)
 	}
 	if ideas := notes.ExtractSection(brainstorm.Content, "Ideas"); ideas != "" {
 		body = notes.AppendUnderHeading(body, "Goals", ideas)
+	}
+	if approaches := notes.ExtractSection(brainstorm.Content, "Candidate Approaches"); approaches != "" {
+		body = notes.AppendUnderHeading(body, "Solution Shape", approaches)
 	}
 	if constraints := notes.ExtractSection(brainstorm.Content, "Constraints"); constraints != "" {
 		body = notes.AppendUnderHeading(body, "Constraints", constraints)

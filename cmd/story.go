@@ -65,7 +65,6 @@ func newStoryCommand() *cobra.Command {
 
 	var epicFilter string
 	var statusFilter string
-	var versionFilter string
 	list := &cobra.Command{
 		Use:   "list",
 		Short: "List stories",
@@ -80,9 +79,6 @@ func newStoryCommand() *cobra.Command {
 			}
 			printed := 0
 			for _, item := range items {
-				if versionFilter != "" && item.TargetVersion != versionFilter {
-					continue
-				}
 				fmt.Fprintf(cmd.OutOrStdout(), "%s [%s] epic=%s spec=%s\n", item.Title, item.Status, item.Epic, item.Spec)
 				printed++
 			}
@@ -94,7 +90,6 @@ func newStoryCommand() *cobra.Command {
 	}
 	list.Flags().StringVar(&epicFilter, "epic", "", "filter by epic slug")
 	list.Flags().StringVar(&statusFilter, "status", "", "filter by story status")
-	list.Flags().StringVar(&versionFilter, "version", "", "filter by target roadmap version")
 
 	show := &cobra.Command{
 		Use:   "show <story-slug>",

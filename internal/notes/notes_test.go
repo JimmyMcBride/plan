@@ -54,3 +54,55 @@ func TestReadParsesCRLFFrontmatter(t *testing.T) {
 		t.Fatalf("expected preserved note body, got:\n%s", note.Content)
 	}
 }
+
+func TestSetSectionReplacesExistingSection(t *testing.T) {
+	content := strings.Join([]string{
+		"# Brainstorm",
+		"",
+		"## Ideas",
+		"",
+		"- First idea",
+		"",
+		"## Notes",
+		"",
+		"Original notes.",
+		"",
+	}, "\n")
+
+	updated := SetSection(content, "Ideas", strings.Join([]string{
+		"### Candidate Approaches",
+		"",
+		"- Try a simpler default flow",
+	}, "\n"))
+
+	if strings.Contains(updated, "- First idea") {
+		t.Fatalf("expected existing section content to be replaced:\n%s", updated)
+	}
+	if !strings.Contains(updated, "## Ideas\n\n### Candidate Approaches") {
+		t.Fatalf("expected replacement section content:\n%s", updated)
+	}
+	if !strings.Contains(updated, "## Notes\n\nOriginal notes.") {
+		t.Fatalf("expected following sections to remain intact:\n%s", updated)
+	}
+}
+
+func TestSetSectionAppendsMissingSection(t *testing.T) {
+	content := strings.Join([]string{
+		"# Spec",
+		"",
+		"## Problem",
+		"",
+		"Need clearer planning.",
+		"",
+	}, "\n")
+
+	updated := SetSection(content, "Analysis", strings.Join([]string{
+		"### Missing Constraints",
+		"",
+		"- None.",
+	}, "\n"))
+
+	if !strings.Contains(updated, "## Analysis\n\n### Missing Constraints") {
+		t.Fatalf("expected missing section to be appended:\n%s", updated)
+	}
+}
