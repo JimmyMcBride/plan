@@ -18,7 +18,6 @@ func newRootCmd() *cobra.Command {
 	root.AddCommand(
 		newAdoptCommand(),
 		newCheckCommand(),
-		newImportCommand(),
 		newInitCommand(),
 		newDoctorCommand(),
 		newUpdateCommand(),
@@ -27,7 +26,6 @@ func newRootCmd() *cobra.Command {
 		newSpecCommand(),
 		newStoryCommand(),
 		newRoadmapCommand(),
-		newReadyCommand(),
 		newStatusCommand(),
 		newSkillsCommand(),
 	)

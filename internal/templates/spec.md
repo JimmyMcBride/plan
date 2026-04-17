@@ -26,6 +26,20 @@ Created: {{ .Now }}
 
 ## Story Breakdown
 
+## Analysis
+
+### Missing Constraints
+
+### Success Criteria Gaps
+
+### Hidden Dependencies
+
+### Risk Gaps
+
+### What/Why vs How Leakage
+
+### Recommended Revisions
+
 ## Resources
 
 ## Notes

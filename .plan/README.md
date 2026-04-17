@@ -1,20 +1,27 @@
 # plan workspace
 
-Draft local-first planning workspace for the `plan` project itself.
+Local-first planning workspace for the `plan` project itself.
 
 Current purpose:
-- hold product direction
-- hold research on reference tools
+- hold the current product direction
+- hold the roadmap reset for `v4+`
 - keep planning material in-repo under `.plan/`
 
-Draft structure:
+The current workspace is intentionally centered on the same artifacts that the
+tool ships:
 
 ```text
 .plan/
   README.md
   PRODUCT.md
+  PROJECT.md
+  ROADMAP.md
+  brainstorms/
+  epics/
+  specs/
+  stories/
   research/
-    reference-analysis.md
 ```
 
-This is intentionally small. `plan` should prove its own file model before adding more layers.
+This workspace should reflect the live product direction, not just historical
+planning history.

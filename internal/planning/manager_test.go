@@ -310,7 +310,7 @@ func TestUpdateStorySyncsSpecLifecycleAndEpicProgress(t *testing.T) {
 	}
 }
 
-func TestStatusBuildsRoadmapVersionSummaries(t *testing.T) {
+func TestUpdateBrainstormRefinementPersistsStructuredSections(t *testing.T) {
 	root := t.TempDir()
 	ws := workspace.New(root)
 	if _, err := ws.Init(); err != nil {
@@ -318,50 +318,42 @@ func TestStatusBuildsRoadmapVersionSummaries(t *testing.T) {
 	}
 	manager := New(ws)
 
-	if _, err := manager.CreateEpic("Roadmap Work", ""); err != nil {
+	if _, err := manager.CreateBrainstorm("Billing Flow"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := manager.UpdateSpec("roadmap-work", notes.UpdateInput{
-		Metadata: map[string]any{"status": "approved", "target_version": "v2"},
+	if _, err := manager.UpdateBrainstormRefinement("billing-flow", BrainstormRefinementInput{
+		Problem:                "Teams cannot shape billing work clearly before they start coding.",
+		UserValue:              "The planner gets a clear decision-making artifact before promotion.",
+		Constraints:            "Stay local-first\nDo not add new top-level artifact types",
+		Appetite:               "Small, focused refinement pass before promotion.",
+		RemainingOpenQuestions: "How opinionated should the prompts be?",
+		CandidateApproaches:    "Add an interactive brainstorm refine command\nSeed shaped sections into the later spec",
+		DecisionSnapshot:       "Ship a guided refinement pass before more power features.",
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := manager.CreateStory(
-		"roadmap-work",
-		"Ship roadmap parser",
-		"Parse version sections from roadmap",
-		[]string{"Version sections are parsed"},
-		[]string{"go test ./internal/planning"},
-		nil,
-	); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := manager.UpdateStory("ship-roadmap-parser", StoryChanges{Status: "in_progress"}); err != nil {
-		t.Fatal(err)
-	}
 
-	status, err := manager.Status()
+	state, err := manager.ReadBrainstormRefinement("billing-flow")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if status.RoadmapPath != ".plan/ROADMAP.md" {
-		t.Fatalf("expected roadmap path in status: %+v", status)
+	if state.Problem == "" || state.UserValue == "" || state.Appetite == "" || state.DecisionSnapshot == "" {
+		t.Fatalf("expected structured refinement to be readable: %+v", state)
 	}
-	if len(status.Versions) < 2 {
-		t.Fatalf("expected roadmap versions in status: %+v", status.Versions)
+
+	note, err := notes.Read(filepath.Join(root, ".plan", "brainstorms", "billing-flow.md"))
+	if err != nil {
+		t.Fatal(err)
 	}
-	if status.Versions[1].Key != "v2" || len(status.Versions[1].Epics) != 1 {
-		t.Fatalf("expected v2 version grouping: %+v", status.Versions)
+	if !strings.Contains(note.Content, "## Refinement") || !strings.Contains(note.Content, "### Candidate Approaches") {
+		t.Fatalf("expected refinement section in brainstorm:\n%s", note.Content)
 	}
-	if status.Versions[1].Epics[0].Title != "Roadmap Work" {
-		t.Fatalf("expected roadmap epic in v2 group: %+v", status.Versions[1].Epics)
-	}
-	if len(status.UnassignedEpics) != 0 {
-		t.Fatalf("expected no unassigned epics: %+v", status.UnassignedEpics)
+	if !strings.Contains(note.Content, "## Constraints\n\n- Stay local-first") {
+		t.Fatalf("expected constraints to be normalized into the brainstorm body:\n%s", note.Content)
 	}
 }
 
-func TestUpdateStoryStoresNormalizedBlockerMetadata(t *testing.T) {
+func TestAnalyzeSpecWritesIdempotentAnalysisSection(t *testing.T) {
 	root := t.TempDir()
 	ws := workspace.New(root)
 	if _, err := ws.Init(); err != nil {
@@ -372,129 +364,86 @@ func TestUpdateStoryStoresNormalizedBlockerMetadata(t *testing.T) {
 	if _, err := manager.CreateEpic("Billing", ""); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := manager.SetSpecStatus("billing", "approved"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := manager.CreateStory(
-		"billing",
-		"Implement invoices",
-		"Create invoice generation flow",
-		[]string{"Generate invoices from line items"},
-		[]string{"Run focused billing tests"},
-		nil,
-	); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := manager.CreateStory(
-		"billing",
-		"Ship exports",
-		"Create export flow",
-		[]string{"Export invoices"},
-		[]string{"Run export tests"},
-		nil,
-	); err != nil {
+	body := strings.Join([]string{
+		"# Billing Spec",
+		"",
+		"Created: now",
+		"",
+		"## Why",
+		"",
+		"The API needs to feel simpler for billing work.",
+		"",
+		"## Problem",
+		"",
+		"Invoice generation is unreliable today.",
+		"",
+		"## Goals",
+		"",
+		"- generate invoices consistently",
+		"",
+		"## Non-Goals",
+		"",
+		"- redesigning the entire billing system",
+		"",
+		"## Constraints",
+		"",
+		"",
+		"## Solution Shape",
+		"",
+		"Add a background worker and schema migration to create invoice records.",
+		"",
+		"## Flows",
+		"",
+		"1. Close billing cycle.",
+		"2. Queue invoice generation.",
+		"",
+		"## Data / Interfaces",
+		"",
+		"- database schema update",
+		"- external API export",
+		"",
+		"## Risks / Open Questions",
+		"",
+		"",
+		"## Rollout",
+		"",
+		"- ship behind a flag",
+		"",
+		"## Verification",
+		"",
+		"",
+	}, "\n")
+	if _, err := manager.UpdateSpec("billing", notes.UpdateInput{Body: &body}); err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := manager.UpdateStory("ship-exports", StoryChanges{
-		SetBlockers: []string{"Implement invoices", "implement-invoices", " "},
-	}); err != nil {
-		t.Fatal(err)
-	}
-
-	stories, err := manager.ListStories("billing", "")
+	report, err := manager.AnalyzeSpec("billing")
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, story := range stories {
-		if story.Title != "Ship exports" {
-			continue
-		}
-		if len(story.Blockers) != 1 || story.Blockers[0] != "implement-invoices" {
-			t.Fatalf("expected normalized blocker slugs: %+v", story)
-		}
-		return
-	}
-	t.Fatal("expected updated story in listing")
-}
-
-func TestReadyWorkSeparatesReadyAndBlockedStories(t *testing.T) {
-	root := t.TempDir()
-	ws := workspace.New(root)
-	if _, err := ws.Init(); err != nil {
-		t.Fatal(err)
-	}
-	manager := New(ws)
-
-	if _, err := manager.CreateEpic("Billing", ""); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := manager.SetSpecStatus("billing", "approved"); err != nil {
-		t.Fatal(err)
-	}
-	for _, input := range []struct {
-		title string
-		body  string
-	}{
-		{title: "Implement invoices", body: "Create invoice generation flow"},
-		{title: "Ship exports", body: "Create export flow"},
-		{title: "Manual blocker", body: "Needs external review"},
-	} {
-		if _, err := manager.CreateStory(
-			"billing",
-			input.title,
-			input.body,
-			[]string{"Acceptance for " + input.title},
-			[]string{"Verify " + input.title},
-			nil,
-		); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if _, err := manager.UpdateStory("ship-exports", StoryChanges{SetBlockers: []string{"implement-invoices"}}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := manager.UpdateStory("manual-blocker", StoryChanges{Status: "blocked"}); err != nil {
-		t.Fatal(err)
+	if !report.HasBlockingFindings() {
+		t.Fatalf("expected blocking findings for thin constraints/verification: %+v", report.Findings)
 	}
 
-	work, err := manager.ReadyWork()
+	specPath := filepath.Join(root, ".plan", "specs", "billing.md")
+	note, err := notes.Read(specPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(work.Ready) != 1 || work.Ready[0].Title != "Implement invoices" {
-		t.Fatalf("expected only invoices story to be ready: %+v", work.Ready)
+	firstAnalysis := notes.ExtractSection(note.Content, "Analysis")
+	if !strings.Contains(firstAnalysis, "### Missing Constraints") || !strings.Contains(firstAnalysis, "### Recommended Revisions") {
+		t.Fatalf("expected analysis section to be written:\n%s", note.Content)
 	}
-	if len(work.Blocked) != 2 {
-		t.Fatalf("expected blocked stories to be returned: %+v", work.Blocked)
-	}
-	assertBlockedReason(t, work.Blocked, "Ship exports", "blocked by implement-invoices [todo]")
-	assertBlockedReason(t, work.Blocked, "Manual blocker", "story status is blocked")
 
-	if _, err := manager.UpdateStory("implement-invoices", StoryChanges{Status: "done"}); err != nil {
+	if _, err := manager.AnalyzeSpec("billing"); err != nil {
 		t.Fatal(err)
 	}
-	work, err = manager.ReadyWork()
+	note, err = notes.Read(specPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(work.Ready) != 1 || work.Ready[0].Title != "Ship exports" {
-		t.Fatalf("expected exports story to become ready once blocker is done: %+v", work.Ready)
+	secondAnalysis := notes.ExtractSection(note.Content, "Analysis")
+	if firstAnalysis != secondAnalysis {
+		t.Fatalf("expected analysis section to be idempotent:\nfirst:\n%s\n\nsecond:\n%s", firstAnalysis, secondAnalysis)
 	}
-}
-
-func assertBlockedReason(t *testing.T, blocked []BlockedStory, title, reason string) {
-	t.Helper()
-	for _, item := range blocked {
-		if item.Story.Title != title {
-			continue
-		}
-		for _, current := range item.Reasons {
-			if current == reason {
-				return
-			}
-		}
-		t.Fatalf("expected blocker reason %q for %s: %+v", reason, title, item)
-	}
-	t.Fatalf("expected blocked story %s: %+v", title, blocked)
 }
