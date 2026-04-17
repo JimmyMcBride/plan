@@ -29,10 +29,12 @@ Workflow entry:
 
 1. Brainstorm
 2. Refine
-3. Promote to epic
-4. Write and approve spec
-5. Analyze the spec
-6. Split into stories
+3. Challenge
+4. Promote to epic
+5. Shape the epic
+6. Write and approve spec
+7. Analyze or checklist the spec
+8. Split into stories
 
 The default path stays small. New shaping passes should improve the same
 artifacts rather than add new top-level planning objects.
@@ -76,9 +78,12 @@ user-authored planning notes just to migrate product direction.
 plan init --project .
 plan brainstorm start --project . "Newsletter system"
 plan brainstorm refine --project . newsletter-system
+plan brainstorm challenge --project . newsletter-system
 plan epic promote --project . newsletter-system
+plan epic shape --project . newsletter-system
 plan spec show --project . newsletter-system
 plan spec analyze --project . newsletter-system
+plan spec checklist --project . newsletter-system --profile general
 plan spec status --project . newsletter-system --set approved
 plan story create --project . newsletter-system "Build template editor" \
   --criteria "Templates can be created and edited" \
@@ -93,8 +98,9 @@ plan status --project .
 - `plan doctor`
 - `plan update`
 - `plan brainstorm start|idea|show|refine`
-- `plan epic create|promote|list|show`
-- `plan spec show|edit|status|analyze`
+- `plan brainstorm challenge`
+- `plan epic create|promote|list|show|shape`
+- `plan spec show|edit|status|analyze|checklist`
 - `plan story create|update|list|show`
 - `plan roadmap show|edit`
 - `plan check`
@@ -148,6 +154,19 @@ Preview install targets:
 ```bash
 plan skills targets --scope both --agent codex --project .
 ```
+
+## Evaluating Prompt And Workflow Changes
+
+`v5` adds a local benchmark and rubric harness for maintainers. The initial
+workflow is test-driven:
+
+```bash
+go test ./internal/planning -run TestBenchmarkFixturesSatisfyMinimumScores
+go test ./internal/planning -run TestRubricEvaluationIsDeterministic
+```
+
+The fixtures live under `testdata/evals/fixtures/` and the rubric code lives in
+`internal/planning/evals.go`.
 
 ## Release Flow
 

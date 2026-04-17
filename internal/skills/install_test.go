@@ -196,6 +196,31 @@ func TestInstallRepairsLegacyInstallCleanly(t *testing.T) {
 	}
 }
 
+func TestSourceTreeBundleInstallsModelGuidanceFiles(t *testing.T) {
+	RegisterBundle(nil)
+
+	home := t.TempDir()
+	installer := NewInstaller(home)
+	if _, err := installer.Install(InstallRequest{
+		Scope:  ScopeGlobal,
+		Agents: []string{"codex"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	skillDir := filepath.Join(home, ".codex", "skills", "plan")
+	for _, rel := range []string{
+		"SKILL.md",
+		filepath.Join("agents", "openai.yaml"),
+		filepath.Join("agents", "gpt-style.yaml"),
+		filepath.Join("agents", "reasoning.yaml"),
+	} {
+		if _, err := os.Stat(filepath.Join(skillDir, rel)); err != nil {
+			t.Fatalf("expected installed skill file %s: %v", rel, err)
+		}
+	}
+}
+
 func registerTestBundle(t *testing.T) string {
 	t.Helper()
 

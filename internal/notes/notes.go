@@ -299,3 +299,7 @@ func ExtractSection(content, heading string) string {
 	}
 	return strings.TrimSpace(strings.Join(out, "\n"))
 }
+
+func ExtractNestedSection(content, parentHeading, childHeading string) string {
+	return ExtractSection(ExtractSection(content, parentHeading), childHeading)
+}

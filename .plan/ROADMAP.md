@@ -14,10 +14,10 @@ considered.
 Goal: Reset the product story, simplify the CLI, and ship the first two
 high-leverage shaping passes.
 
-- [ ] Product Reset and Docs Convergence
-- [ ] CLI Surface Simplification
-- [ ] Guided Brainstorm Refinement
-- [ ] Spec Analysis Foundation
+- [x] Product Reset and Docs Convergence
+- [x] CLI Surface Simplification
+- [x] Guided Brainstorm Refinement
+- [x] Spec Analysis Foundation
 
 Summary:
 - converge README, product docs, roadmap, project notes, templates, and skill text
@@ -30,16 +30,20 @@ Summary:
 Goal: Make prompt quality, shaping passes, and benchmarked improvements
 first-class product work.
 
-- [ ] Model-Aware Planning Skills
-- [ ] Benchmark Fixtures and Rubric Evals
-- [ ] Brainstorm Challenge
-- [ ] Epic Shaping
-- [ ] Spec Checklist Profiles
+- [x] Model-Aware Planning Skills
+- [x] Benchmark Fixtures and Rubric Evals
+- [x] Brainstorm Challenge
+- [x] Epic Shaping
+- [x] Spec Checklist Profiles
 
 Summary:
 - ship model-aware planning skill guidance
 - benchmark prompt and workflow improvements before expanding the surface
 - add the next shaping passes around brainstorms, epics, and specs
+
+Current focus:
+- move into `v6` story slicing and execution-readiness work
+- keep the default path simple while the optional shaping passes deepen
 
 ## v6: Story Slicing and Execution Readiness
 

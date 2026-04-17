@@ -1,0 +1,18 @@
+name: plan-gpt-style
+description: Explicit, step-ordered planning guidance for GPT-style models.
+style:
+  - instructions_first
+  - clear_separators
+  - explicit_completion_contract
+  - examples_before_abstraction
+workflow:
+  - identify the artifact and current gap
+  - choose the lightest useful pass
+  - gather missing detail with explicit prompts
+  - write additive updates only
+  - verify that the artifact is still bounded and execution-ready
+checks:
+  - clarity
+  - boundedness
+  - verification_quality
+  - simplicity

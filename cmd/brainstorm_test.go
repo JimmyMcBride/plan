@@ -76,3 +76,67 @@ func TestBrainstormRefineCommandPersistsClustersAndResumes(t *testing.T) {
 		t.Fatalf("expected candidate approaches after resume:\n%s", note.Content)
 	}
 }
+
+func TestBrainstormChallengeCommandPersistsClustersAndResumes(t *testing.T) {
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := planning.New(ws)
+	if _, err := manager.CreateBrainstorm("Billing Flow"); err != nil {
+		t.Fatal(err)
+	}
+
+	firstInput := strings.Join([]string{
+		"Schema changes without rollout planning.",
+		"Too many sidecar workflow objects.",
+		"",
+		"Do not add hosted services.",
+		"Do not turn plan into a tracker clone.",
+		"",
+		"Users will accept one more planning pass.",
+		"Prompt guidance can stay inspectable in git.",
+		"",
+		"",
+	}, "\n")
+	var first bytes.Buffer
+	command := newRootCmd()
+	command.SetOut(&first)
+	command.SetErr(&first)
+	command.SetIn(strings.NewReader(firstInput))
+	command.SetArgs([]string{"--project", root, "brainstorm", "challenge", "billing-flow"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("expected first challenge pass to succeed: %v\n%s", err, first.String())
+	}
+
+	secondInput := strings.Join([]string{
+		"If we add too many profiles too early, the product gets ceremonial.",
+		"",
+		"Start with one shaped prompt loop and one checklist pass.",
+		"",
+	}, "\n")
+	var second bytes.Buffer
+	command = newRootCmd()
+	command.SetOut(&second)
+	command.SetErr(&second)
+	command.SetIn(strings.NewReader(secondInput))
+	command.SetArgs([]string{"--project", root, "brainstorm", "challenge", "billing-flow"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("expected resumed challenge pass to succeed: %v\n%s", err, second.String())
+	}
+
+	note, err := notes.Read(filepath.Join(root, ".plan", "brainstorms", "billing-flow.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(note.Content, "## Challenge") || !strings.Contains(note.Content, "### Simpler Alternative") {
+		t.Fatalf("expected challenge section in note:\n%s", note.Content)
+	}
+	if !strings.Contains(note.Content, "### Rabbit Holes\n\n- Schema changes without rollout planning.") {
+		t.Fatalf("expected rabbit holes in challenge section:\n%s", note.Content)
+	}
+	if !strings.Contains(note.Content, "### Simpler Alternative\n\nStart with one shaped prompt loop and one checklist pass.") {
+		t.Fatalf("expected simpler alternative after resume:\n%s", note.Content)
+	}
+}

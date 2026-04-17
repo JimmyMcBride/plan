@@ -1,2 +1,33 @@
 name: plan
-description: Local-first planning guidance for repos using the `plan` CLI.
+description: Model-aware planning guidance for repos using the `plan` CLI.
+default_mode: guided
+families:
+  gpt_style:
+    use_when:
+      - The model benefits from explicit step ordering and stronger output contracts.
+      - The planning pass is interactive and should stay tightly scaffolded.
+    behavior:
+      - Name the current artifact before editing it.
+      - Prefer one planning pass at a time: refine, challenge, shape, analyze, or checklist.
+      - Keep completion criteria concrete and verification-aware.
+      - If ambiguity remains, ask only the smallest clarifying question required to keep the plan sound.
+  reasoning_heavy:
+    use_when:
+      - The model can infer structure from higher-level goals but still needs strong boundaries.
+      - The task is pressure-testing plan quality rather than filling a blank template.
+    behavior:
+      - Start from the product goal and the artifact's current gaps.
+      - Search for risk, boundedness, and verification failures before proposing new surface area.
+      - Prefer simpler alternatives when the current idea looks overbuilt.
+      - Keep the resulting artifact easy for a later implementation agent to execute.
+passes:
+  - brainstorm_refine
+  - brainstorm_challenge
+  - epic_shape
+  - spec_analyze
+  - spec_checklist
+guardrails:
+  - plan is planning-only
+  - specs remain canonical
+  - optional rigor must stay optional
+  - do not drift into memory or context management

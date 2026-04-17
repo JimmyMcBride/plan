@@ -101,3 +101,95 @@ func TestSpecAnalyzeCommandWritesAnalysisAndFailsOnBlockingFindings(t *testing.T
 		t.Fatalf("expected analysis section in spec note:\n%s", note.Content)
 	}
 }
+
+func TestSpecChecklistCommandWritesChecklistAndFailsOnBlockingFindings(t *testing.T) {
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := planning.New(ws)
+
+	if _, err := manager.CreateEpic("Billing", ""); err != nil {
+		t.Fatal(err)
+	}
+	body := strings.Join([]string{
+		"# Billing Spec",
+		"",
+		"Created: now",
+		"",
+		"## Why",
+		"",
+		"The billing export should integrate with a third-party API.",
+		"",
+		"## Problem",
+		"",
+		"Billing exports are inconsistent.",
+		"",
+		"## Goals",
+		"",
+		"- ship export support",
+		"",
+		"## Non-Goals",
+		"",
+		"- redesign every billing screen",
+		"",
+		"## Constraints",
+		"",
+		"- keep the rollout low-risk",
+		"",
+		"## Solution Shape",
+		"",
+		"Add export support for billing.",
+		"",
+		"## Flows",
+		"",
+		"1. Trigger export.",
+		"",
+		"## Data / Interfaces",
+		"",
+		"- internal billing types",
+		"",
+		"## Risks / Open Questions",
+		"",
+		"- what should the export format be",
+		"",
+		"## Rollout",
+		"",
+		"- ship it carefully",
+		"",
+		"## Verification",
+		"",
+		"- run billing tests",
+		"",
+	}, "\n")
+	if _, err := manager.UpdateSpec("billing", notes.UpdateInput{Body: &body}); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	command := newRootCmd()
+	command.SetOut(&buf)
+	command.SetErr(&buf)
+	command.SetArgs([]string{"--project", root, "spec", "checklist", "billing", "--profile", "api-integration"})
+	err := command.Execute()
+	if err == nil {
+		t.Fatalf("expected blocking checklist findings:\n%s", buf.String())
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "spec_checklist: .plan/specs/billing.md") || !strings.Contains(output, "profile: api-integration") {
+		t.Fatalf("expected checklist header in output:\n%s", output)
+	}
+	if !strings.Contains(output, "[error] Data / Interfaces:") {
+		t.Fatalf("expected blocking checklist item in output:\n%s", output)
+	}
+
+	note, err := notes.Read(filepath.Join(root, ".plan", "specs", "billing.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(note.Content, "## Checklist") || !strings.Contains(note.Content, "### api-integration") {
+		t.Fatalf("expected checklist section in spec note:\n%s", note.Content)
+	}
+}

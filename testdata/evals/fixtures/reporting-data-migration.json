@@ -1,0 +1,18 @@
+{
+  "slug": "reporting-data-migration",
+  "title": "Reporting Data Migration",
+  "artifact_type": "spec",
+  "scenario": "Migration-heavy reporting feature with bounded scope and validation detail.",
+  "candidate": "# Reporting Data Migration\n\n## Why\n\nReporting cannot scale until old rollup data is migrated into the new schema.\n\n## Problem\n\nThe reporting system depends on legacy tables that block the next reporting features.\n\n## Goals\n\n- migrate reporting data safely\n- preserve reporting correctness during rollout\n\n## Non-Goals\n\n- rebuilding every reporting query in one pass\n- changing unrelated admin tooling\n\n## Constraints\n\n- keep the migration reversible\n- support a staged rollout\n\n## Solution Shape\n\nAdd a schema migration, a backfill job, and a temporary dual-read path.\n\n## Flows\n\n1. Apply the schema migration.\n2. Run the backfill job.\n3. Validate reports through the dual-read path.\n\n## Data / Interfaces\n\n- reporting schema migration\n- backfill job payload\n- dual-read reporting contract\n\n## Risks / Open Questions\n\n- backfill duration\n- rollback safety\n- stale data during the dual-read window\n\n## Rollout\n\n- rehearse on staging\n- batch the backfill\n- rollback if integrity checks fail\n\n## Verification\n\n- validate migrated row counts\n- check reporting data integrity after the backfill\n- run focused reporting tests\n\n## Story Breakdown\n\n- add migration\n- run backfill\n- validate dual-read results\n",
+  "minimum_scores": {
+    "clarity": 5,
+    "boundedness": 3,
+    "risk_coverage": 4,
+    "non_goal_quality": 4,
+    "verification_quality": 4,
+    "story_slice_quality": 4,
+    "agent_executability": 4,
+    "artifact_simplicity": 3,
+    "user_effort_cost": 3
+  }
+}

@@ -78,16 +78,16 @@ func (m *Manager) UpdateBrainstormRefinement(brainstormSlug string, input Brains
 		current.UserValue = strings.TrimSpace(input.UserValue)
 	}
 	if strings.TrimSpace(input.Constraints) != "" {
-		current.Constraints = normalizeBrainstormList(input.Constraints)
+		current.Constraints = normalizeBulletList(input.Constraints)
 	}
 	if strings.TrimSpace(input.Appetite) != "" {
 		current.Appetite = strings.TrimSpace(input.Appetite)
 	}
 	if strings.TrimSpace(input.RemainingOpenQuestions) != "" {
-		current.RemainingOpenQuestions = normalizeBrainstormList(input.RemainingOpenQuestions)
+		current.RemainingOpenQuestions = normalizeBulletList(input.RemainingOpenQuestions)
 	}
 	if strings.TrimSpace(input.CandidateApproaches) != "" {
-		current.CandidateApproaches = normalizeBrainstormList(input.CandidateApproaches)
+		current.CandidateApproaches = normalizeBulletList(input.CandidateApproaches)
 	}
 	if strings.TrimSpace(input.DecisionSnapshot) != "" {
 		current.DecisionSnapshot = strings.TrimSpace(input.DecisionSnapshot)
@@ -111,13 +111,13 @@ func (m *Manager) UpdateBrainstormRefinement(brainstormSlug string, input Brains
 
 func extractBrainstormRefinement(note *notes.Note) BrainstormRefinement {
 	return BrainstormRefinement{
-		Problem:                notes.ExtractSection(note.Content, "Problem"),
-		UserValue:              notes.ExtractSection(note.Content, "User / Value"),
+		Problem:                extractSubsection(note.Content, "Refinement", "Problem"),
+		UserValue:              extractSubsection(note.Content, "Refinement", "User / Value"),
 		Constraints:            notes.ExtractSection(note.Content, "Constraints"),
-		Appetite:               notes.ExtractSection(note.Content, "Appetite"),
-		RemainingOpenQuestions: notes.ExtractSection(note.Content, "Open Questions"),
-		CandidateApproaches:    notes.ExtractSection(note.Content, "Candidate Approaches"),
-		DecisionSnapshot:       notes.ExtractSection(note.Content, "Decision Snapshot"),
+		Appetite:               extractSubsection(note.Content, "Refinement", "Appetite"),
+		RemainingOpenQuestions: extractSubsection(note.Content, "Refinement", "Remaining Open Questions"),
+		CandidateApproaches:    extractSubsection(note.Content, "Refinement", "Candidate Approaches"),
+		DecisionSnapshot:       extractSubsection(note.Content, "Refinement", "Decision Snapshot"),
 	}
 }
 
@@ -130,31 +130,4 @@ func renderBrainstormRefinement(refinement BrainstormRefinement) string {
 	appendSubsection(&lines, "Candidate Approaches", refinement.CandidateApproaches)
 	appendSubsection(&lines, "Decision Snapshot", refinement.DecisionSnapshot)
 	return strings.Join(lines, "\n")
-}
-
-func appendSubsection(lines *[]string, heading, body string) {
-	if len(*lines) > 0 {
-		*lines = append(*lines, "")
-	}
-	*lines = append(*lines, "### "+heading, "")
-	body = strings.TrimSpace(body)
-	if body == "" {
-		return
-	}
-	*lines = append(*lines, strings.Split(body, "\n")...)
-}
-
-func normalizeBrainstormList(body string) string {
-	var items []string
-	for _, line := range strings.Split(strings.TrimSpace(body), "\n") {
-		line = strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(line, "- "), "* "))
-		if line == "" {
-			continue
-		}
-		items = append(items, "- "+line)
-	}
-	if len(items) == 0 {
-		return ""
-	}
-	return strings.Join(items, "\n")
 }
