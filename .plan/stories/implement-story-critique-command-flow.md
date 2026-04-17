@@ -4,10 +4,10 @@ epic: story-critique-and-rejection-rules
 project: plan
 slug: implement-story-critique-command-flow
 spec: story-critique-and-rejection-rules
-status: todo
+status: done
 title: Implement story critique command flow
 type: story
-updated_at: "2026-04-17T21:02:45Z"
+updated_at: "2026-04-17T23:36:00Z"
 ---
 
 # Implement story critique command flow

@@ -4,10 +4,10 @@ epic: story-slice-preview-and-apply-flow
 project: plan
 slug: add-story-slice-candidate-model-and-preview-formatting
 spec: story-slice-preview-and-apply-flow
-status: todo
+status: done
 title: Add story slice candidate model and preview formatting
 type: story
-updated_at: "2026-04-17T21:02:45Z"
+updated_at: "2026-04-17T23:36:00Z"
 ---
 
 # Add story slice candidate model and preview formatting

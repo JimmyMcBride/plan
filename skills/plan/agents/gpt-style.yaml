@@ -11,8 +11,10 @@ workflow:
   - gather missing detail with explicit prompts
   - write additive updates only
   - verify that the artifact is still bounded and execution-ready
+  - if working from a spec, prefer story slice before inventing manual story sets
 checks:
   - clarity
   - boundedness
   - verification_quality
   - simplicity
+  - story_slice_quality

@@ -3,11 +3,11 @@ created_at: "2026-04-17T20:58:34Z"
 epic: story-slice-preview-and-apply-flow
 project: plan
 slug: story-slice-preview-and-apply-flow
-status: approved
+status: done
 target_version: v6
 title: Story Slice Preview and Apply Flow Spec
 type: spec
-updated_at: "2026-04-17T20:58:34Z"
+updated_at: "2026-04-17T23:36:00Z"
 ---
 
 # Story Slice Preview and Apply Flow Spec
@@ -83,9 +83,9 @@ passes that came before it.
 - focused command and planning tests cover first-run and rerun flows
 
 ## Story Breakdown
-- [ ] [Add story slice candidate model and preview formatting](../stories/add-story-slice-candidate-model-and-preview-formatting.md)
-- [ ] [Implement story slice apply flow](../stories/implement-story-slice-apply-flow.md)
-- [ ] [Add story slice tests and rerun coverage](../stories/add-story-slice-tests-and-rerun-coverage.md)
+- [x] [Add story slice candidate model and preview formatting](../stories/add-story-slice-candidate-model-and-preview-formatting.md)
+- [x] [Implement story slice apply flow](../stories/implement-story-slice-apply-flow.md)
+- [x] [Add story slice tests and rerun coverage](../stories/add-story-slice-tests-and-rerun-coverage.md)
 
 ## Analysis
 

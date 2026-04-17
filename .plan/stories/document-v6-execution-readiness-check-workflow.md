@@ -4,10 +4,10 @@ epic: execution-readiness-integration-in-plan-check
 project: plan
 slug: document-v6-execution-readiness-check-workflow
 spec: execution-readiness-integration-in-plan-check
-status: todo
+status: done
 title: Document v6 execution-readiness check workflow
 type: story
-updated_at: "2026-04-17T21:02:45Z"
+updated_at: "2026-04-17T23:36:00Z"
 ---
 
 # Document v6 execution-readiness check workflow

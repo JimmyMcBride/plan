@@ -4,10 +4,10 @@ epic: execution-readiness-integration-in-plan-check
 project: plan
 slug: add-cross-artifact-check-coverage-for-v6-readiness
 spec: execution-readiness-integration-in-plan-check
-status: todo
+status: done
 title: Add cross-artifact check coverage for v6 readiness
 type: story
-updated_at: "2026-04-17T21:02:45Z"
+updated_at: "2026-04-17T23:36:00Z"
 ---
 
 # Add cross-artifact check coverage for v6 readiness

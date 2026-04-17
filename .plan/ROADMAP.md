@@ -50,9 +50,9 @@ Current focus:
 Goal: Make the spec-to-story transition materially better before reintroducing
 larger-plan power.
 
-- [ ] Story Slice Preview and Apply Flow
-- [ ] Story Critique and Rejection Rules
-- [ ] Execution-Readiness Integration in `plan check`
+- [x] Story Slice Preview and Apply Flow
+- [x] Story Critique and Rejection Rules
+- [x] Execution-Readiness Integration in `plan check`
 
 Summary:
 - add `plan story slice`

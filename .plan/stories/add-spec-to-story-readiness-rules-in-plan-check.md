@@ -4,10 +4,10 @@ epic: execution-readiness-integration-in-plan-check
 project: plan
 slug: add-spec-to-story-readiness-rules-in-plan-check
 spec: execution-readiness-integration-in-plan-check
-status: todo
+status: done
 title: Add spec-to-story readiness rules in plan check
 type: story
-updated_at: "2026-04-17T21:02:45Z"
+updated_at: "2026-04-17T23:36:00Z"
 ---
 
 # Add spec-to-story readiness rules in plan check

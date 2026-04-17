@@ -4,10 +4,10 @@ epic: story-critique-and-rejection-rules
 project: plan
 slug: add-story-critique-tests-and-docs
 spec: story-critique-and-rejection-rules
-status: todo
+status: done
 title: Add story critique tests and docs
 type: story
-updated_at: "2026-04-17T21:02:45Z"
+updated_at: "2026-04-17T23:36:00Z"
 ---
 
 # Add story critique tests and docs

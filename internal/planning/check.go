@@ -2,6 +2,7 @@ package planning
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -61,6 +62,10 @@ func (m *Manager) Check(input CheckInput) (*CheckReport, error) {
 		return nil, err
 	}
 	report := &CheckReport{Project: info.ProjectName}
+	storyInfos, err := m.ListStories("", "")
+	if err != nil {
+		return nil, err
+	}
 
 	specs, err := m.specNotesForCheck(info, input)
 	if err != nil {
@@ -68,6 +73,7 @@ func (m *Manager) Check(input CheckInput) (*CheckReport, error) {
 	}
 	for _, spec := range specs {
 		report.Findings = append(report.Findings, checkSpecNote(rel(info.ProjectDir, spec.Path), spec)...)
+		report.Findings = append(report.Findings, checkSpecStoryReadiness(info, spec, storyInfos)...)
 	}
 	stories, err := m.storyNotesForCheck(info, input)
 	if err != nil {
@@ -292,6 +298,151 @@ func sectionLooksThin(content string) bool {
 		return false
 	}
 	return totalWords < 6
+}
+
+func checkSpecStoryReadiness(info *workspace.Info, spec *notes.Note, stories []StoryInfo) []CheckFinding {
+	status := stringValue(spec.Metadata["status"])
+	if status != "approved" && status != "implementing" {
+		return nil
+	}
+
+	path := rel(info.ProjectDir, spec.Path)
+	section := notes.ExtractSection(spec.Content, "Story Breakdown")
+	parsed := parseStoryBreakdownCandidates(section)
+	meaningful := meaningfulStoryBreakdownCandidates(parsed)
+	var findings []CheckFinding
+
+	if len(meaningful) == 0 {
+		severity := "warn"
+		if status == "implementing" {
+			severity = "error"
+		}
+		findings = append(findings, CheckFinding{
+			Severity:      severity,
+			Rule:          "spec.story_breakdown_missing",
+			ArtifactType:  "spec",
+			ArtifactPath:  path,
+			ArtifactTitle: spec.Title,
+			Section:       "Story Breakdown",
+			Message:       fmt.Sprintf("Spec is %q but ## Story Breakdown does not contain meaningful slice guidance.", status),
+			Suggestion:    "Add concrete story slice entries under ## Story Breakdown or use plan story slice once the spec is ready.",
+		})
+		return findings
+	}
+
+	specSlug := slugFromPath(spec.Path)
+	var childStories []StoryInfo
+	for _, story := range stories {
+		if story.Spec == specSlug {
+			childStories = append(childStories, story)
+		}
+	}
+
+	if status == "implementing" && len(childStories) == 0 {
+		findings = append(findings, CheckFinding{
+			Severity:      "error",
+			Rule:          "spec.story_coverage_missing",
+			ArtifactType:  "spec",
+			ArtifactPath:  path,
+			ArtifactTitle: spec.Title,
+			Section:       "Story Breakdown",
+			Message:       "Spec is \"implementing\" but no child stories are linked to it.",
+			Suggestion:    "Create stories from the approved spec or correct the spec/story linkage before continuing implementation.",
+		})
+	}
+
+	if len(childStories) > 0 && !storyBreakdownHasLinks(meaningful) {
+		findings = append(findings, CheckFinding{
+			Severity:      "warn",
+			Rule:          "spec.story_breakdown_unlinked",
+			ArtifactType:  "spec",
+			ArtifactPath:  path,
+			ArtifactTitle: spec.Title,
+			Section:       "Story Breakdown",
+			Message:       "Child stories exist, but ## Story Breakdown has not been refreshed with story links.",
+			Suggestion:    "Refresh ## Story Breakdown with linked story entries so the spec-to-story handoff stays durable.",
+		})
+	}
+
+	knownStorySlugs := map[string]struct{}{}
+	anyStarted := false
+	for _, story := range childStories {
+		knownStorySlugs[slugFromPath(story.Path)] = struct{}{}
+		if story.Status == "in_progress" || story.Status == "blocked" || story.Status == "done" {
+			anyStarted = true
+		}
+	}
+
+	if status == "implementing" && len(childStories) > 0 && !anyStarted {
+		findings = append(findings, CheckFinding{
+			Severity:      "warn",
+			Rule:          "spec.story_status_mismatch",
+			ArtifactType:  "spec",
+			ArtifactPath:  path,
+			ArtifactTitle: spec.Title,
+			Section:       "Story Breakdown",
+			Message:       "Spec is \"implementing\" but all linked stories are still todo.",
+			Suggestion:    "Either start the relevant story work or move the spec back to approved until implementation begins.",
+		})
+	}
+
+	expectedSlugs := map[string]struct{}{}
+	for _, candidate := range meaningful {
+		expectedSlugs[slugify(candidate.Title)] = struct{}{}
+		if candidate.LinkTarget == "" {
+			continue
+		}
+		linkedPath := filepath.Clean(filepath.Join(filepath.Dir(spec.Path), filepath.FromSlash(candidate.LinkTarget)))
+		if _, err := os.Stat(linkedPath); err != nil {
+			findings = append(findings, CheckFinding{
+				Severity:      "error",
+				Rule:          "spec.story_link_missing",
+				ArtifactType:  "spec",
+				ArtifactPath:  path,
+				ArtifactTitle: spec.Title,
+				Section:       "Story Breakdown",
+				Message:       fmt.Sprintf("Story Breakdown links to %s, but that story file is missing.", filepath.ToSlash(linkedPath)),
+				Suggestion:    "Remove the broken story link or recreate the missing story note.",
+			})
+		}
+	}
+	for _, story := range childStories {
+		if _, ok := expectedSlugs[slugFromPath(story.Path)]; ok {
+			continue
+		}
+		findings = append(findings, CheckFinding{
+			Severity:      "warn",
+			Rule:          "spec.story_orphaned",
+			ArtifactType:  "spec",
+			ArtifactPath:  path,
+			ArtifactTitle: spec.Title,
+			Section:       "Story Breakdown",
+			Message:       fmt.Sprintf("Story %s is linked to this spec but is not represented in ## Story Breakdown.", story.Path),
+			Suggestion:    "Refresh ## Story Breakdown so it matches the stories currently linked to the spec.",
+		})
+	}
+
+	return findings
+}
+
+func meaningfulStoryBreakdownCandidates(items []parsedStorySliceCandidate) []parsedStorySliceCandidate {
+	var out []parsedStorySliceCandidate
+	for _, item := range items {
+		if item.Title == "" || strings.EqualFold(item.Title, seededStoryBreakdownPlaceholder) {
+			continue
+		}
+		out = append(out, item)
+	}
+	return out
+}
+
+func storyBreakdownHasLinks(items []parsedStorySliceCandidate) bool {
+	for _, item := range items {
+		if strings.TrimSpace(item.LinkTarget) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func normalizeSectionLine(line string) string {

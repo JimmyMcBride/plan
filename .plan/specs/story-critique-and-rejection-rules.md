@@ -3,11 +3,11 @@ created_at: "2026-04-17T20:58:34Z"
 epic: story-critique-and-rejection-rules
 project: plan
 slug: story-critique-and-rejection-rules
-status: approved
+status: done
 target_version: v6
 title: Story Critique and Rejection Rules Spec
 type: spec
-updated_at: "2026-04-17T20:58:34Z"
+updated_at: "2026-04-17T23:36:00Z"
 ---
 
 # Story Critique and Rejection Rules Spec
@@ -80,9 +80,9 @@ agent or human starts coding.
 - tests cover first-run and rerun critique behavior
 
 ## Story Breakdown
-- [ ] [Add story critique section schema](../stories/add-story-critique-section-schema.md)
-- [ ] [Implement story critique command flow](../stories/implement-story-critique-command-flow.md)
-- [ ] [Add story critique tests and docs](../stories/add-story-critique-tests-and-docs.md)
+- [x] [Add story critique section schema](../stories/add-story-critique-section-schema.md)
+- [x] [Implement story critique command flow](../stories/implement-story-critique-command-flow.md)
+- [x] [Add story critique tests and docs](../stories/add-story-critique-tests-and-docs.md)
 
 ## Analysis
 

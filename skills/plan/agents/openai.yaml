@@ -8,7 +8,7 @@ families:
       - The planning pass is interactive and should stay tightly scaffolded.
     behavior:
       - Name the current artifact before editing it.
-      - Prefer one planning pass at a time: refine, challenge, shape, analyze, or checklist.
+      - Prefer one planning pass at a time: refine, challenge, shape, analyze, checklist, slice, or critique.
       - Keep completion criteria concrete and verification-aware.
       - If ambiguity remains, ask only the smallest clarifying question required to keep the plan sound.
   reasoning_heavy:
@@ -26,8 +26,11 @@ passes:
   - epic_shape
   - spec_analyze
   - spec_checklist
+  - story_slice
+  - story_critique
 guardrails:
   - plan is planning-only
   - specs remain canonical
   - optional rigor must stay optional
   - do not drift into memory or context management
+  - keep the spec-to-story handoff reviewable with plan check

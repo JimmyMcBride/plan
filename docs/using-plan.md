@@ -9,13 +9,12 @@ ideas.
 
 Right now:
 
-- the shipped CLI surface is `v5`
-- `v6` is the next approved backlog
-- this branch carries the `v6` planning artifacts, but not the `v6` feature
-  implementation yet
+- the shipped CLI surface includes the `v4`, `v5`, and `v6` planning passes
+- `story slice` and `story critique` are part of the current workflow
+- `plan check` validates the spec-to-story handoff more aggressively than it
+  did in earlier versions
 
-So this guide covers what you can do today, and the end of the guide calls out
-what is still missing for `v6`.
+So this guide covers the current command surface as it exists today.
 
 ## What `plan` Is
 
@@ -46,7 +45,9 @@ Workflow entry:
 5. `Shape the epic`
 6. `Write and approve spec`
 7. `Analyze or checklist the spec`
-8. `Create and execute stories`
+8. `Slice stories from the spec`
+9. `Critique stories before execution`
+10. `Create or execute stories`
 
 ## Workspace Layout
 
@@ -317,7 +318,38 @@ Current spec statuses:
 - `implementing`
 - `done`
 
-### 10. Create Stories
+### 10. Slice Stories From The Spec
+
+If the approved spec already has a strong `Story Breakdown`, preview the first
+pass slice set:
+
+```bash
+plan story slice --project . newsletter-system
+```
+
+This reads the canonical spec and produces a deterministic preview of the
+candidate stories it can derive from `## Story Breakdown`.
+
+Behavior:
+
+- preview-first by default
+- uses the story breakdown as the source of truth
+- derives acceptance criteria and verification from the spec when needed
+- protects against duplicate story creation on reruns
+
+Apply the slice set:
+
+```bash
+plan story slice --project . newsletter-system --apply
+```
+
+This creates any missing story notes and rewrites `## Story Breakdown` with
+linked checklist entries.
+
+Manual `story create` still works. Slicing is an optional accelerator, not a
+mandatory ceremony.
+
+### 11. Create Stories Manually
 
 Create a story from an approved spec:
 
@@ -350,7 +382,29 @@ plan story list --project . --epic newsletter-system
 plan story list --project . --status blocked
 ```
 
-### 11. Update Story Status
+### 12. Critique Story Readiness
+
+Pressure-test a story before implementation:
+
+```bash
+plan story critique --project . build-template-editor
+```
+
+This writes the `## Critique` section in the story note:
+
+- `Scope Fit`
+- `Vertical Slice Check`
+- `Hidden Prerequisites`
+- `Verification Gaps`
+- `Rewrite Recommendation`
+
+Behavior:
+
+- interactive, TTY-first
+- additive to the story note
+- returns non-zero when the recommendation is `rewrite` or `reslice`
+
+### 13. Update Story Status
 
 Update story progress:
 
@@ -468,40 +522,30 @@ Current state means:
 
 - no memory or context-management features
 - no external tracker sync
-- no story slicing command yet
-- no story critique command yet
 - no cloud-first workflow
 
 Those are roadmap questions, not current usage.
 
-## What Is Left For `v6`
+## `v6` Execution-Readiness Workflow
 
-`v6` is not feature-complete yet. The approved backlog on this branch is:
+The main `v6` additions are about making the spec-to-story handoff stronger.
 
-### Story Slice Preview and Apply Flow
+Recommended flow:
 
-- add the story slice candidate model and preview formatting
-- implement `plan story slice`
-- add rerun and duplicate-protection coverage
+1. Approve the spec.
+2. Make sure `## Story Breakdown` contains meaningful slice candidates.
+3. Run `plan story slice --project . <epic-slug>` to preview the first pass.
+4. Run `plan story slice --project . <epic-slug> --apply` when the preview is sound.
+5. Run `plan story critique --project . <story-slug>` on the stories that need pressure-testing.
+6. Run `plan check --project .` to validate the spec-to-story handoff.
 
-### Story Critique and Rejection Rules
+`plan check` now looks for readiness problems such as:
 
-- add the `## Critique` section schema to story notes
-- implement `plan story critique`
-- add critique docs and test coverage
-
-### Execution-Readiness Integration in `plan check`
-
-- add spec-to-story readiness rules in `plan check`
-- add cross-artifact readiness coverage
-- document the `v6` execution-readiness workflow
-
-In practical terms, `v6` becomes feature-complete when these three capabilities
-exist together:
-
-- a spec can be sliced into candidate stories with a preview-first flow
-- a story can be critiqued and given keep/rewrite/reslice guidance
-- `plan check` can validate the handoff from spec to stories across artifacts
+- implementing specs with no story breakdown
+- implementing specs with no child stories
+- linked story breakdown entries that point to missing files
+- story sets that exist but are not reflected in the canonical breakdown
+- implementing specs whose stories are all still `todo`
 
 ## Practical Rules
 
@@ -511,7 +555,8 @@ exist together:
 - Use `shape` when the epic boundary is weak.
 - Use `analyze` for general spec pressure-testing.
 - Use `checklist` when the spec has domain-specific risk.
-- Approve the spec before creating stories.
+- Approve the spec before creating or slicing stories.
+- Use `story critique` when a slice feels too broad or verification-thin.
 - Keep stories small, concrete, and verification-aware.
 
 ## Current Command Surface

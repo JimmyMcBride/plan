@@ -3,11 +3,11 @@ created_at: "2026-04-17T20:58:34Z"
 epic: execution-readiness-integration-in-plan-check
 project: plan
 slug: execution-readiness-integration-in-plan-check
-status: approved
+status: done
 target_version: v6
 title: Execution-Readiness Integration in plan check Spec
 type: spec
-updated_at: "2026-04-17T20:58:34Z"
+updated_at: "2026-04-17T23:36:00Z"
 ---
 
 # Execution-Readiness Integration in plan check Spec
@@ -83,9 +83,9 @@ that does not match the spec's implementation state.
 - command and planning tests cover the new rules directly
 
 ## Story Breakdown
-- [ ] [Add spec-to-story readiness rules in plan check](../stories/add-spec-to-story-readiness-rules-in-plan-check.md)
-- [ ] [Add cross-artifact check coverage for v6 readiness](../stories/add-cross-artifact-check-coverage-for-v6-readiness.md)
-- [ ] [Document v6 execution-readiness check workflow](../stories/document-v6-execution-readiness-check-workflow.md)
+- [x] [Add spec-to-story readiness rules in plan check](../stories/add-spec-to-story-readiness-rules-in-plan-check.md)
+- [x] [Add cross-artifact check coverage for v6 readiness](../stories/add-cross-artifact-check-coverage-for-v6-readiness.md)
+- [x] [Document v6 execution-readiness check workflow](../stories/document-v6-execution-readiness-check-workflow.md)
 
 ## Analysis
 
