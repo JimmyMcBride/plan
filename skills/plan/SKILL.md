@@ -40,10 +40,13 @@ When a repo uses `plan`:
 - `plan brainstorm start --project . "<topic>"`
 - `plan brainstorm idea --project . <brainstorm-slug> --body "<idea>"`
 - `plan brainstorm refine --project . <brainstorm-slug>`
+- `plan brainstorm challenge --project . <brainstorm-slug>`
 - `plan epic create --project . "<title>"`
 - `plan epic promote --project . <brainstorm-slug>`
+- `plan epic shape --project . <epic-slug>`
 - `plan spec show --project . <epic-slug>`
 - `plan spec analyze --project . <epic-slug>`
+- `plan spec checklist --project . <epic-slug> --profile general`
 - `plan spec status --project . <epic-slug> --set approved`
 - `plan story create --project . <epic-slug> "<title>" --criteria "<criterion>" --verify "<step>"`
 - `plan story update --project . <story-slug> --status in_progress`
@@ -55,7 +58,50 @@ When a repo uses `plan`:
 - Brainstorms are discovery material, not the canonical hierarchy.
 - Canonical hierarchy is `Epic -> Spec -> Story`.
 - `brainstorm refine` should reduce ambiguity before promotion.
+- `brainstorm challenge` should pressure-test risk, no-gos, and overengineering before promotion.
+- `epic shape` should turn an epic into a bounded bet with appetite and success signal.
 - `spec analyze` should pressure-test a spec without rewriting its canonical sections.
+- `spec checklist` should add profile-driven rigor without mutating the canonical sections.
 - Keep roadmap guidance lightweight.
 - Do not add tasks beneath stories as first-class objects unless the project explicitly asks for that system.
 - Keep planning separate from memory, retrieval, or context management systems.
+
+## Planning Modes
+
+Use the smallest pass that resolves the current planning gap:
+
+1. `brainstorm refine` for ambiguity reduction
+2. `brainstorm challenge` for rabbit holes, no-gos, and simplification pressure
+3. `epic shape` for appetite and scope boundaries
+4. `spec analyze` for general refinement gaps
+5. `spec checklist` for domain-specific review
+
+## Model Guidance
+
+### GPT-style Models
+
+- prefer explicit step order
+- restate the artifact you are editing before making changes
+- keep output contracts concrete and named
+- ask clarifying questions only when ambiguity would materially damage the plan
+- use the lightest shaping pass that can resolve the gap
+
+### Reasoning-Heavy Models
+
+- start from the product goal and current artifact quality
+- search for second-order issues such as missing non-goals, hidden dependencies, and rollout gaps
+- keep recommendations bounded; do not sprawl into new systems
+- verify the artifact remains simple after adding rigor
+
+## Completion Contract
+
+- specs stay canonical
+- shaping passes stay additive
+- optional rigor must not make the default path ceremonial
+- every recommendation should improve clarity, boundedness, verification, or executability
+
+## Ambiguity Handling
+
+- if the next shaping pass is obvious, run it
+- if two passes could apply, choose the lighter one first
+- do not turn `plan` into memory, context, or execution orchestration

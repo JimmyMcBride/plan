@@ -40,6 +40,8 @@ Created: {{ .Now }}
 
 ### Recommended Revisions
 
+## Checklist
+
 ## Resources
 
 ## Notes

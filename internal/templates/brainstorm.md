@@ -27,3 +27,15 @@ Started: {{ .Now }}
 ### Candidate Approaches
 
 ### Decision Snapshot
+
+## Challenge
+
+### Rabbit Holes
+
+### No-Gos
+
+### Assumptions
+
+### Likely Overengineering
+
+### Simpler Alternative

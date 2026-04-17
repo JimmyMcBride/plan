@@ -100,7 +100,26 @@ func newSpecCommand() *cobra.Command {
 		},
 	}
 
-	cmd.AddCommand(show, edit, statusCmd, analyze)
+	var profile string
+	checklist := &cobra.Command{
+		Use:   "checklist <epic-slug>",
+		Short: "Run a profile-driven checklist pass against a spec",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			report, err := planningManager().RunSpecChecklist(args[0], profile)
+			if err != nil {
+				return err
+			}
+			printSpecChecklist(cmd.OutOrStdout(), report)
+			if report.HasBlockingFindings() {
+				return fmt.Errorf("spec checklist found %d blocking issue(s)", report.BlockingCount())
+			}
+			return nil
+		},
+	}
+	checklist.Flags().StringVar(&profile, "profile", "general", "checklist profile: general, ui-flow, api-integration, data-migration")
+
+	cmd.AddCommand(show, edit, statusCmd, analyze, checklist)
 	return cmd
 }
 
@@ -126,6 +145,26 @@ func printSpecAnalysis(out io.Writer, report *planning.SpecAnalysisReport) {
 			if item.Recommendation != "" {
 				fmt.Fprintf(out, "  fix: %s\n", item.Recommendation)
 			}
+		}
+	}
+}
+
+func printSpecChecklist(out io.Writer, report *planning.SpecChecklistReport) {
+	fmt.Fprintf(out, "spec_checklist: %s\n", report.SpecPath)
+	fmt.Fprintf(out, "profile: %s\n", report.Profile)
+	fmt.Fprintf(out, "findings: %d total, %d blocking, %d guidance\n",
+		len(report.Findings),
+		report.BlockingCount(),
+		report.WarningCount(),
+	)
+	if len(report.Findings) == 0 {
+		fmt.Fprintln(out, "status: ok")
+		return
+	}
+	for _, item := range report.Findings {
+		fmt.Fprintf(out, "- [%s] %s: %s\n", item.Severity, item.Area, item.Message)
+		if item.Recommendation != "" {
+			fmt.Fprintf(out, "  fix: %s\n", item.Recommendation)
 		}
 	}
 }

@@ -97,7 +97,6 @@ func newBrainstormCommand() *cobra.Command {
 			if err := runRefinementCluster(
 				reader,
 				out,
-				args[0],
 				"cluster 1/4: problem and user/value",
 				state.Problem == "",
 				"Problem",
@@ -120,7 +119,6 @@ func newBrainstormCommand() *cobra.Command {
 			if err := runRefinementCluster(
 				reader,
 				out,
-				args[0],
 				"cluster 2/4: constraints and appetite",
 				state.Constraints == "",
 				"Constraints",
@@ -143,7 +141,6 @@ func newBrainstormCommand() *cobra.Command {
 			if err := runRefinementCluster(
 				reader,
 				out,
-				args[0],
 				"cluster 3/4: open questions and candidate approaches",
 				state.RemainingOpenQuestions == "",
 				"Remaining Open Questions",
@@ -164,7 +161,7 @@ func newBrainstormCommand() *cobra.Command {
 			}
 
 			if state.DecisionSnapshot == "" {
-				value, err := promptRefinementValue(reader, out, "Decision Snapshot", "Summarize the current best direction or next decision in one short block.")
+				value, err := promptSectionValue(reader, out, "Decision Snapshot", "Summarize the current best direction or next decision in one short block.")
 				if err != nil {
 					return err
 				}
@@ -187,18 +184,99 @@ func newBrainstormCommand() *cobra.Command {
 		},
 	}
 
-	cmd.AddCommand(start, idea, show, refine)
+	challenge := &cobra.Command{
+		Use:   "challenge <brainstorm-slug>",
+		Short: "Interactively challenge a brainstorm before it hardens into an epic",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			reader := bufio.NewReader(cmd.InOrStdin())
+			out := cmd.OutOrStdout()
+
+			state, err := planningManager().ReadBrainstormChallenge(args[0])
+			if err != nil {
+				return err
+			}
+
+			if err := runRefinementCluster(
+				reader,
+				out,
+				"cluster 1/3: rabbit holes and no-gos",
+				state.RabbitHoles == "",
+				"Rabbit Holes",
+				"List the traps or rabbit holes that could make this idea sprawl. Enter one per line.",
+				&state.RabbitHoles,
+				state.NoGos == "",
+				"No-Gos",
+				"List the explicit no-gos or exclusions for this idea. Enter one per line.",
+				&state.NoGos,
+			); err != nil {
+				return err
+			}
+			if _, err := planningManager().UpdateBrainstormChallenge(args[0], planning.BrainstormChallengeInput{
+				RabbitHoles: state.RabbitHoles,
+				NoGos:       state.NoGos,
+			}); err != nil {
+				return err
+			}
+
+			if err := runRefinementCluster(
+				reader,
+				out,
+				"cluster 2/3: assumptions and likely overengineering",
+				state.Assumptions == "",
+				"Assumptions",
+				"Capture the assumptions this idea depends on. Enter one per line.",
+				&state.Assumptions,
+				state.LikelyOverengineering == "",
+				"Likely Overengineering",
+				"Describe where this idea is most likely to become more complex than it should.",
+				&state.LikelyOverengineering,
+			); err != nil {
+				return err
+			}
+			if _, err := planningManager().UpdateBrainstormChallenge(args[0], planning.BrainstormChallengeInput{
+				Assumptions:           state.Assumptions,
+				LikelyOverengineering: state.LikelyOverengineering,
+			}); err != nil {
+				return err
+			}
+
+			if state.SimplerAlternative == "" {
+				value, err := promptSectionValue(reader, out, "Simpler Alternative", "Describe the simplest credible version of this idea.")
+				if err != nil {
+					return err
+				}
+				state.SimplerAlternative = value
+			} else {
+				fmt.Fprintf(out, "Skipping Simpler Alternative; already captured.\n")
+			}
+			if _, err := planningManager().UpdateBrainstormChallenge(args[0], planning.BrainstormChallengeInput{
+				SimplerAlternative: state.SimplerAlternative,
+			}); err != nil {
+				return err
+			}
+
+			if state.HasGaps() {
+				fmt.Fprintf(out, "Challenge saved for %s with remaining gaps.\n", state.Path)
+				return nil
+			}
+			fmt.Fprintf(out, "Challenge saved for %s\n", state.Path)
+			return nil
+		},
+	}
+
+	cmd.AddCommand(start, idea, show, refine, challenge)
 	return cmd
 }
 
-func runRefinementCluster(reader *bufio.Reader, out io.Writer, slug, label string, askA bool, titleA, helpA string, valueA *string, askB bool, titleB, helpB string, valueB *string) error {
+func runRefinementCluster(reader *bufio.Reader, out io.Writer, label string, askA bool, titleA, helpA string, valueA *string, askB bool, titleB, helpB string, valueB *string) error {
 	if !askA && !askB {
 		fmt.Fprintf(out, "Skipping %s; already complete.\n", label)
 		return nil
 	}
 	fmt.Fprintf(out, "%s\n", label)
 	if askA {
-		value, err := promptRefinementValue(reader, out, titleA, helpA)
+		value, err := promptSectionValue(reader, out, titleA, helpA)
 		if err != nil {
 			return err
 		}
@@ -207,7 +285,7 @@ func runRefinementCluster(reader *bufio.Reader, out io.Writer, slug, label strin
 		}
 	}
 	if askB {
-		value, err := promptRefinementValue(reader, out, titleB, helpB)
+		value, err := promptSectionValue(reader, out, titleB, helpB)
 		if err != nil {
 			return err
 		}
@@ -219,7 +297,7 @@ func runRefinementCluster(reader *bufio.Reader, out io.Writer, slug, label strin
 	return nil
 }
 
-func promptRefinementValue(reader *bufio.Reader, out io.Writer, heading, help string) (string, error) {
+func promptSectionValue(reader *bufio.Reader, out io.Writer, heading, help string) (string, error) {
 	fmt.Fprintf(out, "%s\n%s\nFinish with a blank line. Leave empty to skip.\n", heading, help)
 	var lines []string
 	for {
