@@ -91,6 +91,10 @@ plan story create --project . newsletter-system "Build template editor" \
 plan status --project .
 ```
 
+Full guide:
+
+- [Using plan](docs/using-plan.md)
+
 ## Current Command Surface
 
 - `plan init`
