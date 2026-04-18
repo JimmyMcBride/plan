@@ -9,8 +9,10 @@ workflow:
   - choose one additive shaping pass
   - challenge overengineering and missing non-goals
   - preserve a clean handoff for later execution
+  - prefer critique when a story looks broad, horizontal, or verification-thin
 checks:
   - risk_coverage
   - non_goal_quality
   - agent_executability
   - artifact_simplicity
+  - story_readiness

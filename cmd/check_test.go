@@ -201,6 +201,10 @@ func createHealthyPlanFixture(t *testing.T, root string, manager *planning.Manag
 		"- run focused billing tests",
 		"- generate a sample invoice export locally",
 		"",
+		"## Story Breakdown",
+		"",
+		"- [ ] [Implement invoices](../stories/implement-invoices.md)",
+		"",
 	}, "\n")
 	if _, err := manager.UpdateSpec("billing", notes.UpdateInput{
 		Body: &specBody,
@@ -220,5 +224,94 @@ func createHealthyPlanFixture(t *testing.T, root string, manager *planning.Manag
 		nil,
 	); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestCheckCommandFlagsImplementingSpecWithoutStoryCoverage(t *testing.T) {
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := planning.New(ws)
+
+	if _, err := manager.CreateEpic("Billing", ""); err != nil {
+		t.Fatal(err)
+	}
+	specBody := strings.Join([]string{
+		"# Billing Spec",
+		"",
+		"Created: now",
+		"",
+		"## Why",
+		"",
+		"Billing needs stronger execution readiness.",
+		"",
+		"## Problem",
+		"",
+		"Specs can claim implementation without stories.",
+		"",
+		"## Goals",
+		"",
+		"- catch missing story coverage",
+		"",
+		"## Non-Goals",
+		"",
+		"- scheduling systems",
+		"",
+		"## Constraints",
+		"",
+		"- keep checks local",
+		"",
+		"## Solution Shape",
+		"",
+		"Add readiness checks across specs and stories.",
+		"",
+		"## Flows",
+		"",
+		"1. Mark spec implementing.",
+		"2. Run checks.",
+		"",
+		"## Data / Interfaces",
+		"",
+		"- spec/story linkage",
+		"",
+		"## Risks / Open Questions",
+		"",
+		"- false positives",
+		"",
+		"## Rollout",
+		"",
+		"- dogfood locally",
+		"",
+		"## Verification",
+		"",
+		"- run check tests",
+		"",
+		"## Story Breakdown",
+		"",
+		"- Trigger export job",
+		"",
+	}, "\n")
+	if _, err := manager.UpdateSpec("billing", notes.UpdateInput{
+		Body: &specBody,
+		Metadata: map[string]any{
+			"status": "implementing",
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	command := newRootCmd()
+	command.SetOut(&buf)
+	command.SetErr(&buf)
+	command.SetArgs([]string{"--project", root, "check", "spec", "billing"})
+	err := command.Execute()
+	if err == nil {
+		t.Fatalf("expected readiness findings to fail command:\n%s", buf.String())
+	}
+	if !strings.Contains(buf.String(), "no child stories are linked to it") {
+		t.Fatalf("expected missing story coverage finding:\n%s", buf.String())
 	}
 }

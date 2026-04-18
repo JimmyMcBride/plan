@@ -34,7 +34,8 @@ Workflow entry:
 5. Shape the epic
 6. Write and approve spec
 7. Analyze or checklist the spec
-8. Split into stories
+8. Slice into stories
+9. Critique story readiness
 
 The default path stays small. New shaping passes should improve the same
 artifacts rather than add new top-level planning objects.
@@ -85,11 +86,16 @@ plan spec show --project . newsletter-system
 plan spec analyze --project . newsletter-system
 plan spec checklist --project . newsletter-system --profile general
 plan spec status --project . newsletter-system --set approved
-plan story create --project . newsletter-system "Build template editor" \
-  --criteria "Templates can be created and edited" \
-  --verify "go test ./..."
+plan story slice --project . newsletter-system
+plan story slice --project . newsletter-system --apply
+plan story critique --project . build-template-editor
 plan status --project .
+plan check --project .
 ```
+
+Full guide:
+
+- [Using plan](docs/using-plan.md)
 
 ## Current Command Surface
 
@@ -101,7 +107,7 @@ plan status --project .
 - `plan brainstorm challenge`
 - `plan epic create|promote|list|show|shape`
 - `plan spec show|edit|status|analyze|checklist`
-- `plan story create|update|list|show`
+- `plan story create|update|list|show|slice|critique`
 - `plan roadmap show|edit`
 - `plan check`
 - `plan status`
@@ -157,8 +163,9 @@ plan skills targets --scope both --agent codex --project .
 
 ## Evaluating Prompt And Workflow Changes
 
-`v5` adds a local benchmark and rubric harness for maintainers. The initial
-workflow is test-driven:
+`v5` adds a local benchmark and rubric harness for maintainers. `v6` adds
+story slicing, critique, and stronger spec-to-story readiness checks. The
+benchmark workflow is test-driven:
 
 ```bash
 go test ./internal/planning -run TestBenchmarkFixturesSatisfyMinimumScores

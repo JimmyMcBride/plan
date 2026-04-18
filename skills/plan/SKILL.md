@@ -48,6 +48,8 @@ When a repo uses `plan`:
 - `plan spec analyze --project . <epic-slug>`
 - `plan spec checklist --project . <epic-slug> --profile general`
 - `plan spec status --project . <epic-slug> --set approved`
+- `plan story slice --project . <epic-slug>`
+- `plan story critique --project . <story-slug>`
 - `plan story create --project . <epic-slug> "<title>" --criteria "<criterion>" --verify "<step>"`
 - `plan story update --project . <story-slug> --status in_progress`
 - `plan roadmap show --project .`
@@ -62,6 +64,8 @@ When a repo uses `plan`:
 - `epic shape` should turn an epic into a bounded bet with appetite and success signal.
 - `spec analyze` should pressure-test a spec without rewriting its canonical sections.
 - `spec checklist` should add profile-driven rigor without mutating the canonical sections.
+- `story slice` should stay preview-first and derive execution-ready slices from the canonical spec.
+- `story critique` should reject broad or verification-thin stories before implementation starts.
 - Keep roadmap guidance lightweight.
 - Do not add tasks beneath stories as first-class objects unless the project explicitly asks for that system.
 - Keep planning separate from memory, retrieval, or context management systems.
@@ -75,6 +79,8 @@ Use the smallest pass that resolves the current planning gap:
 3. `epic shape` for appetite and scope boundaries
 4. `spec analyze` for general refinement gaps
 5. `spec checklist` for domain-specific review
+6. `story slice` for turning approved spec breakdowns into first-pass story sets
+7. `story critique` for execution-readiness pressure before coding
 
 ## Model Guidance
 
@@ -99,6 +105,7 @@ Use the smallest pass that resolves the current planning gap:
 - shaping passes stay additive
 - optional rigor must not make the default path ceremonial
 - every recommendation should improve clarity, boundedness, verification, or executability
+- spec-to-story handoffs should stay checkable with `plan check`
 
 ## Ambiguity Handling
 
