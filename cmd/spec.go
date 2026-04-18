@@ -2,8 +2,10 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 
 	"plan/internal/notes"
+	"plan/internal/planning"
 
 	"github.com/spf13/cobra"
 )
@@ -81,6 +83,88 @@ func newSpecCommand() *cobra.Command {
 	statusCmd.Flags().StringVar(&status, "set", "", "new status: draft, approved, implementing, done")
 	_ = statusCmd.MarkFlagRequired("set")
 
-	cmd.AddCommand(show, edit, statusCmd)
+	analyze := &cobra.Command{
+		Use:   "analyze <epic-slug>",
+		Short: "Analyze a spec for refinement gaps without rewriting its canonical sections",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			report, err := planningManager().AnalyzeSpec(args[0])
+			if err != nil {
+				return err
+			}
+			printSpecAnalysis(cmd.OutOrStdout(), report)
+			if report.HasBlockingFindings() {
+				return fmt.Errorf("spec analysis found %d blocking issue(s)", report.BlockingCount())
+			}
+			return nil
+		},
+	}
+
+	var profile string
+	checklist := &cobra.Command{
+		Use:   "checklist <epic-slug>",
+		Short: "Run a profile-driven checklist pass against a spec",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			report, err := planningManager().RunSpecChecklist(args[0], profile)
+			if err != nil {
+				return err
+			}
+			printSpecChecklist(cmd.OutOrStdout(), report)
+			if report.HasBlockingFindings() {
+				return fmt.Errorf("spec checklist found %d blocking issue(s)", report.BlockingCount())
+			}
+			return nil
+		},
+	}
+	checklist.Flags().StringVar(&profile, "profile", "general", "checklist profile: general, ui-flow, api-integration, data-migration")
+
+	cmd.AddCommand(show, edit, statusCmd, analyze, checklist)
 	return cmd
+}
+
+func printSpecAnalysis(out io.Writer, report *planning.SpecAnalysisReport) {
+	fmt.Fprintf(out, "spec_analysis: %s\n", report.SpecPath)
+	fmt.Fprintf(out, "findings: %d total, %d blocking, %d guidance\n",
+		len(report.Findings),
+		report.BlockingCount(),
+		report.WarningCount(),
+	)
+	if len(report.Findings) == 0 {
+		fmt.Fprintln(out, "status: ok")
+		return
+	}
+	for _, category := range planning.SpecAnalysisCategories() {
+		items := report.FindingsFor(category)
+		if len(items) == 0 {
+			continue
+		}
+		fmt.Fprintf(out, "%s:\n", category)
+		for _, item := range items {
+			fmt.Fprintf(out, "- [%s] %s\n", item.Severity, item.Message)
+			if item.Recommendation != "" {
+				fmt.Fprintf(out, "  fix: %s\n", item.Recommendation)
+			}
+		}
+	}
+}
+
+func printSpecChecklist(out io.Writer, report *planning.SpecChecklistReport) {
+	fmt.Fprintf(out, "spec_checklist: %s\n", report.SpecPath)
+	fmt.Fprintf(out, "profile: %s\n", report.Profile)
+	fmt.Fprintf(out, "findings: %d total, %d blocking, %d guidance\n",
+		len(report.Findings),
+		report.BlockingCount(),
+		report.WarningCount(),
+	)
+	if len(report.Findings) == 0 {
+		fmt.Fprintln(out, "status: ok")
+		return
+	}
+	for _, item := range report.Findings {
+		fmt.Fprintf(out, "- [%s] %s: %s\n", item.Severity, item.Area, item.Message)
+		if item.Recommendation != "" {
+			fmt.Fprintf(out, "  fix: %s\n", item.Recommendation)
+		}
+	}
 }

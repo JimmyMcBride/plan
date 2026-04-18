@@ -1,0 +1,18 @@
+{
+  "slug": "billing-api-export",
+  "title": "Billing API Export",
+  "artifact_type": "spec",
+  "scenario": "External billing export with rollout and dependency risks called out.",
+  "candidate": "# Billing API Export\n\n## Why\n\nBilling exports are needed for downstream reconciliation.\n\n## Problem\n\nThe current billing export path is manual and easy to misconfigure.\n\n## Goals\n\n- publish reliable billing exports\n- keep the contract visible to agents and humans\n\n## Non-Goals\n\n- replacing the entire billing backend\n- redesigning unrelated billing screens\n\n## Constraints\n\n- keep the first version low-risk\n- document the external dependency clearly\n\n## Solution Shape\n\nAdd a background export job, an API client, and delivery monitoring.\n\n## Flows\n\n1. Trigger export from the billing UI.\n2. Queue the export job.\n3. Deliver the payload to the external endpoint.\n\n## Data / Interfaces\n\n- external API endpoint and payload contract\n- retry-safe job payload\n\n## Risks / Open Questions\n\n- auth token expiry\n- retry exhaustion\n- contract drift with the external API\n\n## Rollout\n\n- ship behind a flag\n- keep a fallback manual export path\n- monitor failure rate and rollback if retries spike\n\n## Verification\n\n- run export integration tests\n- validate the delivered payload against the API contract\n\n## Story Breakdown\n\n- trigger export\n- queue export job\n- validate export delivery\n",
+  "minimum_scores": {
+    "clarity": 5,
+    "boundedness": 3,
+    "risk_coverage": 4,
+    "non_goal_quality": 4,
+    "verification_quality": 4,
+    "story_slice_quality": 4,
+    "agent_executability": 4,
+    "artifact_simplicity": 3,
+    "user_effort_cost": 3
+  }
+}

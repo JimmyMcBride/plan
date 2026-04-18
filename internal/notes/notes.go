@@ -197,6 +197,67 @@ func AppendUnderHeading(content, heading, entry string) string {
 	return strings.Join(out, "\n") + "\n"
 }
 
+func SetSection(content, heading, body string) string {
+	lines := strings.Split(strings.TrimRight(content, "\n"), "\n")
+	needle := strings.ToLower(strings.TrimSpace(heading))
+	replacement := renderSectionBlock(heading, body)
+	var out []string
+	replaced := false
+	inSection := false
+	sectionLevel := 0
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "#") {
+			level := 0
+			for _, ch := range trimmed {
+				if ch == '#' {
+					level++
+					continue
+				}
+				break
+			}
+			title := strings.ToLower(strings.TrimSpace(strings.TrimLeft(trimmed, "#")))
+			if inSection && level <= sectionLevel {
+				inSection = false
+			}
+			if !inSection && title == needle {
+				if len(out) > 0 && strings.TrimSpace(out[len(out)-1]) != "" {
+					out = append(out, "")
+				}
+				out = append(out, replacement...)
+				replaced = true
+				inSection = true
+				sectionLevel = level
+				continue
+			}
+		}
+		if inSection {
+			continue
+		}
+		out = append(out, line)
+	}
+
+	if !replaced {
+		if len(out) > 0 && strings.TrimSpace(out[len(out)-1]) != "" {
+			out = append(out, "")
+		}
+		out = append(out, replacement...)
+	}
+
+	return strings.Join(out, "\n") + "\n"
+}
+
+func renderSectionBlock(heading, body string) []string {
+	lines := []string{"## " + heading, ""}
+	body = strings.TrimRight(body, "\n")
+	if body == "" {
+		return lines
+	}
+	lines = append(lines, strings.Split(body, "\n")...)
+	return lines
+}
+
 func appendEntryBlock(lines []string, entry string) []string {
 	if len(lines) == 0 || strings.TrimSpace(lines[len(lines)-1]) != "" {
 		lines = append(lines, "")
@@ -237,4 +298,8 @@ func ExtractSection(content, heading string) string {
 		}
 	}
 	return strings.TrimSpace(strings.Join(out, "\n"))
+}
+
+func ExtractNestedSection(content, parentHeading, childHeading string) string {
+	return ExtractSection(ExtractSection(content, parentHeading), childHeading)
 }

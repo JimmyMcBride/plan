@@ -1,75 +1,37 @@
 # Reference Analysis
 
-Date: 2026-04-15
+Date: 2026-04-17
 
-## Snapshots
+## Core takeaways
 
-- `beads` at `4e3dbb6db0c7` — `2026-04-15 fix(nix): update vendorHash after dependabot go.sum bumps (GH#3221) (#3297)`
-- `get-shit-done` at `712e381f1393` — `2026-04-15 docs: document required Bash permission patterns for executor subagents (#2071) (#2288)`
+- The biggest opportunity for `plan` is improving shaping quality, not adding
+  more artifact types.
+- The highest leverage passes are clarification, challenge, analysis,
+  checklisting, slicing, and critique.
+- Prompt quality matters as much as markdown structure when agents are involved.
+- The default path must stay simple even as optional shaping passes deepen.
 
-## beads
+## What strong planning systems suggest
 
-### What works
+### Clarify before commitment
 
-- Serious multi-agent task coordination.
-- Dependency-aware graph. `ready` queue especially strong.
-- Collision-resistant IDs. Good for parallel work and branch merges.
-- Convenience layers do not create separate systems. Example: `todo` is just a task shortcut.
-- Epic progress and closure rules are operational, not vague.
+- reduce ambiguity before promotion
+- capture problem, user/value, constraints, appetite, and open questions
+- persist discussion progress incrementally so shaping work is not fragile
 
-### What `plan` should copy
+### Pressure-test before execution
 
-- Optional dependency graph later.
-- Ready-to-execute view later.
-- "Convenience layer, not parallel system" philosophy.
-- Safe IDs if and when planning objects need branch-safe creation.
+- call out rabbit holes and no-gos early
+- separate product intent from implementation detail
+- require explicit verification and non-goals before stories are created
 
-### What `plan` should avoid
+### Benchmark workflow changes
 
-- Database-first architecture.
-- Dolt dependency.
-- Turning planning into issue tracking from day one.
-- Huge operational surface area before core planning is excellent.
+- do not add new planning passes on instinct alone
+- compare quality deltas against realistic fixture ideas
+- keep only the changes that materially improve clarity and executability
 
-## get-shit-done
-
-### What works
-
-- Clear artifact pipeline. Project -> requirements -> roadmap -> phase context -> research -> plan -> execute -> verify.
-- Strong gate philosophy. Plans are checked before execution.
-- Plan tasks are explicit, executable, and verification-aware.
-- Advanced workflows exist without removing happy-path simplicity.
-- File-based state under `.planning/` is inspectable and local.
-
-### What `plan` should copy
-
-- Planning should generate execution-ready outputs, not fluffy notes.
-- Verification expectations belong in planning artifacts.
-- Advanced mode should be opt-in.
-- Roadmap layer above detailed work is useful for big projects.
-
-### What `plan` should avoid
-
-- Owning context engineering as a product mission.
-- Dozens of commands on day one.
-- Phase-heavy workflow as the default mental model.
-- Enterprise feeling or ceremony theater.
-
-## Synthesis
-
-Best direction for `plan`:
-
-- Keep the default mental model compact and local-first.
-- Add a small amount of `gsd` discipline:
-  - roadmap above execution units
-  - plan checker mindset
-  - explicit verification fields
-- Borrow `beads` ideas only as optional power features:
-  - dependencies
-  - ready queues
-  - branch-safe IDs
-
-## Recommended product stance
+## Recommended stance for `plan`
 
 `plan` should be:
 
@@ -77,25 +39,21 @@ Best direction for `plan`:
 - markdown-first
 - planning-only
 - execution-aware but not execution-owning
-- simple at the surface
-- deep when needed
+- benchmark-driven in how it evolves
 
 `plan` should not be:
 
 - a memory system
 - a context manager
 - a hosted PM clone
-- an issue tracker clone
+- a power-first workflow tool
 - an enterprise process simulator
 
-## Key conclusion
+## Product implication
 
-The best version of `plan` is not "mini-GSD" and not "beads for markdown users".
+The right sequence is:
 
-The best version is:
-
-- a clean local-first core flow
-- `gsd`-style rigor around plan quality and verification
-- later `beads`-style dependency power
-
-That combination fits indie developers and still has room to grow into small-team workflows.
+1. `v4` planning refinement
+2. `v5` planning skills, shaping, and evals
+3. `v6` story slicing and critique
+4. `v7` external sync only if the local loop clearly wins

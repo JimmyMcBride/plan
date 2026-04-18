@@ -1,0 +1,18 @@
+{
+  "slug": "agent-auth-reset",
+  "title": "Agent Auth Reset",
+  "artifact_type": "spec",
+  "scenario": "Tight auth reset flow with clear verification and risk coverage.",
+  "candidate": "# Agent Auth Reset\n\n## Why\n\nPassword reset is error-prone for small teams using shared environments.\n\n## Problem\n\nAgents cannot guide password reset safely when the reset flow lacks clear boundaries and verification.\n\n## Goals\n\n- make password reset safe and clear\n- keep the reset path local-first and supportable\n\n## Non-Goals\n\n- redesigning all account settings\n- adding hosted auth dependencies\n\n## Constraints\n\n- keep the flow local-first\n- avoid extra artifact types\n\n## Solution Shape\n\nAdd a reset request screen, a token verification step, and a bounded admin fallback.\n\n## Flows\n\n1. Open the reset request screen.\n2. Submit the reset form.\n3. Follow the token verification step.\n\n## Data / Interfaces\n\n- reset token payload\n- local reset audit log\n\n## Risks / Open Questions\n\n- token expiry failures\n- admin fallback misuse\n- rollback if the token validation path regresses\n\n## Rollout\n\n- ship behind a flag\n- monitor reset failures and rollback on elevated error rate\n\n## Verification\n\n- run focused auth reset tests\n- manually verify the reset screen flow end to end\n\n## Story Breakdown\n\n- request reset token\n- validate token\n- confirm password change\n",
+  "minimum_scores": {
+    "clarity": 5,
+    "boundedness": 3,
+    "risk_coverage": 4,
+    "non_goal_quality": 4,
+    "verification_quality": 4,
+    "story_slice_quality": 4,
+    "agent_executability": 4,
+    "artifact_simplicity": 3,
+    "user_effort_cost": 3
+  }
+}

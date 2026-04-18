@@ -1,0 +1,18 @@
+name: plan-reasoning
+description: Higher-level planning guidance for reasoning-heavy models.
+style:
+  - goal_first
+  - pressure_test_second_order_risks
+  - preserve_local_first_boundaries
+workflow:
+  - inspect the artifact and identify its weakest planning dimension
+  - choose one additive shaping pass
+  - challenge overengineering and missing non-goals
+  - preserve a clean handoff for later execution
+  - prefer critique when a story looks broad, horizontal, or verification-thin
+checks:
+  - risk_coverage
+  - non_goal_quality
+  - agent_executability
+  - artifact_simplicity
+  - story_readiness

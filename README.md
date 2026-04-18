@@ -2,8 +2,8 @@
 
 `plan` is a local-first planning CLI for AI-assisted software work.
 
-It keeps planning material in `.plan/` inside the repo and focuses on one job:
-turning rough ideas into execution-ready plans that agents can follow cleanly.
+It keeps planning material in `.plan/` and focuses on one job: turning rough
+ideas into shaped, execution-ready plans that agents can follow cleanly.
 
 ## Philosophy
 
@@ -11,11 +11,11 @@ turning rough ideas into execution-ready plans that agents can follow cleanly.
 - markdown-first
 - planning only
 - simple default workflow
-- deeper power available later
+- optional deeper shaping passes
 
-`plan` does not own memory, retrieval, or context management. Use a dedicated
-companion for that, such as [brain](https://github.com/JimmyMcBride/brain).
-`plan` owns planning.
+`plan` does not own memory, retrieval, or context management. Pair it with a
+companion tool such as [`brain`](https://github.com/JimmyMcBride/brain) if you
+need that layer.
 
 ## Core Model
 
@@ -28,27 +28,17 @@ Canonical hierarchy:
 Workflow entry:
 
 1. Brainstorm
-2. Promote to epic
-3. Write and approve spec
-4. Split into stories
+2. Refine
+3. Challenge
+4. Promote to epic
+5. Shape the epic
+6. Write and approve spec
+7. Analyze or checklist the spec
+8. Slice into stories
+9. Critique story readiness
 
-Supporting surfaces:
-
-- `PROJECT.md`
-- `ROADMAP.md`
-- optional future dependency and ready views
-
-Simple default path:
-
-1. brainstorm
-2. promote
-3. approve spec
-4. create stories
-5. execute
-
-Advanced path stays optional. When a repo grows, you can add roadmap versions,
-dependency blockers, ready-work views, and filtered status views without
-changing the base model.
+The default path stays small. New shaping passes should improve the same
+artifacts rather than add new top-level planning objects.
 
 ## Workspace
 
@@ -81,39 +71,58 @@ Tool-owned state lives only in:
 - `.plan/.meta/migrations.json`
 
 `plan update` may repair or normalize tool-owned state. It must not rewrite
-user-authored planning notes.
+user-authored planning notes just to migrate product direction.
 
 ## Quick Start
 
 ```bash
 plan init --project .
 plan brainstorm start --project . "Newsletter system"
+plan brainstorm refine --project . newsletter-system
+plan brainstorm challenge --project . newsletter-system
 plan epic promote --project . newsletter-system
+plan epic shape --project . newsletter-system
 plan spec show --project . newsletter-system
+plan spec analyze --project . newsletter-system
+plan spec checklist --project . newsletter-system --profile general
 plan spec status --project . newsletter-system --set approved
-plan story create --project . newsletter-system "Build template editor"
+plan story slice --project . newsletter-system
+plan story slice --project . newsletter-system --apply
+plan story critique --project . build-template-editor
 plan status --project .
+plan check --project .
 ```
 
-## Advanced Local Workflows
+Full guide:
 
-These stay optional. If you do not need them, ignore them.
+- [Using plan](docs/using-plan.md)
 
-- adopt an existing repo into a managed workspace:
-  `plan adopt --project .`
-- run structural planning checks:
-  `plan check --project .`
-- inspect version slices of the roadmap:
-  `plan roadmap versions --project . --version v2`
-- filter status for larger plans:
-  `plan status --project . --version v3 --epic power-user-local-workflows --story-status todo`
-- surface ready and blocked work:
-  `plan ready --project .`
-- narrow story lists by roadmap version:
-  `plan story list --project . --version v3`
+## Current Command Surface
 
-The rule stays the same: use the advanced surfaces only when the simple default
-stops being enough.
+- `plan init`
+- `plan adopt`
+- `plan doctor`
+- `plan update`
+- `plan brainstorm start|idea|show|refine`
+- `plan brainstorm challenge`
+- `plan epic create|promote|list|show|shape`
+- `plan spec show|edit|status|analyze|checklist`
+- `plan story create|update|list|show|slice|critique`
+- `plan roadmap show|edit`
+- `plan check`
+- `plan status`
+- `plan skills install|targets`
+
+## Roadmap Direction
+
+Product phases, not release-tag numbers:
+
+- `v4`: Planning Refinement Foundation
+- `v5`: Planning Skills, Shaping, and Evals
+- `v6`: Story Slicing and Execution Readiness
+- `v7`: External Sync, only if the local loop clearly wins
+
+Release tags can stay in `v0.x.y` semver until a separate `1.0` decision.
 
 ## Install
 
@@ -151,6 +160,20 @@ Preview install targets:
 ```bash
 plan skills targets --scope both --agent codex --project .
 ```
+
+## Evaluating Prompt And Workflow Changes
+
+`v5` adds a local benchmark and rubric harness for maintainers. `v6` adds
+story slicing, critique, and stronger spec-to-story readiness checks. The
+benchmark workflow is test-driven:
+
+```bash
+go test ./internal/planning -run TestBenchmarkFixturesSatisfyMinimumScores
+go test ./internal/planning -run TestRubricEvaluationIsDeterministic
+```
+
+The fixtures live under `testdata/evals/fixtures/` and the rubric code lives in
+`internal/planning/evals.go`.
 
 ## Release Flow
 
