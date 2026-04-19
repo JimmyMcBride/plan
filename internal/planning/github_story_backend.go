@@ -502,3 +502,42 @@ func mergeManagedIssueBody(existingBody, managedBody string) string {
 	}
 	return strings.TrimRight(existing, "\n") + "\n\n" + strings.TrimRight(managedBody, "\n") + "\n"
 }
+
+func extractManagedIssueBody(body string) string {
+	body = strings.ReplaceAll(body, "\r\n", "\n")
+	start := strings.Index(body, planIssueBlockStart)
+	end := strings.Index(body, planIssueBlockEnd)
+	if start < 0 || end <= start {
+		return ""
+	}
+	start += len(planIssueBlockStart)
+	return strings.TrimSpace(body[start:end])
+}
+
+func parseGitHubStoryMetadata(body string) map[string]string {
+	body = strings.ReplaceAll(body, "\r\n", "\n")
+	start := strings.Index(body, planIssueMetaPrefix)
+	if start < 0 {
+		return nil
+	}
+	body = body[start+len(planIssueMetaPrefix):]
+	end := strings.Index(body, "\n-->")
+	if end < 0 {
+		return nil
+	}
+	block := strings.TrimSpace(body[:end])
+	out := map[string]string{}
+	for _, line := range strings.Split(block, "\n") {
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+		if key == "" {
+			continue
+		}
+		out[key] = value
+	}
+	return out
+}

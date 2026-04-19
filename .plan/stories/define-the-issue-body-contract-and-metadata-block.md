@@ -4,10 +4,10 @@ epic: issue-contract-and-planning-link-lifecycle
 project: plan
 slug: define-the-issue-body-contract-and-metadata-block
 spec: issue-contract-and-planning-link-lifecycle
-status: todo
+status: done
 title: Define the issue body contract and metadata block
 type: story
-updated_at: "2026-04-19T01:53:14Z"
+updated_at: "2026-04-19T02:55:44Z"
 ---
 
 # Define the issue body contract and metadata block

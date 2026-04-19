@@ -3,11 +3,11 @@ created_at: "2026-04-19T01:16:45Z"
 epic: issue-contract-and-planning-link-lifecycle
 project: plan
 slug: issue-contract-and-planning-link-lifecycle
-status: approved
+status: done
 target_version: v7
 title: Issue Contract and Planning Link Lifecycle Spec
 type: spec
-updated_at: "2026-04-19T01:54:55Z"
+updated_at: "2026-04-19T02:55:44Z"
 ---
 
 # Issue Contract and Planning Link Lifecycle Spec

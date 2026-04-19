@@ -335,3 +335,243 @@ func TestUpdateStoryMutatesIssueBackedRecordWithoutLocalMarkdown(t *testing.T) {
 		t.Fatalf("expected dependency contract in updated issue body:\n%s", client.lastUpdate.Body)
 	}
 }
+
+func TestGitHubIssueContractIncludesMetadataAndPlanningSections(t *testing.T) {
+	client := &stubGitHubClient{
+		preflight: &GitHubRepoInfo{
+			Repo:          "JimmyMcBride/plan",
+			RepoURL:       "https://github.com/JimmyMcBride/plan",
+			DefaultBranch: "main",
+		},
+		context: &GitHubContext{
+			Repo: GitHubRepoInfo{
+				Repo:          "JimmyMcBride/plan",
+				RepoURL:       "https://github.com/JimmyMcBride/plan",
+				DefaultBranch: "main",
+			},
+			CurrentBranch: "main",
+			CurrentSHA:    "abc123def456",
+		},
+	}
+	reset := SetGitHubClientFactoryForTesting(func() GitHubClient { return client })
+	t.Cleanup(reset)
+
+	root := t.TempDir()
+	manager := newGitHubStoryManager(t, root)
+	if _, err := manager.EnableGitHubBackend(); err != nil {
+		t.Fatal(err)
+	}
+	seedApprovedGitHubEpic(t, manager)
+	if _, err := manager.CreateStory(
+		"billing",
+		"Implement invoices",
+		"Create invoice generation flow",
+		[]string{"Generate invoices from line items"},
+		[]string{"Run focused billing tests"},
+		nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	body := client.lastCreate.Body
+	if !strings.Contains(body, planIssueBlockStart) || !strings.Contains(body, "## Planning Links") || !strings.Contains(body, "## Dependencies") {
+		t.Fatalf("expected plan-managed issue sections:\n%s", body)
+	}
+	meta := parseGitHubStoryMetadata(body)
+	if meta["slug"] != "implement-invoices" || meta["epic"] != "billing" || meta["spec"] != "billing" {
+		t.Fatalf("unexpected issue metadata block: %+v\n%s", meta, body)
+	}
+}
+
+func TestCreateGitHubStoryUsesShaLinksAndPlanningPRBeforeMerge(t *testing.T) {
+	client := &stubGitHubClient{
+		preflight: &GitHubRepoInfo{
+			Repo:          "JimmyMcBride/plan",
+			RepoURL:       "https://github.com/JimmyMcBride/plan",
+			DefaultBranch: "main",
+		},
+		context: &GitHubContext{
+			Repo: GitHubRepoInfo{
+				Repo:          "JimmyMcBride/plan",
+				RepoURL:       "https://github.com/JimmyMcBride/plan",
+				DefaultBranch: "main",
+			},
+			CurrentBranch: "feat/planning-branch",
+			CurrentSHA:    "abc123def456",
+			PlanningPR: &GitHubPullRequest{
+				Number:   42,
+				URL:      "https://github.com/JimmyMcBride/plan/pull/42",
+				State:    "OPEN",
+				HeadRef:  "feat/planning-branch",
+				BaseRef:  "main",
+				IsMerged: false,
+			},
+		},
+	}
+	reset := SetGitHubClientFactoryForTesting(func() GitHubClient { return client })
+	t.Cleanup(reset)
+
+	root := t.TempDir()
+	manager := newGitHubStoryManager(t, root)
+	if _, err := manager.EnableGitHubBackend(); err != nil {
+		t.Fatal(err)
+	}
+	seedApprovedGitHubEpic(t, manager)
+	if _, err := manager.CreateStory(
+		"billing",
+		"Implement invoices",
+		"Create invoice generation flow",
+		[]string{"Generate invoices from line items"},
+		[]string{"Run focused billing tests"},
+		nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	body := client.lastCreate.Body
+	if !strings.Contains(body, "/blob/abc123def456/.plan/specs/billing.md") {
+		t.Fatalf("expected SHA permalink in pre-merge issue body:\n%s", body)
+	}
+	if strings.Contains(body, "/blob/feat/planning-branch/") {
+		t.Fatalf("expected branch-name links to stay out of issue body:\n%s", body)
+	}
+	if !strings.Contains(body, "Planning PR: [#42](https://github.com/JimmyMcBride/plan/pull/42)") {
+		t.Fatalf("expected planning PR link in issue body:\n%s", body)
+	}
+}
+
+func TestCreateGitHubStoryRequiresPlanningPROffDefaultBranch(t *testing.T) {
+	client := &stubGitHubClient{
+		preflight: &GitHubRepoInfo{
+			Repo:          "JimmyMcBride/plan",
+			RepoURL:       "https://github.com/JimmyMcBride/plan",
+			DefaultBranch: "main",
+		},
+		context: &GitHubContext{
+			Repo: GitHubRepoInfo{
+				Repo:          "JimmyMcBride/plan",
+				RepoURL:       "https://github.com/JimmyMcBride/plan",
+				DefaultBranch: "main",
+			},
+			CurrentBranch: "feat/planning-branch",
+			CurrentSHA:    "abc123def456",
+		},
+	}
+	reset := SetGitHubClientFactoryForTesting(func() GitHubClient { return client })
+	t.Cleanup(reset)
+
+	root := t.TempDir()
+	manager := newGitHubStoryManager(t, root)
+	if _, err := manager.EnableGitHubBackend(); err != nil {
+		t.Fatal(err)
+	}
+	seedApprovedGitHubEpic(t, manager)
+	if _, err := manager.CreateStory(
+		"billing",
+		"Implement invoices",
+		"Create invoice generation flow",
+		[]string{"Generate invoices from line items"},
+		[]string{"Run focused billing tests"},
+		nil,
+	); err == nil {
+		t.Fatal("expected planning branch without PR to be rejected")
+	} else if !strings.Contains(err.Error(), "has no planning PR") {
+		t.Fatalf("unexpected planning-branch error: %v", err)
+	}
+}
+
+func TestReconcileGitHubStoriesPromotesMainLinksAndPreservesUserText(t *testing.T) {
+	client := &stubGitHubClient{
+		preflight: &GitHubRepoInfo{
+			Repo:          "JimmyMcBride/plan",
+			RepoURL:       "https://github.com/JimmyMcBride/plan",
+			DefaultBranch: "main",
+		},
+		context: &GitHubContext{
+			Repo: GitHubRepoInfo{
+				Repo:          "JimmyMcBride/plan",
+				RepoURL:       "https://github.com/JimmyMcBride/plan",
+				DefaultBranch: "main",
+			},
+			CurrentBranch: "feat/planning-branch",
+			CurrentSHA:    "abc123def456",
+			PlanningPR: &GitHubPullRequest{
+				Number:   42,
+				URL:      "https://github.com/JimmyMcBride/plan/pull/42",
+				State:    "OPEN",
+				HeadRef:  "feat/planning-branch",
+				BaseRef:  "main",
+				IsMerged: false,
+			},
+		},
+	}
+	reset := SetGitHubClientFactoryForTesting(func() GitHubClient { return client })
+	t.Cleanup(reset)
+
+	root := t.TempDir()
+	manager := newGitHubStoryManager(t, root)
+	if _, err := manager.EnableGitHubBackend(); err != nil {
+		t.Fatal(err)
+	}
+	seedApprovedGitHubEpic(t, manager)
+	if _, err := manager.CreateStory(
+		"billing",
+		"Implement invoices",
+		"Create invoice generation flow",
+		[]string{"Generate invoices from line items"},
+		[]string{"Run focused billing tests"},
+		nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	client.issues[101].Body += "\n\nUser note outside managed block.\n"
+	client.context.CurrentBranch = "main"
+	client.context.PlanningPR = nil
+
+	result, err := manager.ReconcileGitHubStories(GitHubReconcileOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.UpdatedIssues) != 1 {
+		t.Fatalf("expected one reconciled issue: %+v", result)
+	}
+	issue := client.issues[101]
+	if !strings.Contains(issue.Body, "/blob/main/.plan/specs/billing.md") {
+		t.Fatalf("expected canonical main link after reconcile:\n%s", issue.Body)
+	}
+	if strings.Contains(issue.Body, "/blob/abc123def456/") {
+		t.Fatalf("expected SHA links to be removed after reconcile:\n%s", issue.Body)
+	}
+	if !strings.Contains(issue.Body, "User note outside managed block.") {
+		t.Fatalf("expected user text outside managed block to survive reconcile:\n%s", issue.Body)
+	}
+
+	state, err := manager.workspace.ReadGitHubState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	record := state.Stories["implement-invoices"]
+	if !record.PlanningPRMerged || record.DocRefMode != "main" || record.DocRef != "main" {
+		t.Fatalf("expected record to reconcile to default branch links: %+v", record)
+	}
+}
+
+func newGitHubStoryManager(t *testing.T, root string) *Manager {
+	t.Helper()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	return New(ws)
+}
+
+func seedApprovedGitHubEpic(t *testing.T, manager *Manager) {
+	t.Helper()
+	if _, err := manager.CreateEpic("Billing", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.SetSpecStatus("billing", "approved"); err != nil {
+		t.Fatal(err)
+	}
+}

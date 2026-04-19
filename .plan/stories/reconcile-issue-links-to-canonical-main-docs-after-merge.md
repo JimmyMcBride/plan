@@ -4,10 +4,10 @@ epic: issue-contract-and-planning-link-lifecycle
 project: plan
 slug: reconcile-issue-links-to-canonical-main-docs-after-merge
 spec: issue-contract-and-planning-link-lifecycle
-status: todo
+status: done
 title: Reconcile issue links to canonical main docs after merge
 type: story
-updated_at: "2026-04-19T01:53:14Z"
+updated_at: "2026-04-19T02:55:44Z"
 ---
 
 # Reconcile issue links to canonical main docs after merge
