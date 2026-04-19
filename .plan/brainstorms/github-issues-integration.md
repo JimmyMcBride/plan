@@ -30,12 +30,6 @@ Publish execution work to GitHub issues while keeping brainstorms, epics, and sp
 - Should merged PRs be allowed to update local story status automatically?
 - Should issue publication happen only for selected stories, or for every approved story by default?
 - When, if ever, should milestones enter the model?
-
-- Should issue body edits ever sync back into local story notes, or should sync stay one-way at first?
-
-- Should merged PRs be allowed to update local story status automatically?
-
-- Should issue publication happen only for selected stories, or for every approved story by default?
 ## Ideas
 
 - Export approved stories to issues with stable links back to the local story note.
