@@ -3,11 +3,11 @@ created_at: "2026-04-19T01:16:45Z"
 epic: github-story-backend-and-preflight
 project: plan
 slug: github-story-backend-and-preflight
-status: draft
+status: approved
 target_version: v7
 title: GitHub Story Backend and Preflight Spec
 type: spec
-updated_at: "2026-04-19T01:16:45Z"
+updated_at: "2026-04-19T01:54:55Z"
 ---
 
 # GitHub Story Backend and Preflight Spec
@@ -94,9 +94,9 @@ half-GitHub workflow that confuses humans and agents.
 - local mode continues to create and manage `.plan/stories/` notes unchanged
 
 ## Story Breakdown
-- [ ] Add GitHub backend configuration and preflight checks
-- [ ] Enforce issue-backed story storage in GitHub mode
-- [ ] Add tests for local and GitHub story backend behavior
+- [ ] [Add GitHub backend configuration and preflight checks](../stories/add-github-backend-configuration-and-preflight-checks.md)
+- [ ] [Enforce issue-backed story storage in GitHub mode](../stories/enforce-issue-backed-story-storage-in-github-mode.md)
+- [ ] [Add tests for local and GitHub story backend behavior](../stories/add-tests-for-local-and-github-story-backend-behavior.md)
 
 ## Analysis
 

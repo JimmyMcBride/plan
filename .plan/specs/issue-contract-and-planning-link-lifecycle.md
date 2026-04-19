@@ -3,11 +3,11 @@ created_at: "2026-04-19T01:16:45Z"
 epic: issue-contract-and-planning-link-lifecycle
 project: plan
 slug: issue-contract-and-planning-link-lifecycle
-status: draft
+status: approved
 target_version: v7
 title: Issue Contract and Planning Link Lifecycle Spec
 type: spec
-updated_at: "2026-04-19T01:16:45Z"
+updated_at: "2026-04-19T01:54:55Z"
 ---
 
 # Issue Contract and Planning Link Lifecycle Spec
@@ -98,9 +98,9 @@ which drift, disappear, or cannot be trusted after merge.
 - no branch-name link is required as the canonical reference path
 
 ## Story Breakdown
-- [ ] Define the issue body contract and metadata block
-- [ ] Publish planning-branch doc links and planning PR references
-- [ ] Reconcile issue links to canonical `main` docs after merge
+- [ ] [Define the issue body contract and metadata block](../stories/define-the-issue-body-contract-and-metadata-block.md)
+- [ ] [Publish planning-branch doc links and planning PR references](../stories/publish-planning-branch-doc-links-and-planning-pr-references.md)
+- [ ] [Reconcile issue links to canonical `main` docs after merge](../stories/reconcile-issue-links-to-canonical-main-docs-after-merge.md)
 
 ## Analysis
 

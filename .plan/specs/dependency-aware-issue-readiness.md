@@ -3,11 +3,11 @@ created_at: "2026-04-19T01:16:45Z"
 epic: dependency-aware-issue-readiness
 project: plan
 slug: dependency-aware-issue-readiness
-status: draft
+status: approved
 target_version: v7
 title: Dependency-Aware Issue Readiness Spec
 type: spec
-updated_at: "2026-04-19T01:16:45Z"
+updated_at: "2026-04-19T01:54:55Z"
 ---
 
 # Dependency-Aware Issue Readiness Spec
@@ -96,9 +96,9 @@ dependencies live only in local metadata, the issue itself stays ambiguous.
 - no GitHub Actions setup is required to compute readiness correctly
 
 ## Story Breakdown
-- [ ] Define the dependency contract for issue-backed stories
-- [ ] Compute derived ready and blocked state from merge plus dependency closure
-- [ ] Surface async-safe ready work in CLI and optional GitHub-visible updates
+- [ ] [Define the dependency contract for issue-backed stories](../stories/define-the-dependency-contract-for-issue-backed-stories.md)
+- [ ] [Compute derived ready and blocked state from merge plus dependency closure](../stories/compute-derived-ready-and-blocked-state-from-merge-plus-dependency-closure.md)
+- [ ] [Surface async-safe ready work in CLI and optional GitHub-visible updates](../stories/surface-async-safe-ready-work-in-cli-and-optional-github-visible-updates.md)
 
 ## Analysis
 
