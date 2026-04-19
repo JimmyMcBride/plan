@@ -110,7 +110,7 @@ func (m *Manager) specNotesForCheck(info *workspace.Info, input CheckInput) ([]*
 func (m *Manager) storyNotesForCheck(info *workspace.Info, input CheckInput) ([]*notes.Note, error) {
 	switch {
 	case strings.TrimSpace(input.StorySlug) != "":
-		story, err := notes.Read(filepath.Join(info.StoriesDir, slugify(input.StorySlug)+".md"))
+		story, err := m.ReadStory(input.StorySlug)
 		if err != nil {
 			return nil, err
 		}
@@ -136,7 +136,7 @@ func (m *Manager) readStoriesByFilter(info *workspace.Info, keep func(StoryInfo)
 		if !keep(story) {
 			continue
 		}
-		note, err := notes.Read(filepath.Join(info.ProjectDir, filepath.FromSlash(story.Path)))
+		note, err := m.ReadStory(story.Slug)
 		if err != nil {
 			return nil, err
 		}
@@ -364,10 +364,8 @@ func checkSpecStoryReadiness(info *workspace.Info, spec *notes.Note, stories []S
 		})
 	}
 
-	knownStorySlugs := map[string]struct{}{}
 	anyStarted := false
 	for _, story := range childStories {
-		knownStorySlugs[slugFromPath(story.Path)] = struct{}{}
 		if story.Status == "in_progress" || story.Status == "blocked" || story.Status == "done" {
 			anyStarted = true
 		}
@@ -392,6 +390,9 @@ func checkSpecStoryReadiness(info *workspace.Info, spec *notes.Note, stories []S
 		if candidate.LinkTarget == "" {
 			continue
 		}
+		if strings.HasPrefix(candidate.LinkTarget, "http://") || strings.HasPrefix(candidate.LinkTarget, "https://") {
+			continue
+		}
 		linkedPath := filepath.Clean(filepath.Join(filepath.Dir(spec.Path), filepath.FromSlash(candidate.LinkTarget)))
 		if _, err := os.Stat(linkedPath); err != nil {
 			findings = append(findings, CheckFinding{
@@ -407,7 +408,7 @@ func checkSpecStoryReadiness(info *workspace.Info, spec *notes.Note, stories []S
 		}
 	}
 	for _, story := range childStories {
-		if _, ok := expectedSlugs[slugFromPath(story.Path)]; ok {
+		if _, ok := expectedSlugs[story.Slug]; ok {
 			continue
 		}
 		findings = append(findings, CheckFinding{

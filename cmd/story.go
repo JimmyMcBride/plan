@@ -21,6 +21,7 @@ func newStoryCommand() *cobra.Command {
 	var criteria []string
 	var verification []string
 	var resources []string
+	var blockers []string
 	create := &cobra.Command{
 		Use:   "create <epic-slug> <title>",
 		Short: "Create a story from an approved spec",
@@ -30,6 +31,18 @@ func newStoryCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if len(blockers) > 0 {
+				slug, _ := note.Metadata["slug"].(string)
+				if slug == "" {
+					return fmt.Errorf("created story is missing slug metadata")
+				}
+				note, err = planningManager().UpdateStory(slug, planning.StoryChanges{
+					SetBlockers: blockers,
+				})
+				if err != nil {
+					return err
+				}
+			}
 			fmt.Fprintf(cmd.OutOrStdout(), "Created story %s\n", note.Path)
 			return nil
 		},
@@ -38,11 +51,13 @@ func newStoryCommand() *cobra.Command {
 	create.Flags().StringArrayVar(&criteria, "criteria", nil, "acceptance criterion; repeatable")
 	create.Flags().StringArrayVar(&verification, "verify", nil, "verification step; repeatable")
 	create.Flags().StringArrayVar(&resources, "resource", nil, "resource entry; repeatable")
+	create.Flags().StringArrayVar(&blockers, "blocker", nil, "story slug this story depends on; repeatable")
 
 	var status string
 	var addCriteria []string
 	var addVerification []string
 	var addResources []string
+	var setBlockers []string
 	update := &cobra.Command{
 		Use:   "update <story-slug>",
 		Short: "Update a story",
@@ -53,6 +68,7 @@ func newStoryCommand() *cobra.Command {
 				AddCriteria:     addCriteria,
 				AddVerification: addVerification,
 				AddResources:    addResources,
+				SetBlockers:     setBlockers,
 			})
 			if err != nil {
 				return err
@@ -65,6 +81,7 @@ func newStoryCommand() *cobra.Command {
 	update.Flags().StringArrayVar(&addCriteria, "criteria", nil, "acceptance criterion to append; repeatable")
 	update.Flags().StringArrayVar(&addVerification, "verify", nil, "verification step to append; repeatable")
 	update.Flags().StringArrayVar(&addResources, "resource", nil, "resource entry to append; repeatable")
+	update.Flags().StringArrayVar(&setBlockers, "blocker", nil, "story slug this story depends on; repeatable")
 
 	var epicFilter string
 	var statusFilter string

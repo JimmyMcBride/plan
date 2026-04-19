@@ -11,15 +11,64 @@ import (
 )
 
 const (
-	CurrentSchemaVersion = 1
+	CurrentSchemaVersion = 2
 	PlanningModel        = "epic_spec_story_v1"
 )
 
+type StoryBackend string
+
+const (
+	StoryBackendLocal  StoryBackend = "local"
+	StoryBackendGitHub StoryBackend = "github"
+)
+
 type WorkspaceMeta struct {
-	SchemaVersion int    `json:"schema_version"`
-	PlanningModel string `json:"planning_model"`
-	CreatedAt     string `json:"created_at"`
-	UpdatedAt     string `json:"updated_at"`
+	SchemaVersion int          `json:"schema_version"`
+	PlanningModel string       `json:"planning_model"`
+	StoryBackend  StoryBackend `json:"story_backend"`
+	CreatedAt     string       `json:"created_at"`
+	UpdatedAt     string       `json:"updated_at"`
+}
+
+type GitHubState struct {
+	Repo           string                       `json:"repo,omitempty"`
+	RepoURL        string                       `json:"repo_url,omitempty"`
+	DefaultBranch  string                       `json:"default_branch,omitempty"`
+	LastEnabledAt  string                       `json:"last_enabled_at,omitempty"`
+	LastUpdatedAt  string                       `json:"last_updated_at,omitempty"`
+	LastReconciled string                       `json:"last_reconciled_at,omitempty"`
+	Stories        map[string]GitHubStoryRecord `json:"stories"`
+}
+
+type GitHubStoryRecord struct {
+	Slug                  string   `json:"slug"`
+	Title                 string   `json:"title"`
+	Epic                  string   `json:"epic"`
+	Spec                  string   `json:"spec"`
+	Status                string   `json:"status,omitempty"`
+	Description           string   `json:"description,omitempty"`
+	AcceptanceCriteria    []string `json:"acceptance_criteria,omitempty"`
+	Verification          []string `json:"verification,omitempty"`
+	Resources             []string `json:"resources,omitempty"`
+	Dependencies          []string `json:"dependencies,omitempty"`
+	AsyncNotes            []string `json:"async_notes,omitempty"`
+	ScopeFit              string   `json:"scope_fit,omitempty"`
+	VerticalSliceCheck    string   `json:"vertical_slice_check,omitempty"`
+	HiddenPrerequisites   string   `json:"hidden_prerequisites,omitempty"`
+	VerificationGaps      string   `json:"verification_gaps,omitempty"`
+	RewriteRecommendation string   `json:"rewrite_recommendation,omitempty"`
+	IssueNumber           int      `json:"issue_number,omitempty"`
+	IssueURL              string   `json:"issue_url,omitempty"`
+	RemoteState           string   `json:"remote_state,omitempty"`
+	PlanningPRNumber      int      `json:"planning_pr_number,omitempty"`
+	PlanningPRURL         string   `json:"planning_pr_url,omitempty"`
+	PlanningPRMerged      bool     `json:"planning_pr_merged,omitempty"`
+	DocRefMode            string   `json:"doc_ref_mode,omitempty"`
+	DocRef                string   `json:"doc_ref,omitempty"`
+	Ready                 bool     `json:"ready,omitempty"`
+	BlockedReasons        []string `json:"blocked_reasons,omitempty"`
+	VisibleReadyMarkerSet bool     `json:"visible_ready_marker_set,omitempty"`
+	UpdatedAt             string   `json:"updated_at,omitempty"`
 }
 
 type MigrationState struct {
@@ -68,6 +117,7 @@ type Info struct {
 	MetaDir        string
 	WorkspaceFile  string
 	MigrationsFile string
+	GitHubFile     string
 }
 
 type InitResult struct {
@@ -127,6 +177,7 @@ func (m *Manager) Resolve() (*Info, error) {
 		MetaDir:        metaDir,
 		WorkspaceFile:  filepath.Join(metaDir, "workspace.json"),
 		MigrationsFile: filepath.Join(metaDir, "migrations.json"),
+		GitHubFile:     filepath.Join(metaDir, "github.json"),
 	}, nil
 }
 
@@ -153,6 +204,7 @@ func (i *Info) ToolManagedSurfaces() []Surface {
 		i.newSurface(".meta/", i.MetaDir, "tool_managed", "dir"),
 		i.newSurface("workspace.json", i.WorkspaceFile, "tool_managed", "file"),
 		i.newSurface("migrations.json", i.MigrationsFile, "tool_managed", "file"),
+		i.newSurface("github.json", i.GitHubFile, "tool_managed", "file"),
 	}
 }
 
@@ -216,6 +268,11 @@ func (m *Manager) Init() (*InitResult, error) {
 		return nil, err
 	} else if created {
 		result.Created = append(result.Created, rel(info.ProjectDir, info.MigrationsFile))
+	}
+	if created, err := ensureGitHubState(info.GitHubFile, now); err != nil {
+		return nil, err
+	} else if created {
+		result.Created = append(result.Created, rel(info.ProjectDir, info.GitHubFile))
 	}
 	if err := recordMigrationRun(info, "init", result.Created, nil, now); err != nil {
 		return nil, err
@@ -283,6 +340,14 @@ func (m *Manager) ReadMigrationState() (*MigrationState, error) {
 	return readMigrationStateFile(info.MigrationsFile)
 }
 
+func (m *Manager) ReadGitHubState() (*GitHubState, error) {
+	info, err := m.Resolve()
+	if err != nil {
+		return nil, err
+	}
+	return readGitHubStateFile(info.GitHubFile)
+}
+
 func readMigrationStateFile(path string) (*MigrationState, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -291,6 +356,18 @@ func readMigrationStateFile(path string) (*MigrationState, error) {
 	var state MigrationState
 	if err := json.Unmarshal(raw, &state); err != nil {
 		return nil, fmt.Errorf("parse migration state: %w", err)
+	}
+	return &state, nil
+}
+
+func readGitHubStateFile(path string) (*GitHubState, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read github state: %w", err)
+	}
+	var state GitHubState
+	if err := json.Unmarshal(raw, &state); err != nil {
+		return nil, fmt.Errorf("parse github state: %w", err)
 	}
 	return &state, nil
 }
@@ -349,6 +426,17 @@ func (m *Manager) Doctor() (*DoctorReport, error) {
 			if !contains(report.Broken, "migrations.json") {
 				report.Broken = append(report.Broken, "migrations.json")
 			}
+		}
+	}
+
+	githubState, err := readGitHubStateFile(info.GitHubFile)
+	if err != nil {
+		if !contains(report.Missing, "github.json") {
+			report.Broken = append(report.Broken, "github.json")
+		}
+	} else if err := validateGitHubState(githubState); err != nil {
+		if !contains(report.Broken, "github.json") {
+			report.Broken = append(report.Broken, "github.json")
 		}
 	}
 
@@ -449,6 +537,19 @@ func (m *Manager) repairWorkspace(info *Info, operation string) (*UpdateResult, 
 			result.Updated = append(result.Updated, rel(info.ProjectDir, info.MigrationsFile))
 		}
 	}
+	if created, err := ensureGitHubState(info.GitHubFile, now); err != nil {
+		return nil, err
+	} else if created {
+		result.Created = append(result.Created, rel(info.ProjectDir, info.GitHubFile))
+	} else {
+		updated, err := reconcileGitHubState(info.GitHubFile, now)
+		if err != nil {
+			return nil, err
+		}
+		if updated {
+			result.Updated = append(result.Updated, rel(info.ProjectDir, info.GitHubFile))
+		}
+	}
 	if err := recordMigrationRun(info, operation, result.Created, result.Updated, now); err != nil {
 		return nil, err
 	}
@@ -513,6 +614,18 @@ func reconcileWorkspaceMeta(path, now string) (bool, error) {
 	return true, writeJSON(path, normalized)
 }
 
+func (m *Manager) WriteWorkspaceMeta(meta WorkspaceMeta) error {
+	info, err := m.Resolve()
+	if err != nil {
+		return err
+	}
+	normalized, _, err := normalizeWorkspaceMeta(meta, time.Now().UTC().Format(time.RFC3339))
+	if err != nil {
+		return err
+	}
+	return writeJSON(info.WorkspaceFile, normalized)
+}
+
 func ensureMigrationState(path, now string) (bool, error) {
 	if _, err := os.Stat(path); err == nil {
 		return false, nil
@@ -520,6 +633,16 @@ func ensureMigrationState(path, now string) (bool, error) {
 		return false, err
 	}
 	state := defaultMigrationState(now)
+	return true, writeJSON(path, state)
+}
+
+func ensureGitHubState(path, now string) (bool, error) {
+	if _, err := os.Stat(path); err == nil {
+		return false, nil
+	} else if !os.IsNotExist(err) {
+		return false, err
+	}
+	state := defaultGitHubState(now)
 	return true, writeJSON(path, state)
 }
 
@@ -542,10 +665,30 @@ func reconcileMigrationState(path, now string) (bool, error) {
 	return true, writeJSON(path, normalized)
 }
 
+func reconcileGitHubState(path, now string) (bool, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return false, err
+	}
+	var state GitHubState
+	if err := json.Unmarshal(raw, &state); err != nil {
+		return true, writeJSON(path, defaultGitHubState(now))
+	}
+	normalized, changed, err := normalizeGitHubState(state, now)
+	if err != nil {
+		return false, err
+	}
+	if !changed {
+		return false, nil
+	}
+	return true, writeJSON(path, normalized)
+}
+
 func defaultWorkspaceMeta(now string) WorkspaceMeta {
 	return WorkspaceMeta{
 		SchemaVersion: CurrentSchemaVersion,
 		PlanningModel: PlanningModel,
+		StoryBackend:  StoryBackendLocal,
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	}
@@ -557,6 +700,13 @@ func defaultMigrationState(now string) MigrationState {
 		Known:         []string{},
 		LastRunAt:     now,
 		Status:        "current",
+	}
+}
+
+func defaultGitHubState(now string) GitHubState {
+	return GitHubState{
+		LastUpdatedAt: now,
+		Stories:       map[string]GitHubStoryRecord{},
 	}
 }
 
@@ -576,6 +726,10 @@ func normalizeWorkspaceMeta(meta WorkspaceMeta, now string) (WorkspaceMeta, bool
 	}
 	if normalized.PlanningModel == "" {
 		normalized.PlanningModel = PlanningModel
+		changed = true
+	}
+	if normalized.StoryBackend == "" {
+		normalized.StoryBackend = StoryBackendLocal
 		changed = true
 	}
 	if normalized.CreatedAt == "" {
@@ -621,6 +775,23 @@ func normalizeMigrationState(state MigrationState, now string) (MigrationState, 
 	return normalized, changed, nil
 }
 
+func normalizeGitHubState(state GitHubState, now string) (GitHubState, bool, error) {
+	normalized := state
+	changed := false
+	if normalized.Stories == nil {
+		normalized.Stories = map[string]GitHubStoryRecord{}
+		changed = true
+	}
+	if normalized.LastUpdatedAt == "" {
+		normalized.LastUpdatedAt = now
+		changed = true
+	}
+	if changed {
+		normalized.LastUpdatedAt = now
+	}
+	return normalized, changed, nil
+}
+
 func validateWorkspaceMeta(meta *WorkspaceMeta) error {
 	switch {
 	case meta.SchemaVersion == 0:
@@ -631,6 +802,8 @@ func validateWorkspaceMeta(meta *WorkspaceMeta) error {
 		return fmt.Errorf("planning_model is required")
 	case meta.PlanningModel != PlanningModel:
 		return fmt.Errorf("planning_model %q is not supported", meta.PlanningModel)
+	case meta.StoryBackend != "" && meta.StoryBackend != StoryBackendLocal && meta.StoryBackend != StoryBackendGitHub:
+		return fmt.Errorf("story_backend %q is not supported", meta.StoryBackend)
 	case meta.CreatedAt == "":
 		return fmt.Errorf("created_at is required")
 	case meta.UpdatedAt == "":
@@ -638,6 +811,13 @@ func validateWorkspaceMeta(meta *WorkspaceMeta) error {
 	default:
 		return nil
 	}
+}
+
+func validateGitHubState(state *GitHubState) error {
+	if state == nil {
+		return fmt.Errorf("github state is required")
+	}
+	return nil
 }
 
 func validateMigrationState(state *MigrationState) error {
@@ -685,6 +865,18 @@ func recordMigrationRun(info *Info, operation string, created, updated []string,
 	return writeJSON(info.MigrationsFile, state)
 }
 
+func (m *Manager) WriteGitHubState(state GitHubState) error {
+	info, err := m.Resolve()
+	if err != nil {
+		return err
+	}
+	normalized, _, err := normalizeGitHubState(state, time.Now().UTC().Format(time.RFC3339))
+	if err != nil {
+		return err
+	}
+	return writeJSON(info.GitHubFile, normalized)
+}
+
 func writeJSON(path string, v any) error {
 	raw, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
@@ -718,11 +910,11 @@ func classifyDoctorWorkspace(missing, broken []string) string {
 }
 
 func isPartialWorkspace(missing []string) bool {
-	return contains(missing, ".meta/") || contains(missing, "workspace.json") || contains(missing, "migrations.json")
+	return contains(missing, ".meta/") || contains(missing, "workspace.json") || contains(missing, "migrations.json") || contains(missing, "github.json")
 }
 
 func isBrokenWorkspace(broken []string) bool {
-	return contains(broken, "workspace.json") || contains(broken, "migrations.json")
+	return contains(broken, "workspace.json") || contains(broken, "migrations.json") || contains(broken, "github.json")
 }
 
 func guidanceForWorkspaceStatus(status string) []string {

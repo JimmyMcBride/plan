@@ -27,6 +27,7 @@ func newRootCmd() *cobra.Command {
 		newStoryCommand(),
 		newRoadmapCommand(),
 		newStatusCommand(),
+		newGitHubCommand(),
 		newSkillsCommand(),
 	)
 	return root

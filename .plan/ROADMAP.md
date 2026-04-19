@@ -63,14 +63,14 @@ Summary:
 
 Goal: Connect outward only after the local shaping loop is clearly excellent.
 
-- [ ] GitHub Projection Model
-- [ ] Issue and PR Linking
-- [ ] Selective Publish and Back-Sync
+- [ ] GitHub Story Backend and Preflight
+- [ ] Issue Contract and Planning Link Lifecycle
+- [ ] Dependency-Aware Issue Readiness
 
 Summary:
-- keep `.plan` canonical
-- treat external tools as projections, not source of truth
-- defer broader integrations until GitHub-only sync proves worthwhile
+- keep brainstorms, epics, and specs canonical in `.plan`
+- let GitHub Issues serve as the execution backend for stories when GitHub mode is enabled
+- derive blocked and ready work from planning-merge state plus issue dependencies
 
 ## Ordering Notes
 

@@ -33,6 +33,16 @@ func printStatus(out io.Writer, status *planning.ProjectStatus) {
 		status.InProgressStories,
 		status.BlockedStories,
 	)
+	if status.ReadyStories > 0 {
+		fmt.Fprintf(out, "ready_work: %d\n", status.ReadyStories)
+		for _, story := range status.ReadyWork {
+			issueRef := ""
+			if story.IssueNumber > 0 {
+				issueRef = fmt.Sprintf(" issue=#%d", story.IssueNumber)
+			}
+			fmt.Fprintf(out, "  - %s%s epic=%s spec=%s\n", story.Title, issueRef, story.Epic, story.Spec)
+		}
+	}
 	if len(status.Epics) == 0 {
 		fmt.Fprintln(out, "epics: none")
 		return
