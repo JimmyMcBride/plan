@@ -4,10 +4,10 @@ epic: github-story-backend-and-preflight
 project: plan
 slug: enforce-issue-backed-story-storage-in-github-mode
 spec: github-story-backend-and-preflight
-status: todo
+status: done
 title: Enforce issue-backed story storage in GitHub mode
 type: story
-updated_at: "2026-04-19T01:53:14Z"
+updated_at: "2026-04-19T02:52:42Z"
 ---
 
 # Enforce issue-backed story storage in GitHub mode

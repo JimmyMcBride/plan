@@ -4,10 +4,10 @@ epic: github-story-backend-and-preflight
 project: plan
 slug: add-tests-for-local-and-github-story-backend-behavior
 spec: github-story-backend-and-preflight
-status: todo
+status: done
 title: Add tests for local and GitHub story backend behavior
 type: story
-updated_at: "2026-04-19T01:53:14Z"
+updated_at: "2026-04-19T02:52:42Z"
 ---
 
 # Add tests for local and GitHub story backend behavior

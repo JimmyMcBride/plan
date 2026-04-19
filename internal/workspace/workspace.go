@@ -52,6 +52,11 @@ type GitHubStoryRecord struct {
 	Resources             []string `json:"resources,omitempty"`
 	Dependencies          []string `json:"dependencies,omitempty"`
 	AsyncNotes            []string `json:"async_notes,omitempty"`
+	ScopeFit              string   `json:"scope_fit,omitempty"`
+	VerticalSliceCheck    string   `json:"vertical_slice_check,omitempty"`
+	HiddenPrerequisites   string   `json:"hidden_prerequisites,omitempty"`
+	VerificationGaps      string   `json:"verification_gaps,omitempty"`
+	RewriteRecommendation string   `json:"rewrite_recommendation,omitempty"`
 	IssueNumber           int      `json:"issue_number,omitempty"`
 	IssueURL              string   `json:"issue_url,omitempty"`
 	RemoteState           string   `json:"remote_state,omitempty"`

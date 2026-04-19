@@ -381,6 +381,13 @@ func (m *Manager) ReadStory(storySlug string) (*notes.Note, error) {
 	if err != nil {
 		return nil, err
 	}
+	backend, err := m.storyBackendForInfo()
+	if err != nil {
+		return nil, err
+	}
+	if backend == workspace.StoryBackendGitHub {
+		return m.readGitHubStory(info, storySlug)
+	}
 	note, err := notes.Read(filepath.Join(info.StoriesDir, slugify(storySlug)+".md"))
 	if err != nil {
 		return nil, err
@@ -416,6 +423,13 @@ func (m *Manager) CreateStory(epicSlug, title, description string, criteria, ver
 	info, err := m.workspace.EnsureInitialized()
 	if err != nil {
 		return nil, err
+	}
+	backend, err := m.storyBackendForInfo()
+	if err != nil {
+		return nil, err
+	}
+	if backend == workspace.StoryBackendGitHub {
+		return m.createGitHubStory(info, epicSlug, title, description, criteria, verification, resources)
 	}
 	if len(trimmedItems(criteria)) == 0 {
 		return nil, fmt.Errorf("at least one acceptance criterion is required")
@@ -478,6 +492,13 @@ func (m *Manager) UpdateStory(storySlug string, changes StoryChanges) (*notes.No
 	if err != nil {
 		return nil, err
 	}
+	backend, err := m.storyBackendForInfo()
+	if err != nil {
+		return nil, err
+	}
+	if backend == workspace.StoryBackendGitHub {
+		return m.updateGitHubStory(info, storySlug, changes)
+	}
 	if changes.Status != "" && !isValidStoryStatus(changes.Status) {
 		return nil, fmt.Errorf("invalid story status %q", changes.Status)
 	}
@@ -520,6 +541,13 @@ func (m *Manager) ListStories(filterEpic, filterStatus string) ([]StoryInfo, err
 	if err != nil {
 		return nil, err
 	}
+	backend, err := m.storyBackendForInfo()
+	if err != nil {
+		return nil, err
+	}
+	if backend == workspace.StoryBackendGitHub {
+		return m.listGitHubStories(info, filterEpic, filterStatus)
+	}
 	items, err := readNotesInDir(info.StoriesDir)
 	if err != nil {
 		return nil, err
@@ -533,6 +561,7 @@ func (m *Manager) ListStories(filterEpic, filterStatus string) ([]StoryInfo, err
 	for _, story := range items {
 		specSlug := stringValue(story.Metadata["spec"])
 		item := StoryInfo{
+			Slug:          slugFromPath(story.Path),
 			Path:          rel(info.ProjectDir, story.Path),
 			Title:         story.Title,
 			Status:        stringValue(story.Metadata["status"]),
@@ -540,6 +569,7 @@ func (m *Manager) ListStories(filterEpic, filterStatus string) ([]StoryInfo, err
 			Spec:          specSlug,
 			TargetVersion: specVersions[specSlug],
 			Blockers:      stringSliceValue(story.Metadata["blockers"]),
+			Backend:       string(workspace.StoryBackendLocal),
 		}
 		if filterEpic != "" && item.Epic != filterEpic {
 			continue
@@ -582,6 +612,12 @@ func (m *Manager) Status() (*ProjectStatus, error) {
 			status.BlockedStories++
 		case "in_progress":
 			status.InProgressStories++
+		}
+		if story.Ready {
+			status.ReadyStories++
+		}
+		if story.BlockedByDeps {
+			status.DependencyBlocked++
 		}
 	}
 	return status, nil
