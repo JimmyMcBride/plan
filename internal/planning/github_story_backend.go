@@ -235,6 +235,7 @@ func (m *Manager) listGitHubStories(info *workspace.Info, filterEpic, filterStat
 			Ready:         ready,
 			BlockedByPlan: blockedByPlan,
 			BlockedByDeps: blockedByDeps,
+			Started:       record.Status == "in_progress" || record.Status == "blocked" || record.Status == "done" || strings.EqualFold(record.RemoteState, "closed"),
 		}
 		if len(blockedReasons) > 0 && status == "blocked" && len(item.Blockers) == 0 {
 			item.Blockers = append(item.Blockers, blockedReasons...)
@@ -337,6 +338,7 @@ func deriveGitHubStoryState(record workspace.GitHubStoryRecord, state *workspace
 
 func renderGitHubStoryIssueBody(state *workspace.GitHubState, repo *GitHubRepoInfo, epic, spec *notes.Note, record workspace.GitHubStoryRecord) string {
 	content := renderGitHubStoryNoteContent(state, record)
+	status, ready, blockedReasons, _, _ := deriveGitHubStoryState(record, state)
 
 	epicLink, specLink := gitHubPlanningLinks(repo, record)
 	planningLines := []string{
@@ -350,6 +352,14 @@ func renderGitHubStoryIssueBody(state *workspace.GitHubState, repo *GitHubRepoIn
 		planningLines = append(planningLines, "- Planning Merge: merged")
 	} else {
 		planningLines = append(planningLines, "- Planning Merge: blocked until planning PR merges")
+	}
+	derivedState := status
+	if ready {
+		derivedState = "ready"
+	}
+	planningLines = append(planningLines, fmt.Sprintf("- Derived State: %s", derivedState))
+	for _, reason := range blockedReasons {
+		planningLines = append(planningLines, fmt.Sprintf("  - %s", reason))
 	}
 
 	dependencies := renderGitHubDependenciesSection(state, record)
@@ -501,6 +511,24 @@ func mergeManagedIssueBody(existingBody, managedBody string) string {
 		return managedBody
 	}
 	return strings.TrimRight(existing, "\n") + "\n\n" + strings.TrimRight(managedBody, "\n") + "\n"
+}
+
+func applyDerivedReadyLabels(labels []string, status string, ready bool) []string {
+	var out []string
+	for _, label := range labels {
+		if label == planIssueReadyLabel || label == planIssueBlockedLabel {
+			continue
+		}
+		out = append(out, label)
+	}
+	switch {
+	case ready:
+		out = append(out, planIssueReadyLabel)
+	case status == "blocked":
+		out = append(out, planIssueBlockedLabel)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func extractManagedIssueBody(body string) string {

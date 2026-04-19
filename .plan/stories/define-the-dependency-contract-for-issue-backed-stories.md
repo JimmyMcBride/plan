@@ -4,10 +4,10 @@ epic: dependency-aware-issue-readiness
 project: plan
 slug: define-the-dependency-contract-for-issue-backed-stories
 spec: dependency-aware-issue-readiness
-status: todo
+status: done
 title: Define the dependency contract for issue-backed stories
 type: story
-updated_at: "2026-04-19T01:53:14Z"
+updated_at: "2026-04-19T03:01:08Z"
 ---
 
 # Define the dependency contract for issue-backed stories

@@ -4,10 +4,10 @@ epic: dependency-aware-issue-readiness
 project: plan
 slug: surface-async-safe-ready-work-in-cli-and-optional-github-visible-updates
 spec: dependency-aware-issue-readiness
-status: todo
+status: done
 title: Surface async-safe ready work in CLI and optional GitHub-visible updates
 type: story
-updated_at: "2026-04-19T01:53:14Z"
+updated_at: "2026-04-19T03:01:09Z"
 ---
 
 # Surface async-safe ready work in CLI and optional GitHub-visible updates

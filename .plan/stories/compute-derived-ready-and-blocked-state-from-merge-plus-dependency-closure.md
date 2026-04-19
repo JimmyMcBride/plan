@@ -4,10 +4,10 @@ epic: dependency-aware-issue-readiness
 project: plan
 slug: compute-derived-ready-and-blocked-state-from-merge-plus-dependency-closure
 spec: dependency-aware-issue-readiness
-status: todo
+status: done
 title: Compute derived ready and blocked state from merge plus dependency closure
 type: story
-updated_at: "2026-04-19T01:53:14Z"
+updated_at: "2026-04-19T03:01:08Z"
 ---
 
 # Compute derived ready and blocked state from merge plus dependency closure

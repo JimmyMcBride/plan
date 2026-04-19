@@ -557,6 +557,122 @@ func TestReconcileGitHubStoriesPromotesMainLinksAndPreservesUserText(t *testing.
 	}
 }
 
+func TestGitHubStoryReadinessDerivesFromDependencies(t *testing.T) {
+	client := &stubGitHubClient{
+		preflight: &GitHubRepoInfo{
+			Repo:          "JimmyMcBride/plan",
+			RepoURL:       "https://github.com/JimmyMcBride/plan",
+			DefaultBranch: "main",
+		},
+		context: &GitHubContext{
+			Repo: GitHubRepoInfo{
+				Repo:          "JimmyMcBride/plan",
+				RepoURL:       "https://github.com/JimmyMcBride/plan",
+				DefaultBranch: "main",
+			},
+			CurrentBranch: "main",
+			CurrentSHA:    "abc123def456",
+		},
+	}
+	reset := SetGitHubClientFactoryForTesting(func() GitHubClient { return client })
+	t.Cleanup(reset)
+
+	root := t.TempDir()
+	manager := newGitHubStoryManager(t, root)
+	if _, err := manager.EnableGitHubBackend(); err != nil {
+		t.Fatal(err)
+	}
+	seedApprovedGitHubEpic(t, manager)
+	if _, err := manager.CreateStory("billing", "Seed billing data", "Seed data first", []string{"Seed data"}, []string{"Run seed checks"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.CreateStory("billing", "Implement invoices", "Create invoice generation flow", []string{"Generate invoices"}, []string{"Run billing tests"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.UpdateStory("implement-invoices", StoryChanges{SetBlockers: []string{"seed-billing-data"}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.CreateStory("billing", "Ship exports", "Parallel story", []string{"Ship exports"}, []string{"Run export tests"}, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	stories, err := manager.ListStories("", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	bySlug := map[string]StoryInfo{}
+	for _, story := range stories {
+		bySlug[story.Slug] = story
+	}
+	if !bySlug["seed-billing-data"].Ready || !bySlug["ship-exports"].Ready {
+		t.Fatalf("expected independent stories to be ready: %+v", stories)
+	}
+	if bySlug["implement-invoices"].Status != "blocked" || !bySlug["implement-invoices"].BlockedByDeps {
+		t.Fatalf("expected dependent story to stay blocked: %+v", bySlug["implement-invoices"])
+	}
+
+	if _, err := manager.UpdateStory("seed-billing-data", StoryChanges{Status: "done"}); err != nil {
+		t.Fatal(err)
+	}
+	stories, err = manager.ListStories("", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, story := range stories {
+		bySlug[story.Slug] = story
+	}
+	if bySlug["implement-invoices"].Status != "todo" || !bySlug["implement-invoices"].Ready {
+		t.Fatalf("expected dependent story to become ready once dependency closes: %+v", bySlug["implement-invoices"])
+	}
+}
+
+func TestReconcileUpdateVisibleAppliesDerivedLabels(t *testing.T) {
+	client := &stubGitHubClient{
+		preflight: &GitHubRepoInfo{
+			Repo:          "JimmyMcBride/plan",
+			RepoURL:       "https://github.com/JimmyMcBride/plan",
+			DefaultBranch: "main",
+		},
+		context: &GitHubContext{
+			Repo: GitHubRepoInfo{
+				Repo:          "JimmyMcBride/plan",
+				RepoURL:       "https://github.com/JimmyMcBride/plan",
+				DefaultBranch: "main",
+			},
+			CurrentBranch: "main",
+			CurrentSHA:    "abc123def456",
+		},
+	}
+	reset := SetGitHubClientFactoryForTesting(func() GitHubClient { return client })
+	t.Cleanup(reset)
+
+	root := t.TempDir()
+	manager := newGitHubStoryManager(t, root)
+	if _, err := manager.EnableGitHubBackend(); err != nil {
+		t.Fatal(err)
+	}
+	seedApprovedGitHubEpic(t, manager)
+	if _, err := manager.CreateStory("billing", "Seed billing data", "Seed data first", []string{"Seed data"}, []string{"Run seed checks"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.CreateStory("billing", "Implement invoices", "Create invoice generation flow", []string{"Generate invoices"}, []string{"Run billing tests"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.UpdateStory("implement-invoices", StoryChanges{SetBlockers: []string{"seed-billing-data"}}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := manager.ReconcileGitHubStories(GitHubReconcileOptions{UpdateVisible: true}); err != nil {
+		t.Fatal(err)
+	}
+	if !containsString(client.issues[101].Labels, planIssueReadyLabel) {
+		t.Fatalf("expected ready label on independent issue: %+v", client.issues[101].Labels)
+	}
+	if !containsString(client.issues[102].Labels, planIssueBlockedLabel) {
+		t.Fatalf("expected blocked label on dependent issue: %+v", client.issues[102].Labels)
+	}
+}
+
 func newGitHubStoryManager(t *testing.T, root string) *Manager {
 	t.Helper()
 	ws := workspace.New(root)

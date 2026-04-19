@@ -3,11 +3,11 @@ created_at: "2026-04-19T01:16:45Z"
 epic: dependency-aware-issue-readiness
 project: plan
 slug: dependency-aware-issue-readiness
-status: approved
+status: done
 target_version: v7
 title: Dependency-Aware Issue Readiness Spec
 type: spec
-updated_at: "2026-04-19T01:54:55Z"
+updated_at: "2026-04-19T03:01:09Z"
 ---
 
 # Dependency-Aware Issue Readiness Spec

@@ -91,18 +91,23 @@ func (m *Manager) ReconcileGitHubStories(options GitHubReconcileOptions) (*GitHu
 		}
 
 		body := mergeManagedIssueBody(issue.Body, renderGitHubStoryIssueBody(state, &context.Repo, epic, spec, record))
-		if body != issue.Body {
+		labels := issue.Labels
+		if options.UpdateVisible {
+			labels = applyDerivedReadyLabels(labels, status, ready)
+		}
+		if body != issue.Body || !sameStringSlice(labels, issue.Labels) {
 			updatedIssue, err := m.github.UpdateIssue(info.ProjectDir, state.Repo, record.IssueNumber, GitHubIssueInput{
 				Title:  record.Title,
 				Body:   body,
 				State:  issue.State,
-				Labels: issue.Labels,
+				Labels: labels,
 			})
 			if err != nil {
 				return nil, err
 			}
 			record.IssueURL = updatedIssue.URL
 			record.RemoteState = updatedIssue.State
+			record.VisibleReadyMarkerSet = containsString(labels, planIssueReadyLabel) || containsString(labels, planIssueBlockedLabel)
 			result.UpdatedIssues = append(result.UpdatedIssues, fmt.Sprintf("#%d", record.IssueNumber))
 		}
 		record.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
@@ -115,4 +120,25 @@ func (m *Manager) ReconcileGitHubStories(options GitHubReconcileOptions) (*GitHu
 		return nil, err
 	}
 	return result, nil
+}
+
+func sameStringSlice(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func containsString(items []string, target string) bool {
+	for _, item := range items {
+		if item == target {
+			return true
+		}
+	}
+	return false
 }

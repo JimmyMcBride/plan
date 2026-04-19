@@ -71,6 +71,7 @@ type StoryInfo struct {
 	Ready         bool
 	BlockedByPlan bool
 	BlockedByDeps bool
+	Started       bool
 }
 
 type VersionStatus struct {
@@ -98,6 +99,7 @@ type ProjectStatus struct {
 	InProgressStories int
 	ReadyStories      int
 	DependencyBlocked int
+	ReadyWork         []StoryInfo
 }
 
 type StoryChanges struct {
@@ -570,6 +572,7 @@ func (m *Manager) ListStories(filterEpic, filterStatus string) ([]StoryInfo, err
 			TargetVersion: specVersions[specSlug],
 			Blockers:      stringSliceValue(story.Metadata["blockers"]),
 			Backend:       string(workspace.StoryBackendLocal),
+			Started:       stringValue(story.Metadata["status"]) == "in_progress" || stringValue(story.Metadata["status"]) == "blocked" || stringValue(story.Metadata["status"]) == "done",
 		}
 		if filterEpic != "" && item.Epic != filterEpic {
 			continue
@@ -615,6 +618,7 @@ func (m *Manager) Status() (*ProjectStatus, error) {
 		}
 		if story.Ready {
 			status.ReadyStories++
+			status.ReadyWork = append(status.ReadyWork, story)
 		}
 		if story.BlockedByDeps {
 			status.DependencyBlocked++
@@ -964,14 +968,15 @@ func deriveSpecStatus(current string, stories []StoryInfo) string {
 	allDone := true
 	anyStarted := false
 	for _, item := range stories {
-		switch item.Status {
-		case "done":
+		if item.Status == "done" {
+			if item.Started {
+				anyStarted = true
+			}
+			continue
+		}
+		allDone = false
+		if item.Started {
 			anyStarted = true
-		case "in_progress", "blocked":
-			anyStarted = true
-			allDone = false
-		default:
-			allDone = false
 		}
 	}
 	if allDone {
