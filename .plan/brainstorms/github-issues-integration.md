@@ -17,83 +17,94 @@ Started: 2026-04-18T22:26:06Z
 How should plan project local planning artifacts to GitHub issues without making GitHub the source of truth?
 ## Desired Outcome
 
-Publish execution work to GitHub issues while keeping brainstorms, epics, and specs local and canonical inside .plan.
+Keep brainstorms, epics, and specs local and canonical inside `.plan`, while execution work lives in GitHub issues with clear blockers, ready order, async-safe parallel lanes, and links back to the local docs.
 
 ## Constraints
 
-- GitHub issues should project stories or execution tasks, not replace local planning artifacts.
-- plan remains planning-only and local-first; GitHub stays external execution surface.
+- Brainstorms, epics, and specs stay local in `.plan/`.
+- If GitHub execution mode is enabled, stories should not be duplicated as first-class local markdown and GitHub issues at the same time.
+- GitHub issues must link to canonical local epic/spec markdown files in the repo.
+- Dependencies and blockers must make next-ready work obvious for humans and agents.
+- plan remains planning-first and local-first for shaping; GitHub becomes the execution surface.
 
 ## Open Questions
 
-- Should issue body edits ever sync back into local story notes, or should sync stay one-way at first?
-- Should merged PRs be allowed to update local story status automatically?
-- Should issue publication happen only for selected stories, or for every approved story by default?
+- How should dependencies be encoded in GitHub issues: native GitHub features when available, issue body sections, or a plan-owned metadata convention?
+- Should `plan` keep only minimal local issue metadata under `.plan/.meta/`, or some richer local index for readiness/status?
+- Should closing an issue or merging a PR automatically advance the next-ready work, or only make it visible?
+- Should GitHub execution mode be opt-in per repo or per epic/spec?
 - When, if ever, should milestones enter the model?
 ## Ideas
 
-- Export approved stories to issues with stable links back to the local story note.
-
-- Optionally group issues under milestones mapped from roadmap phases later, not in the first cut.
+- Use one GitHub issue per execution-ready story, with links to the canonical epic/spec markdown files.
+- Render acceptance criteria, verification, blockers, and async notes directly into the issue body.
+- Compute ready order from dependencies so the next executable issue is obvious.
+- Allow multiple ready issues at once when blockers do not overlap, so async human/agent work can proceed safely.
+- Store only issue metadata locally, not duplicate story notes.
+- Optionally group issues under milestones later, not in the first cut.
 ## Raw Notes
 
 ## Refinement
 
 ### Problem
 
-Teams using plan need a way to expose execution work in GitHub without moving planning authority out of the repo. Today the rich planning flow lives in .plan, but collaborators, PR links, and day-to-day execution often happen in GitHub issues.
+Teams using `plan` need local shaping depth and GitHub-native execution at the same time. Mirroring stories in both `.plan` and GitHub creates duplicated execution truth, weakens clarity, and makes it unclear where humans or agents should actually work from.
 
 ### User / Value
 
-Indie developers and small teams keep the local-first planning depth they like, while still getting shareable GitHub-native execution tickets for collaborators, reviews, and repo automation.
+Indie developers and small teams keep local-first planning for shaping, while humans and AI agents get GitHub-native execution units with clear ordering, blockers, async-safe parallel work, and direct links back to the local epic/spec docs.
 
 ### Appetite
 
-GitHub must not become source of truth. Brainstorms, epics, and specs stay local. First cut should stay GitHub-only, issue-focused, and smaller than full tracker sync. Publishing should be explicit and reversible in local notes.
+GitHub must not become source of truth for shaping. First cut should stay GitHub-issues-only, focused on issue-backed stories, blockers, ready order, and async flow. No full tracker parity. No duplicated local story notes.
 
 ### Remaining Open Questions
 
-- Should the first release support issue creation only, or issue update/reconciliation too?
-- Should local story status ever be derived from issue state, or only displayed alongside it?
-- Should milestone mapping wait until after basic story-to-issue publishing proves useful?
+- Should the first release support issue creation only, or creation plus update/reconciliation?
+- Should local status derive from issue state, or only surface issue state alongside epic/spec progress?
+- How much dependency logic can rely on native GitHub features versus issue body conventions?
+- Should milestone mapping wait until after issue-backed story flow proves useful?
 
 ### Candidate Approaches
 
-- One-way story publish: approved or selected stories create/update linked GitHub issues, with local note metadata storing issue number and URL.
-- Read-only execution backfill: pull issue and PR state into local status views without letting issue body edits rewrite canonical local notes.
-- Selective publish model: let users choose which stories stay local-only and which ones project to GitHub.
+- GitHub issue-backed stories: approved execution units materialize as GitHub issues, while `.plan` keeps only epic/spec/brainstorm docs plus issue metadata.
+- Read-only execution backfill: local status views read issue and PR state without letting remote edits rewrite canonical shaping docs.
+- Optional local-only mode remains for repos that do not enable GitHub execution.
 
 ### Decision Snapshot
 
-Keep .plan canonical. GitHub issues represent stories only. Start with explicit one-way publish plus optional read-only status backfill later.
+Keep `.plan` canonical for brainstorms, epics, and specs. If GitHub integration is enabled, stories live in GitHub issues, not duplicate local markdown files. Start with explicit issue creation/update plus dependency-driven ready visibility.
 
 ## Challenge
 
 ### Rabbit Holes
 
-- Full bidirectional sync between issue bodies and local story notes.
+- Duplicating story truth in both local markdown and GitHub issues.
 - Trying to map every plan artifact type into GitHub.
-- Automated label, milestone, project board, and sub-issue orchestration in the first cut.
-- Webhook-driven realtime sync from day one.
+- Building automation for labels, milestones, boards, projects, sub-issues, and realtime sync in the first cut.
+- Depending too hard on GitHub-specific surfaces before the issue-backed execution model proves itself.
 
 ### No-Gos
 
 - Do not make GitHub canonical.
+- Do not duplicate canonical stories in both `.plan` and GitHub issues.
 - Do not export brainstorms, epics, or specs as first-class GitHub issues.
 - Do not support Jira/Linear-class tracker parity in the first cut.
 - Do not silently rewrite local planning notes from remote issue edits.
+- Do not create dependency logic that is only visible in `plan` and invisible from the issue itself.
 
 ### Assumptions
 
 - Users already work in repos with GitHub Issues enabled.
-- Story titles and acceptance criteria can be rendered into useful issue bodies.
-- A local story can safely hold stable issue metadata and links.
-- Explicit publish/update commands are acceptable UX for v1.
+- Story titles, acceptance criteria, verification, and blockers can be rendered into useful issue bodies.
+- An issue can safely serve as the durable execution unit for a story.
+- Local epic/spec markdown links are useful inside issue bodies.
+- Explicit create/update commands are acceptable UX for v1.
 
 ### Likely Overengineering
 
-Trying to support two-way field sync, issue templates, milestone planning, PR automation, and multi-tracker abstractions at the same time. Most likely failure mode: building an integration platform before proving the one-way story projection loop.
+Trying to support two-way field sync, issue templates, milestone planning, project-board automation, PR automation, and multi-tracker abstractions at the same time. Most likely failure mode: building an integration platform before proving the issue-backed execution loop.
 
 ### Simpler Alternative
 
-Export approved stories to GitHub issues with stable local links, optional label mapping, and no back-sync except maybe read-only status inspection. Everything above stories stays local.
+Use GitHub issues as story storage, render blockers/spec links directly into the issue body, keep only minimal issue metadata locally, and compute ready work from dependencies without attempting full remote-local sync.
