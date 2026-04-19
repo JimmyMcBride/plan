@@ -57,6 +57,7 @@ type EpicInfo struct {
 }
 
 type StoryInfo struct {
+	Slug          string
 	Path          string
 	Title         string
 	Status        string
@@ -64,6 +65,12 @@ type StoryInfo struct {
 	Spec          string
 	TargetVersion string
 	Blockers      []string
+	Backend       string
+	IssueNumber   int
+	IssueURL      string
+	Ready         bool
+	BlockedByPlan bool
+	BlockedByDeps bool
 }
 
 type VersionStatus struct {
@@ -108,10 +115,11 @@ type EpicBundle struct {
 
 type Manager struct {
 	workspace *workspace.Manager
+	github    GitHubClient
 }
 
 func New(workspaceManager *workspace.Manager) *Manager {
-	return &Manager{workspace: workspaceManager}
+	return &Manager{workspace: workspaceManager, github: newGitHubClient()}
 }
 
 func (m *Manager) CreateBrainstorm(topic string) (*notes.Note, error) {

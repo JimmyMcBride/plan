@@ -3,11 +3,11 @@ created_at: "2026-04-19T01:16:45Z"
 epic: github-story-backend-and-preflight
 project: plan
 slug: github-story-backend-and-preflight
-status: approved
+status: implementing
 target_version: v7
 title: GitHub Story Backend and Preflight Spec
 type: spec
-updated_at: "2026-04-19T01:54:55Z"
+updated_at: "2026-04-19T02:46:37Z"
 ---
 
 # GitHub Story Backend and Preflight Spec

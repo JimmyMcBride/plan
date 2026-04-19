@@ -4,10 +4,10 @@ epic: github-story-backend-and-preflight
 project: plan
 slug: add-github-backend-configuration-and-preflight-checks
 spec: github-story-backend-and-preflight
-status: todo
+status: done
 title: Add GitHub backend configuration and preflight checks
 type: story
-updated_at: "2026-04-19T01:53:14Z"
+updated_at: "2026-04-19T02:46:37Z"
 ---
 
 # Add GitHub backend configuration and preflight checks

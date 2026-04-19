@@ -29,6 +29,7 @@ func TestInitCreatesPlanWorkspace(t *testing.T) {
 		filepath.Join(root, ".plan", "ROADMAP.md"),
 		filepath.Join(root, ".plan", ".meta", "workspace.json"),
 		filepath.Join(root, ".plan", ".meta", "migrations.json"),
+		filepath.Join(root, ".plan", ".meta", "github.json"),
 	} {
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("expected %s: %v", path, err)
@@ -49,7 +50,7 @@ func TestWorkspaceContractSeparatesUserAuthoredAndToolManagedSurfaces(t *testing
 	if len(contract.UserAuthored) != 6 {
 		t.Fatalf("unexpected user-authored surface count: %d", len(contract.UserAuthored))
 	}
-	if len(contract.ToolManaged) != 3 {
+	if len(contract.ToolManaged) != 4 {
 		t.Fatalf("unexpected tool-managed surface count: %d", len(contract.ToolManaged))
 	}
 
@@ -113,6 +114,9 @@ func TestDoctorReportsCurrentAfterInit(t *testing.T) {
 	}
 	if report.PlanningModel != PlanningModel {
 		t.Fatalf("unexpected planning model: %+v", report)
+	}
+	if report.SchemaVersion != CurrentSchemaVersion {
+		t.Fatalf("unexpected schema version: %+v", report)
 	}
 }
 
@@ -215,6 +219,9 @@ func TestUpdateRepairsToolManagedStateWithoutTouchingUserNotes(t *testing.T) {
 	if err := os.Remove(filepath.Join(root, ".plan", ".meta", "migrations.json")); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.Remove(filepath.Join(root, ".plan", ".meta", "github.json")); err != nil {
+		t.Fatal(err)
+	}
 
 	result, err := manager.Update()
 	if err != nil {
@@ -225,6 +232,9 @@ func TestUpdateRepairsToolManagedStateWithoutTouchingUserNotes(t *testing.T) {
 	}
 	if !contains(result.Created, ".plan/.meta/migrations.json") {
 		t.Fatalf("expected migration state recreation: %+v", result)
+	}
+	if !contains(result.Created, ".plan/.meta/github.json") {
+		t.Fatalf("expected GitHub state recreation: %+v", result)
 	}
 
 	raw, err := os.ReadFile(projectPath)
