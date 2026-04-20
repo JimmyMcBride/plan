@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 
@@ -119,7 +120,52 @@ func newSpecCommand() *cobra.Command {
 	}
 	checklist.Flags().StringVar(&profile, "profile", "general", "checklist profile: general, ui-flow, api-integration, data-migration")
 
-	cmd.AddCommand(show, edit, statusCmd, analyze, checklist)
+	handoff := &cobra.Command{
+		Use:   "handoff <epic-slug>",
+		Short: "Continue a guided spec into the first story set",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			session, err := planningManager().ReadGuidedSessionByEpic(args[0])
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Spec recap:\nCurrent understanding: %s\nRecommended next stage: continue into stories.\n", session.Summary)
+			preview, err := planningManager().PreviewStorySlices(args[0])
+			if err != nil {
+				return err
+			}
+			printStorySlicePreview(cmd.OutOrStdout(), preview)
+			ok, err := confirmStorySliceApply(bufio.NewReader(cmd.InOrStdin()), cmd.OutOrStdout())
+			if err != nil {
+				return err
+			}
+			if !ok {
+				updated, err := planningManager().UpdateGuidedSession(session.ChainID, planning.GuidedSessionUpdateInput{
+					CurrentStage: "spec",
+					StageStatus:  "in_progress",
+					NextAction:   "Spec handoff is ready when you want to create the first story set.",
+				})
+				if err != nil {
+					return err
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "Checkpoint saved for %s\nNext: %s\n", updated.ChainID, updated.NextAction)
+				return nil
+			}
+			result, err := planningManager().ApplyStorySlices(args[0])
+			if err != nil {
+				return err
+			}
+			printStorySliceApplyResult(cmd.OutOrStdout(), result)
+			updated, err := planningManager().AdvanceGuidedSessionToStories(args[0])
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Next: %s\n", updated.NextAction)
+			return nil
+		},
+	}
+
+	cmd.AddCommand(show, edit, statusCmd, analyze, checklist, handoff)
 	return cmd
 }
 
