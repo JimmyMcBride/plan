@@ -3,6 +3,12 @@
 - What changed?
 - Why does it matter?
 
+## Target Branch
+
+- Normal work targets `develop`.
+- Release PRs use `release/vX.Y.Z -> main`.
+- Hotfix work must be merged back into `develop`.
+
 ## Testing
 
 - [ ] `go test ./...`

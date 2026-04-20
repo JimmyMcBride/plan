@@ -47,7 +47,7 @@ Execution loop in GitHub mode:
 3. Implement on a branch and open PR
 4. Review and iterate until ready
 5. Squash-merge
-6. Return to `main`, pull latest, update and reconcile
+6. Return to the integration branch, pull latest, update and reconcile
 7. Grab next ready issue and repeat
 
 The default path stays small. New shaping passes should improve the same
@@ -136,23 +136,32 @@ For GitHub-backed stories, use this loop:
 ```bash
 plan status --project .
 
-# do issue work on a branch and merge the PR
+# do issue work on a feature branch and merge the PR into the integration branch
 
-git switch main
-git pull --ff-only origin main
-plan update --project .
-plan github reconcile --project . --update-visible
-plan status --project .
+./scripts/refresh-plan-develop-context.sh
 ```
 
 Rules:
 
 - use `plan status --project .` as the queue view
 - take only issues shown in `ready_work`
-- work on a feature branch, not on `main`
-- squash-merge the PR when work is accepted
-- after merge, always return to `main`, pull, update, and reconcile before
-  grabbing the next issue
+- in this repo, normal work targets `develop`
+- work on a feature branch, not on `develop`, `release/*`, or `main`
+- squash-merge the PR when work is accepted unless release work needs a
+  different merge strategy
+- after merge into `develop`, run
+  `./scripts/refresh-plan-develop-context.sh` before grabbing the next issue
+
+## Repo Gitflow
+
+This repo uses Gitflow with `develop` as the active integration branch,
+`release/vX.Y.Z` as the protected stabilization branch, and `main` as the
+release-only production branch.
+
+Normal work flows into `develop`. Official releases are cut from `develop` onto
+`release/vX.Y.Z`, then merged into `main` to publish.
+
+Release and maintenance rules live in [docs/gitflow.md](docs/gitflow.md).
 
 ## Roadmap Direction
 
@@ -220,12 +229,18 @@ The fixtures live under `testdata/evals/fixtures/` and the rubric code lives in
 ## Release Flow
 
 - Pull requests run `go test ./...` and `go build ./...` in CI.
-- Every push to `main` tags the next patch release if `HEAD` is not already tagged.
+- `develop` is the default pull-request target for routine work.
+- Official releases cut `release/vX.Y.Z` from `develop`, stabilize there, then
+  merge into `main`.
+- Every push to `main` still tags the next patch release if `HEAD` is not
+  already tagged.
 - The release workflow builds platform archives and publishes a checksum file with the release assets.
 - `scripts/install.sh` only falls back to a source build when no published release can be resolved. Download or checksum failures stay hard failures.
 
 ## Maintainers
 
+- Use [docs/gitflow.md](docs/gitflow.md) as the branching source of truth for
+  this repo.
 - Keep pull request titles and descriptions release-note-friendly. The `## Release Notes` section in the PR template is the source of truth for published release changelogs.
 - Include the verification commands you ran in the PR so the release notes have a clean audit trail.
 - Use `scripts/next-release-tag.sh` if you need to preview the next patch tag locally.
