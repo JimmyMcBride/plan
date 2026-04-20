@@ -3,6 +3,7 @@ package planning
 import (
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -23,6 +24,8 @@ type GuidedSessionUpdateInput struct {
 	NextAction          string
 	StageStatus         string
 }
+
+var guidedStageOrder = []string{"brainstorm", "epic", "spec", "stories"}
 
 func (m *Manager) EnsureGuidedBrainstormSession(brainstormSlug string) (*workspace.GuidedSessionRecord, error) {
 	info, err := m.workspace.EnsureInitialized()
@@ -96,6 +99,43 @@ func (m *Manager) ReadLastActiveGuidedSession() (*workspace.GuidedSessionRecord,
 	return m.ReadGuidedSession(state.LastActiveChain)
 }
 
+func (m *Manager) ListGuidedSessions() ([]workspace.GuidedSessionRecord, error) {
+	state, err := m.workspace.ReadGuidedSessionState()
+	if err != nil {
+		return nil, err
+	}
+	keys := make([]string, 0, len(state.Sessions))
+	for key := range state.Sessions {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	out := make([]workspace.GuidedSessionRecord, 0, len(keys))
+	for _, key := range keys {
+		out = append(out, state.Sessions[key])
+	}
+	return out, nil
+}
+
+func (m *Manager) SwitchGuidedSession(chainID string) (*workspace.GuidedSessionRecord, error) {
+	state, err := m.workspace.ReadGuidedSessionState()
+	if err != nil {
+		return nil, err
+	}
+	record, ok := state.Sessions[strings.TrimSpace(chainID)]
+	if !ok {
+		return nil, fmt.Errorf("guided session %q not found", chainID)
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	record.UpdatedAt = now
+	state.LastActiveChain = record.ChainID
+	state.LastUpdatedAt = now
+	state.Sessions[record.ChainID] = record
+	if err := m.workspace.WriteGuidedSessionState(*state); err != nil {
+		return nil, err
+	}
+	return &record, nil
+}
+
 func (m *Manager) UpdateGuidedSession(chainID string, input GuidedSessionUpdateInput) (*workspace.GuidedSessionRecord, error) {
 	state, err := m.workspace.ReadGuidedSessionState()
 	if err != nil {
@@ -140,6 +180,44 @@ func (m *Manager) UpdateGuidedSession(chainID string, input GuidedSessionUpdateI
 		return nil, err
 	}
 	return &record, nil
+}
+
+func (m *Manager) ReopenGuidedSessionStage(chainID, stage string) (*workspace.GuidedSessionRecord, []string, error) {
+	stage = strings.TrimSpace(stage)
+	if stage == "" {
+		return nil, nil, fmt.Errorf("stage is required")
+	}
+	state, err := m.workspace.ReadGuidedSessionState()
+	if err != nil {
+		return nil, nil, err
+	}
+	chainID = strings.TrimSpace(chainID)
+	record, ok := state.Sessions[chainID]
+	if !ok {
+		return nil, nil, fmt.Errorf("guided session %q not found", chainID)
+	}
+	if !isGuidedStage(stage) {
+		return nil, nil, fmt.Errorf("unsupported guided stage %q", stage)
+	}
+	if record.StageStatuses == nil {
+		record.StageStatuses = map[string]string{}
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	record.CurrentStage = stage
+	record.StageStatuses[stage] = "in_progress"
+	downstream := guidedDownstreamStages(stage)
+	for _, later := range downstream {
+		record.StageStatuses[later] = "needs_review"
+	}
+	record.NextAction = fmt.Sprintf("Review %s after reopening %s.", strings.Join(downstream, ", "), stage)
+	record.UpdatedAt = now
+	state.LastActiveChain = chainID
+	state.LastUpdatedAt = now
+	state.Sessions[chainID] = record
+	if err := m.workspace.WriteGuidedSessionState(*state); err != nil {
+		return nil, nil, err
+	}
+	return &record, downstream, nil
 }
 
 func (m *Manager) upsertGuidedBrainstormSession(note *notes.Note) (*workspace.GuidedSessionRecord, error) {
@@ -191,6 +269,24 @@ func (m *Manager) upsertGuidedBrainstormSession(note *notes.Note) (*workspace.Gu
 
 func guidedChainID(brainstormSlug string) string {
 	return fmt.Sprintf("brainstorm/%s", slugify(brainstormSlug))
+}
+
+func isGuidedStage(stage string) bool {
+	for _, candidate := range guidedStageOrder {
+		if candidate == stage {
+			return true
+		}
+	}
+	return false
+}
+
+func guidedDownstreamStages(stage string) []string {
+	for index, candidate := range guidedStageOrder {
+		if candidate == stage {
+			return append([]string(nil), guidedStageOrder[index+1:]...)
+		}
+	}
+	return nil
 }
 
 func summarizeBrainstormSession(note *notes.Note) string {
