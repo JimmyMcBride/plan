@@ -196,3 +196,105 @@ func TestBrainstormStartGuidesVisionIntakeAndCreatesSession(t *testing.T) {
 		t.Fatalf("expected creation output:\n%s", output.String())
 	}
 }
+
+func TestBrainstormResumeShowsMenuStopsAndPersistsNextAction(t *testing.T) {
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := planning.New(ws)
+	if _, err := manager.CreateBrainstorm("Guided Planning"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := manager.UpdateGuidedBrainstormIntake("guided-planning", planning.GuidedBrainstormIntakeInput{
+		Vision:             "Guide a user from a rough feature idea into a shaped plan.",
+		SupportingMaterial: "docs/research.md",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var output bytes.Buffer
+	command := newRootCmd()
+	command.SetOut(&output)
+	command.SetErr(&output)
+	command.SetIn(strings.NewReader("3\n"))
+	command.SetArgs([]string{"--project", root, "brainstorm", "resume", "guided-planning"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("expected guided resume stop flow to succeed: %v\n%s", err, output.String())
+	}
+
+	state, err := ws.ReadGuidedSessionState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	session := state.Sessions["brainstorm/guided-planning"]
+	if session.NextAction != "Resume the brainstorm when you are ready to continue shaping it." {
+		t.Fatalf("unexpected next action after stop: %+v", session)
+	}
+	if !strings.Contains(output.String(), "1. Continue") || !strings.Contains(output.String(), "3. Stop for now") {
+		t.Fatalf("expected numbered session menu:\n%s", output.String())
+	}
+}
+
+func TestBrainstormResumeContinuesClusterWithReflectionAndGapGuidance(t *testing.T) {
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := planning.New(ws)
+	if _, err := manager.CreateBrainstorm("Guided Planning"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := manager.UpdateGuidedBrainstormIntake("guided-planning", planning.GuidedBrainstormIntakeInput{
+		Vision:             "Guide a user from a rough feature idea into a shaped plan.",
+		SupportingMaterial: "docs/research.md",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	input := strings.Join([]string{
+		"1",
+		"Maybe everything around planning should get better.",
+		"",
+		"Not sure who benefits yet.",
+		"",
+	}, "\n")
+
+	var output bytes.Buffer
+	command := newRootCmd()
+	command.SetOut(&output)
+	command.SetErr(&output)
+	command.SetIn(strings.NewReader(input))
+	command.SetArgs([]string{"--project", root, "brainstorm", "resume", "guided-planning"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("expected guided resume continue flow to succeed: %v\n%s", err, output.String())
+	}
+
+	refinement, err := manager.ReadBrainstormRefinement("guided-planning")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if refinement.Problem != "Maybe everything around planning should get better." {
+		t.Fatalf("unexpected problem section:\n%s", refinement.Problem)
+	}
+	if refinement.UserValue != "Not sure who benefits yet." {
+		t.Fatalf("unexpected user/value section:\n%s", refinement.UserValue)
+	}
+
+	state, err := ws.ReadGuidedSessionState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	session := state.Sessions["brainstorm/guided-planning"]
+	if session.CurrentClusterLabel != "clarify-constraints-appetite" {
+		t.Fatalf("expected next brainstorm cluster after continue: %+v", session)
+	}
+	if !strings.Contains(output.String(), "Reflection:") {
+		t.Fatalf("expected one-shot reflection output:\n%s", output.String())
+	}
+	if !strings.Contains(output.String(), "Potential gap: the problem or value is still vague.") {
+		t.Fatalf("expected gap guidance output:\n%s", output.String())
+	}
+}

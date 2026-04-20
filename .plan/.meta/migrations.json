@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "known": [],
-  "last_run_at": "2026-04-20T03:37:35Z",
+  "last_run_at": "2026-04-20T04:03:30Z",
   "status": "current",
   "last_operation": "update",
   "last_created": [
-    ".plan/stories"
+    ".plan/.meta/guided_sessions.json"
   ],
   "history": [
     {
@@ -22,6 +22,14 @@
       "status": "current",
       "created": [
         ".plan/stories"
+      ]
+    },
+    {
+      "operation": "update",
+      "at": "2026-04-20T04:03:30Z",
+      "status": "current",
+      "created": [
+        ".plan/.meta/guided_sessions.json"
       ]
     }
   ]

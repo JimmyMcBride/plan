@@ -15,6 +15,15 @@ type GuidedBrainstormIntakeInput struct {
 	SupportingMaterial string
 }
 
+type GuidedSessionUpdateInput struct {
+	CurrentStage        string
+	CurrentCluster      int
+	CurrentClusterLabel string
+	Summary             string
+	NextAction          string
+	StageStatus         string
+}
+
 func (m *Manager) EnsureGuidedBrainstormSession(brainstormSlug string) (*workspace.GuidedSessionRecord, error) {
 	info, err := m.workspace.EnsureInitialized()
 	if err != nil {
@@ -72,6 +81,63 @@ func (m *Manager) ReadGuidedSession(chainID string) (*workspace.GuidedSessionRec
 	record, ok := state.Sessions[strings.TrimSpace(chainID)]
 	if !ok {
 		return nil, fmt.Errorf("guided session %q not found", chainID)
+	}
+	return &record, nil
+}
+
+func (m *Manager) ReadLastActiveGuidedSession() (*workspace.GuidedSessionRecord, error) {
+	state, err := m.workspace.ReadGuidedSessionState()
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(state.LastActiveChain) == "" {
+		return nil, fmt.Errorf("no active guided session")
+	}
+	return m.ReadGuidedSession(state.LastActiveChain)
+}
+
+func (m *Manager) UpdateGuidedSession(chainID string, input GuidedSessionUpdateInput) (*workspace.GuidedSessionRecord, error) {
+	state, err := m.workspace.ReadGuidedSessionState()
+	if err != nil {
+		return nil, err
+	}
+	chainID = strings.TrimSpace(chainID)
+	record, ok := state.Sessions[chainID]
+	if !ok {
+		return nil, fmt.Errorf("guided session %q not found", chainID)
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	if strings.TrimSpace(input.CurrentStage) != "" {
+		record.CurrentStage = strings.TrimSpace(input.CurrentStage)
+	}
+	if input.CurrentCluster > 0 {
+		record.CurrentCluster = input.CurrentCluster
+	}
+	if strings.TrimSpace(input.CurrentClusterLabel) != "" {
+		record.CurrentClusterLabel = strings.TrimSpace(input.CurrentClusterLabel)
+	}
+	if strings.TrimSpace(input.Summary) != "" {
+		record.Summary = strings.TrimSpace(input.Summary)
+	}
+	if strings.TrimSpace(input.NextAction) != "" {
+		record.NextAction = strings.TrimSpace(input.NextAction)
+	}
+	if record.StageStatuses == nil {
+		record.StageStatuses = map[string]string{}
+	}
+	stageKey := record.CurrentStage
+	if stageKey == "" {
+		stageKey = "brainstorm"
+	}
+	if strings.TrimSpace(input.StageStatus) != "" {
+		record.StageStatuses[stageKey] = strings.TrimSpace(input.StageStatus)
+	}
+	record.UpdatedAt = now
+	state.LastActiveChain = chainID
+	state.LastUpdatedAt = now
+	state.Sessions[chainID] = record
+	if err := m.workspace.WriteGuidedSessionState(*state); err != nil {
+		return nil, err
 	}
 	return &record, nil
 }
