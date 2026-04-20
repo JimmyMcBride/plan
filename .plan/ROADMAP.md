@@ -72,6 +72,22 @@ Summary:
 - let GitHub Issues serve as the execution backend for stories when GitHub mode is enabled
 - derive blocked and ready work from planning-merge state plus issue dependencies
 
+## v8: Guided Co-Planning System
+
+Goal: Turn `plan` into a guided, stage-by-stage co-planner that walks users
+from rough vision through story creation without losing artifact quality.
+
+- [ ] Guided Session Engine and Resume
+- [ ] Vision Intake and Brainstorm Co-Planning
+- [ ] Guided Stage Handoffs and Artifact Writing
+- [ ] Reopen Review and Roadmap Parking
+
+Summary:
+- keep guided conversation as the default planning mode
+- ask users for vision and relevant docs up front instead of auto-scanning
+- move stage-by-stage with recap plus `continue / refine / stop for now`
+- persist chain-scoped sessions and mark downstream work `needs review` after upstream changes
+
 ## Ordering Notes
 
 - fix the product story before adding more product surface
