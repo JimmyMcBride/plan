@@ -1,6 +1,20 @@
 {
   "schema_version": 1,
   "known": [],
-  "last_run_at": "2026-04-16T06:05:01Z",
-  "status": "current"
+  "last_run_at": "2026-04-20T03:04:12Z",
+  "status": "current",
+  "last_operation": "update",
+  "last_created": [
+    ".plan/.meta/github.json"
+  ],
+  "history": [
+    {
+      "operation": "update",
+      "at": "2026-04-20T03:04:12Z",
+      "status": "current",
+      "created": [
+        ".plan/.meta/github.json"
+      ]
+    }
+  ]
 }
