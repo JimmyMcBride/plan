@@ -24,6 +24,10 @@ memory/context-management bloat.
 - No hosted dependency is required for core workflows.
 - No issue-tracker clone behavior in the planning core.
 - External sync is later than local refinement quality.
+- This repo uses Gitflow with `develop` as the active integration branch,
+  `release/vX.Y.Z` as the release stabilization branch, and `main` as the
+  release-only production branch.
+- Protected branches are changed only through pull requests.
 
 ## Planning Rules
 
@@ -35,8 +39,20 @@ memory/context-management bloat.
 - If GitHub story mode is enabled, stories live in GitHub Issues rather than
   local markdown notes.
 - GitHub execution follows a queue loop: establish ready work, grab the next
-  issue or issues, ship a PR, review until ready, squash-merge, return to
-  `main`, run `plan update`, reconcile, then grab the next ready work.
+  issue or issues, ship a PR, review until ready, squash-merge into
+  `develop`, refresh local `develop` from `origin/develop`, run `plan update`,
+  reconcile, then grab the next ready work.
+
+## Delivery Rules
+
+- Normal ongoing work lands in `develop`.
+- Official releases are cut from `develop` onto `release/vX.Y.Z`, then merged
+  into `main`.
+- Release fixes land in `develop` first, then are cherry-picked into the active
+  `release/vX.Y.Z` branch.
+- Production hotfixes must be merged back into `develop`.
+- After each merge into `develop`, run
+  `./scripts/refresh-plan-develop-context.sh` to refresh local `plan` context.
 
 ## Notes
 

@@ -2,7 +2,7 @@
 
 This guide describes how to use `plan` as it exists right now.
 
-It is based on the current command surface on `main`, not on older roadmap
+It is based on the current command surface in the repo, not on older roadmap
 ideas.
 
 ## Current Product State
@@ -405,7 +405,7 @@ If stories are GitHub-backed, use this execution loop:
 3. Do the work on a feature branch and open a PR
 4. Review and iterate until the PR is ready
 5. Squash-merge the PR
-6. Return to `main`
+6. Return to the integration branch
 7. Pull latest changes
 8. Run `plan update --project .`
 9. Run `plan github reconcile --project . --update-visible`
@@ -417,10 +417,10 @@ Recommended commands:
 ```bash
 plan status --project .
 
-# do issue work on a branch and merge the PR
+# do issue work on a branch and merge the PR into your integration branch
 
-git switch main
-git pull --ff-only origin main
+git switch <integration-branch>
+git pull --ff-only origin <integration-branch>
 plan update --project .
 plan github reconcile --project . --update-visible
 plan status --project .
@@ -432,7 +432,8 @@ Use this model:
 - GitHub Issue = execution unit
 - PR = implementation review loop
 - squash-merge = queue advancement
-- `update` + `reconcile` = refresh local truth before taking the next issue
+- integration-branch refresh + `update` + `reconcile` = refresh local truth
+  before taking the next issue
 
 Show a story:
 
