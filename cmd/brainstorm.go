@@ -207,6 +207,51 @@ func newBrainstormCommand() *cobra.Command {
 		},
 	}
 
+	review := &cobra.Command{
+		Use:   "review <brainstorm-slug>",
+		Short: "Run lightweight downstream review checkpoints for needs-review stages",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			out := cmd.OutOrStdout()
+			session, reviewed, err := planningManager().ReviewGuidedSessionStages("brainstorm/" + strings.TrimSpace(args[0]))
+			if err != nil {
+				return err
+			}
+			if len(reviewed) == 0 {
+				fmt.Fprintf(out, "No downstream review checkpoints needed for %s\n", session.ChainID)
+				return nil
+			}
+			fmt.Fprintf(out, "Reviewed stages for %s: %s\nNext: %s\n", session.ChainID, strings.Join(reviewed, ", "), session.NextAction)
+			return nil
+		},
+	}
+
+	var parkValue string
+	var parkReason string
+	var parkUnlock string
+	park := &cobra.Command{
+		Use:   "park <brainstorm-slug> <title>",
+		Short: "Park a good-but-early idea in ROADMAP.md",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			source := fmt.Sprintf("[Brainstorm](../brainstorms/%s.md)", strings.TrimSpace(args[0]))
+			if err := planningManager().AddRoadmapParkingEntry(planning.RoadmapParkingInput{
+				Title:  args[1],
+				Value:  parkValue,
+				Reason: parkReason,
+				Unlock: parkUnlock,
+				Source: source,
+			}); err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Parked %s in .plan/ROADMAP.md\n", args[1])
+			return nil
+		},
+	}
+	park.Flags().StringVar(&parkValue, "value", "", "value or outcome if the idea lands later")
+	park.Flags().StringVar(&parkReason, "reason", "", "why the idea is parked now")
+	park.Flags().StringVar(&parkUnlock, "unlock", "", "what needs to happen before the idea becomes active")
+
 	var ideaBody string
 	var ideaStdin bool
 	var section string
@@ -432,25 +477,38 @@ func newBrainstormCommand() *cobra.Command {
 		},
 	}
 
-	cmd.AddCommand(start, resume, sessions, switchCmd, reopen, idea, show, refine, challenge)
+	cmd.AddCommand(start, resume, sessions, switchCmd, reopen, review, park, idea, show, refine, challenge)
 	return cmd
 }
 
 func runGuidedBrainstormResume(reader *bufio.Reader, out io.Writer, manager *planning.Manager, session *workspace.GuidedSessionRecord, forceCurrent bool) error {
 	cluster := guidedBrainstormClusterForSession(session, forceCurrent)
 	if cluster.index == 0 {
-		updated, err := manager.UpdateGuidedSession(session.ChainID, planning.GuidedSessionUpdateInput{
-			CurrentStage:        "brainstorm",
-			CurrentCluster:      session.CurrentCluster,
-			CurrentClusterLabel: session.CurrentClusterLabel,
-			StageStatus:         "in_progress",
-			Summary:             session.Summary,
-			NextAction:          "Guided brainstorm clarification is complete for now.",
-		})
+		fmt.Fprintf(out, "Brainstorm stage is shaped enough to hand off.\nContinue into epic creation? [y/N]\n")
+		confirm, err := reader.ReadString('\n')
+		if err != nil && !errors.Is(err, io.EOF) {
+			return err
+		}
+		if strings.ToLower(strings.TrimSpace(confirm)) != "y" {
+			updated, err := manager.UpdateGuidedSession(session.ChainID, planning.GuidedSessionUpdateInput{
+				CurrentStage:        "brainstorm",
+				CurrentCluster:      session.CurrentCluster,
+				CurrentClusterLabel: session.CurrentClusterLabel,
+				StageStatus:         "in_progress",
+				Summary:             session.Summary,
+				NextAction:          "Brainstorm handoff is ready when you want to continue into the epic stage.",
+			})
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(out, "Checkpoint saved for %s\nNext: %s\n", updated.ChainID, updated.NextAction)
+			return nil
+		}
+		bundle, updated, err := manager.PromoteGuidedBrainstormSession(session.Brainstorm)
 		if err != nil {
 			return err
 		}
-		fmt.Fprintf(out, "Nothing new to resume for %s\nNext: %s\n", updated.ChainID, updated.NextAction)
+		fmt.Fprintf(out, "Created epic %s\nCreated seeded spec %s\nNext: %s\n", bundle.Epic.Path, bundle.Spec.Path, updated.NextAction)
 		return nil
 	}
 
@@ -644,9 +702,9 @@ func guidedBrainstormClusterForSession(session *workspace.GuidedSessionRecord, f
 					},
 				},
 			},
-			nextIndex:  4,
-			nextLabel:  "clarify-open-approaches",
-			nextAction: "Review recap and decide whether to refine more or move to the next stage.",
+			nextIndex:  5,
+			nextLabel:  "handoff-epic",
+			nextAction: "Review recap and continue into the epic stage when ready.",
 		}
 	default:
 		return guidedBrainstormCluster{}

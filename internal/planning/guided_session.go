@@ -2,6 +2,7 @@ package planning
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -218,6 +219,94 @@ func (m *Manager) ReopenGuidedSessionStage(chainID, stage string) (*workspace.Gu
 		return nil, nil, err
 	}
 	return &record, downstream, nil
+}
+
+func (m *Manager) PromoteGuidedBrainstormSession(brainstormSlug string) (*EpicBundle, *workspace.GuidedSessionRecord, error) {
+	bundle, err := m.PromoteBrainstorm(brainstormSlug)
+	if err != nil {
+		return nil, nil, err
+	}
+	_, err = m.UpdateGuidedSession(guidedChainID(brainstormSlug), GuidedSessionUpdateInput{
+		CurrentStage: "epic",
+		Summary:      "Brainstorm promoted into epic and seeded spec.",
+		NextAction:   "Continue shaping the epic before moving into the spec stage.",
+		StageStatus:  "in_progress",
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	state, err := m.workspace.ReadGuidedSessionState()
+	if err != nil {
+		return nil, nil, err
+	}
+	record := state.Sessions[guidedChainID(brainstormSlug)]
+	record.Epic = slugFromPath(bundle.Epic.Path)
+	record.Spec = slugFromPath(bundle.Spec.Path)
+	record.StageStatuses["brainstorm"] = "done"
+	record.StageStatuses["epic"] = "in_progress"
+	record.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+	state.LastActiveChain = record.ChainID
+	state.LastUpdatedAt = record.UpdatedAt
+	state.Sessions[record.ChainID] = record
+	if err := m.workspace.WriteGuidedSessionState(*state); err != nil {
+		return nil, nil, err
+	}
+	return bundle, &record, nil
+}
+
+func (m *Manager) ReviewGuidedSessionStages(chainID string) (*workspace.GuidedSessionRecord, []string, error) {
+	state, err := m.workspace.ReadGuidedSessionState()
+	if err != nil {
+		return nil, nil, err
+	}
+	record, ok := state.Sessions[strings.TrimSpace(chainID)]
+	if !ok {
+		return nil, nil, fmt.Errorf("guided session %q not found", chainID)
+	}
+	var reviewed []string
+	for _, stage := range guidedStageOrder {
+		if record.StageStatuses[stage] == "needs_review" {
+			record.StageStatuses[stage] = "reviewed"
+			reviewed = append(reviewed, stage)
+		}
+	}
+	record.NextAction = "Downstream review checkpoints complete. Continue the planning flow."
+	record.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+	state.LastActiveChain = record.ChainID
+	state.LastUpdatedAt = record.UpdatedAt
+	state.Sessions[record.ChainID] = record
+	if err := m.workspace.WriteGuidedSessionState(*state); err != nil {
+		return nil, nil, err
+	}
+	return &record, reviewed, nil
+}
+
+type RoadmapParkingInput struct {
+	Title  string
+	Value  string
+	Reason string
+	Unlock string
+	Source string
+}
+
+func (m *Manager) AddRoadmapParkingEntry(input RoadmapParkingInput) error {
+	info, err := m.workspace.EnsureInitialized()
+	if err != nil {
+		return err
+	}
+	raw, err := os.ReadFile(info.RoadmapFile)
+	if err != nil {
+		return err
+	}
+	entry := fmt.Sprintf("%s | value: %s | parked because: %s | unlock: %s | source: %s",
+		strings.TrimSpace(input.Title),
+		strings.TrimSpace(input.Value),
+		strings.TrimSpace(input.Reason),
+		strings.TrimSpace(input.Unlock),
+		strings.TrimSpace(input.Source),
+	)
+	updated := notes.AppendUnderHeading(string(raw), "Parking Lot", "- "+entry)
+	return os.WriteFile(info.RoadmapFile, []byte(updated), 0o644)
 }
 
 func (m *Manager) upsertGuidedBrainstormSession(note *notes.Note) (*workspace.GuidedSessionRecord, error) {
