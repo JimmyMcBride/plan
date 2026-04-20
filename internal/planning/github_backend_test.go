@@ -70,7 +70,9 @@ func (s *stubGitHubClient) UpdateIssue(projectDir, repo string, issueNumber int,
 	if strings.TrimSpace(input.State) != "" {
 		issue.State = input.State
 	}
-	issue.Labels = append([]string(nil), input.Labels...)
+	if input.Labels != nil {
+		issue.Labels = append([]string(nil), input.Labels...)
+	}
 	return issue, nil
 }
 
@@ -623,6 +625,70 @@ func TestReconcileGitHubStoriesNoOpDoesNotRewriteStateFile(t *testing.T) {
 	}
 }
 
+func TestReconcileGitHubStoriesRefreshesRepoDefaultBranchInState(t *testing.T) {
+	client := &stubGitHubClient{
+		preflight: &GitHubRepoInfo{
+			Repo:          "JimmyMcBride/plan",
+			RepoURL:       "https://github.com/JimmyMcBride/plan",
+			DefaultBranch: "main",
+		},
+		context: &GitHubContext{
+			Repo: GitHubRepoInfo{
+				Repo:          "JimmyMcBride/plan",
+				RepoURL:       "https://github.com/JimmyMcBride/plan",
+				DefaultBranch: "main",
+			},
+			CurrentBranch: "main",
+			CurrentSHA:    "abc123def456",
+		},
+	}
+	reset := SetGitHubClientFactoryForTesting(func() GitHubClient { return client })
+	t.Cleanup(reset)
+
+	root := t.TempDir()
+	manager := newGitHubStoryManager(t, root)
+	if _, err := manager.EnableGitHubBackend(); err != nil {
+		t.Fatal(err)
+	}
+	seedApprovedGitHubEpic(t, manager)
+	if _, err := manager.CreateStory(
+		"billing",
+		"Implement invoices",
+		"Create invoice generation flow",
+		[]string{"Generate invoices from line items"},
+		[]string{"Run focused billing tests"},
+		nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	client.context.Repo.DefaultBranch = "develop"
+	client.context.CurrentBranch = "develop"
+
+	result, err := manager.ReconcileGitHubStories(GitHubReconcileOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.DefaultBranch != "develop" {
+		t.Fatalf("expected reconcile result to report develop default branch: %+v", result)
+	}
+
+	state, err := manager.workspace.ReadGitHubState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.DefaultBranch != "develop" {
+		t.Fatalf("expected github state default branch to refresh to develop: %+v", state)
+	}
+	record := state.Stories["implement-invoices"]
+	if record.DocRef != "develop" || record.DocRefMode != "main" {
+		t.Fatalf("expected record to promote links to develop: %+v", record)
+	}
+	if !strings.Contains(client.issues[101].Body, "/blob/develop/.plan/specs/billing.md") {
+		t.Fatalf("expected issue body to point at develop after reconcile:\n%s", client.issues[101].Body)
+	}
+}
+
 func TestGitHubStoryReadinessDerivesFromDependencies(t *testing.T) {
 	client := &stubGitHubClient{
 		preflight: &GitHubRepoInfo{
@@ -736,6 +802,86 @@ func TestReconcileUpdateVisibleAppliesDerivedLabels(t *testing.T) {
 	}
 	if !containsString(client.issues[102].Labels, planIssueBlockedLabel) {
 		t.Fatalf("expected blocked label on dependent issue: %+v", client.issues[102].Labels)
+	}
+}
+
+func TestReconcileUpdateVisibleClearsDerivedLabelsAndBecomesNoOp(t *testing.T) {
+	client := &stubGitHubClient{
+		preflight: &GitHubRepoInfo{
+			Repo:          "JimmyMcBride/plan",
+			RepoURL:       "https://github.com/JimmyMcBride/plan",
+			DefaultBranch: "main",
+		},
+		context: &GitHubContext{
+			Repo: GitHubRepoInfo{
+				Repo:          "JimmyMcBride/plan",
+				RepoURL:       "https://github.com/JimmyMcBride/plan",
+				DefaultBranch: "main",
+			},
+			CurrentBranch: "main",
+			CurrentSHA:    "abc123def456",
+		},
+	}
+	reset := SetGitHubClientFactoryForTesting(func() GitHubClient { return client })
+	t.Cleanup(reset)
+
+	root := t.TempDir()
+	manager := newGitHubStoryManager(t, root)
+	if _, err := manager.EnableGitHubBackend(); err != nil {
+		t.Fatal(err)
+	}
+	seedApprovedGitHubEpic(t, manager)
+	if _, err := manager.CreateStory("billing", "Implement invoices", "Create invoice generation flow", []string{"Generate invoices"}, []string{"Run billing tests"}, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := manager.ReconcileGitHubStories(GitHubReconcileOptions{UpdateVisible: true}); err != nil {
+		t.Fatal(err)
+	}
+	if !containsString(client.issues[101].Labels, planIssueReadyLabel) {
+		t.Fatalf("expected ready label after first reconcile: %+v", client.issues[101].Labels)
+	}
+
+	if _, err := manager.UpdateStory("implement-invoices", StoryChanges{Status: "done"}); err != nil {
+		t.Fatal(err)
+	}
+	if !containsString(client.issues[101].Labels, planIssueReadyLabel) {
+		t.Fatalf("expected done issue to still carry stale ready label before cleanup: %+v", client.issues[101].Labels)
+	}
+
+	result, err := manager.ReconcileGitHubStories(GitHubReconcileOptions{UpdateVisible: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.UpdatedIssues) != 1 {
+		t.Fatalf("expected reconcile to clear stale derived labels once: %+v", result)
+	}
+	if containsString(client.issues[101].Labels, planIssueReadyLabel) || containsString(client.issues[101].Labels, planIssueBlockedLabel) {
+		t.Fatalf("expected derived labels to clear on done issue: %+v", client.issues[101].Labels)
+	}
+
+	info, err := manager.workspace.Resolve()
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(info.GitHubFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err = manager.ReconcileGitHubStories(GitHubReconcileOptions{UpdateVisible: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.UpdatedIssues) != 0 {
+		t.Fatalf("expected second reconcile to be a no-op after label cleanup: %+v", result)
+	}
+	after, err := os.ReadFile(info.GitHubFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(before) != string(after) {
+		t.Fatalf("expected second reconcile to leave github state unchanged")
 	}
 }
 

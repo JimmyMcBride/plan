@@ -514,7 +514,7 @@ func mergeManagedIssueBody(existingBody, managedBody string) string {
 }
 
 func applyDerivedReadyLabels(labels []string, status string, ready bool) []string {
-	var out []string
+	out := make([]string, 0, len(labels))
 	for _, label := range labels {
 		if label == planIssueReadyLabel || label == planIssueBlockedLabel {
 			continue
