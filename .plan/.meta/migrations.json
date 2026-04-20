@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "known": [],
-  "last_run_at": "2026-04-20T03:04:12Z",
+  "last_run_at": "2026-04-20T03:37:35Z",
   "status": "current",
   "last_operation": "update",
   "last_created": [
-    ".plan/.meta/github.json"
+    ".plan/stories"
   ],
   "history": [
     {
@@ -14,6 +14,14 @@
       "status": "current",
       "created": [
         ".plan/.meta/github.json"
+      ]
+    },
+    {
+      "operation": "update",
+      "at": "2026-04-20T03:37:35Z",
+      "status": "current",
+      "created": [
+        ".plan/stories"
       ]
     }
   ]
