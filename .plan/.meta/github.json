@@ -1,10 +1,10 @@
 {
   "repo": "JimmyMcBride/plan",
   "repo_url": "https://github.com/JimmyMcBride/plan",
-  "default_branch": "main",
+  "default_branch": "develop",
   "last_enabled_at": "2026-04-20T03:04:26Z",
-  "last_updated_at": "2026-04-20T04:29:45Z",
-  "last_reconciled_at": "2026-04-20T04:29:45Z",
+  "last_updated_at": "2026-04-20T06:12:21Z",
+  "last_reconciled_at": "2026-04-20T06:12:21Z",
   "stories": {
     "add-brainstorm-stage-recap-and-stop-flow": {
       "slug": "add-brainstorm-stage-recap-and-stop-flow",
@@ -33,8 +33,8 @@
       "planning_pr_url": "https://github.com/JimmyMcBride/plan/pull/9",
       "planning_pr_merged": true,
       "doc_ref_mode": "main",
-      "doc_ref": "main",
-      "updated_at": "2026-04-20T04:29:35Z"
+      "doc_ref": "develop",
+      "updated_at": "2026-04-20T06:05:20Z"
     },
     "add-cluster-reflection-and-gap-guidance": {
       "slug": "add-cluster-reflection-and-gap-guidance",
@@ -62,8 +62,8 @@
       "planning_pr_url": "https://github.com/JimmyMcBride/plan/pull/9",
       "planning_pr_merged": true,
       "doc_ref_mode": "main",
-      "doc_ref": "main",
-      "updated_at": "2026-04-20T04:29:36Z"
+      "doc_ref": "develop",
+      "updated_at": "2026-04-20T06:05:20Z"
     },
     "add-guided-session-state-model": {
       "slug": "add-guided-session-state-model",
@@ -88,8 +88,8 @@
       "planning_pr_url": "https://github.com/JimmyMcBride/plan/pull/9",
       "planning_pr_merged": true,
       "doc_ref_mode": "main",
-      "doc_ref": "main",
-      "updated_at": "2026-04-20T04:29:37Z"
+      "doc_ref": "develop",
+      "updated_at": "2026-04-20T06:05:20Z"
     },
     "add-multi-session-switching-and-coverage": {
       "slug": "add-multi-session-switching-and-coverage",
@@ -117,8 +117,8 @@
       "planning_pr_url": "https://github.com/JimmyMcBride/plan/pull/9",
       "planning_pr_merged": true,
       "doc_ref_mode": "main",
-      "doc_ref": "main",
-      "updated_at": "2026-04-20T04:29:38Z"
+      "doc_ref": "develop",
+      "updated_at": "2026-04-20T06:05:20Z"
     },
     "add-reopen-impact-summary-and-needs-review-markers": {
       "slug": "add-reopen-impact-summary-and-needs-review-markers",
@@ -146,8 +146,8 @@
       "planning_pr_url": "https://github.com/JimmyMcBride/plan/pull/9",
       "planning_pr_merged": true,
       "doc_ref_mode": "main",
-      "doc_ref": "main",
-      "updated_at": "2026-04-20T04:29:39Z"
+      "doc_ref": "develop",
+      "updated_at": "2026-04-20T06:05:20Z"
     },
     "add-roadmap-parking-writes-and-source-links": {
       "slug": "add-roadmap-parking-writes-and-source-links",
@@ -175,8 +175,8 @@
       "planning_pr_url": "https://github.com/JimmyMcBride/plan/pull/9",
       "planning_pr_merged": true,
       "doc_ref_mode": "main",
-      "doc_ref": "main",
-      "updated_at": "2026-04-20T04:29:40Z"
+      "doc_ref": "develop",
+      "updated_at": "2026-04-20T06:05:20Z"
     },
     "implement-brainstorm-to-epic-handoff": {
       "slug": "implement-brainstorm-to-epic-handoff",
@@ -205,8 +205,8 @@
       "planning_pr_url": "https://github.com/JimmyMcBride/plan/pull/9",
       "planning_pr_merged": true,
       "doc_ref_mode": "main",
-      "doc_ref": "main",
-      "updated_at": "2026-04-20T04:29:40Z"
+      "doc_ref": "develop",
+      "updated_at": "2026-04-20T06:05:20Z"
     },
     "implement-downstream-review-checkpoints": {
       "slug": "implement-downstream-review-checkpoints",
@@ -234,8 +234,8 @@
       "planning_pr_url": "https://github.com/JimmyMcBride/plan/pull/9",
       "planning_pr_merged": true,
       "doc_ref_mode": "main",
-      "doc_ref": "main",
-      "updated_at": "2026-04-20T04:29:41Z"
+      "doc_ref": "develop",
+      "updated_at": "2026-04-20T06:05:20Z"
     },
     "implement-epic-to-spec-handoff": {
       "slug": "implement-epic-to-spec-handoff",
@@ -263,8 +263,8 @@
       "planning_pr_url": "https://github.com/JimmyMcBride/plan/pull/9",
       "planning_pr_merged": true,
       "doc_ref_mode": "main",
-      "doc_ref": "main",
-      "updated_at": "2026-04-20T04:29:42Z"
+      "doc_ref": "develop",
+      "updated_at": "2026-04-20T06:05:20Z"
     },
     "implement-guided-story-creation-handoff": {
       "slug": "implement-guided-story-creation-handoff",
@@ -292,8 +292,8 @@
       "planning_pr_url": "https://github.com/JimmyMcBride/plan/pull/9",
       "planning_pr_merged": true,
       "doc_ref_mode": "main",
-      "doc_ref": "main",
-      "updated_at": "2026-04-20T04:29:43Z"
+      "doc_ref": "develop",
+      "updated_at": "2026-04-20T06:05:20Z"
     },
     "implement-guided-vision-intake": {
       "slug": "implement-guided-vision-intake",
@@ -318,8 +318,8 @@
       "planning_pr_url": "https://github.com/JimmyMcBride/plan/pull/9",
       "planning_pr_merged": true,
       "doc_ref_mode": "main",
-      "doc_ref": "main",
-      "updated_at": "2026-04-20T04:29:45Z"
+      "doc_ref": "develop",
+      "updated_at": "2026-04-20T06:05:20Z"
     },
     "implement-resume-flow-and-session-menu": {
       "slug": "implement-resume-flow-and-session-menu",
@@ -347,8 +347,8 @@
       "planning_pr_url": "https://github.com/JimmyMcBride/plan/pull/9",
       "planning_pr_merged": true,
       "doc_ref_mode": "main",
-      "doc_ref": "main",
-      "updated_at": "2026-04-20T04:29:45Z"
+      "doc_ref": "develop",
+      "updated_at": "2026-04-20T06:05:20Z"
     }
   }
 }

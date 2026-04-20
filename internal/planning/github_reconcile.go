@@ -51,11 +51,26 @@ func (m *Manager) ReconcileGitHubStories(options GitHubReconcileOptions) (*GitHu
 		CurrentBranch: context.CurrentBranch,
 		DefaultBranch: context.Repo.DefaultBranch,
 	}
+	stateChanged := false
+	if state.Repo != context.Repo.Repo {
+		state.Repo = context.Repo.Repo
+		stateChanged = true
+	}
+	if state.RepoURL != context.Repo.RepoURL {
+		state.RepoURL = context.Repo.RepoURL
+		stateChanged = true
+	}
+	if state.DefaultBranch != context.Repo.DefaultBranch {
+		state.DefaultBranch = context.Repo.DefaultBranch
+		stateChanged = true
+	}
 	if context.CurrentBranch == context.Repo.DefaultBranch {
 		result.PlanningPromote = true
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
-	stateChanged := false
+	if stateChanged {
+		state.LastUpdatedAt = now
+	}
 
 	slugs := make([]string, 0, len(state.Stories))
 	for slug := range state.Stories {
