@@ -254,6 +254,56 @@ func (m *Manager) PromoteGuidedBrainstormSession(brainstormSlug string) (*EpicBu
 	return bundle, &record, nil
 }
 
+func (m *Manager) ReadGuidedSessionByEpic(epicSlug string) (*workspace.GuidedSessionRecord, error) {
+	state, err := m.workspace.ReadGuidedSessionState()
+	if err != nil {
+		return nil, err
+	}
+	needle := slugify(epicSlug)
+	for _, record := range state.Sessions {
+		if record.Epic == needle {
+			copy := record
+			return &copy, nil
+		}
+	}
+	return nil, fmt.Errorf("no guided session linked to epic %q", epicSlug)
+}
+
+func (m *Manager) AdvanceGuidedSessionToSpec(epicSlug string) (*workspace.GuidedSessionRecord, *notes.Note, error) {
+	session, err := m.ReadGuidedSessionByEpic(epicSlug)
+	if err != nil {
+		return nil, nil, err
+	}
+	spec, err := m.ReadSpec(epicSlug)
+	if err != nil {
+		return nil, nil, err
+	}
+	updated, err := m.UpdateGuidedSession(session.ChainID, GuidedSessionUpdateInput{
+		CurrentStage: "spec",
+		Summary:      "Epic handoff complete. Continue the planning flow in the spec stage.",
+		NextAction:   "Continue refining the spec at the next checkpoint.",
+		StageStatus:  "in_progress",
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	state, err := m.workspace.ReadGuidedSessionState()
+	if err != nil {
+		return nil, nil, err
+	}
+	record := state.Sessions[updated.ChainID]
+	record.StageStatuses["epic"] = "done"
+	record.StageStatuses["spec"] = "in_progress"
+	record.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+	state.LastActiveChain = record.ChainID
+	state.LastUpdatedAt = record.UpdatedAt
+	state.Sessions[record.ChainID] = record
+	if err := m.workspace.WriteGuidedSessionState(*state); err != nil {
+		return nil, nil, err
+	}
+	return &record, spec, nil
+}
+
 func (m *Manager) ReviewGuidedSessionStages(chainID string) (*workspace.GuidedSessionRecord, []string, error) {
 	state, err := m.workspace.ReadGuidedSessionState()
 	if err != nil {

@@ -2,7 +2,10 @@ package cmd
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
+	"io"
+	"strings"
 
 	"plan/internal/planning"
 
@@ -164,6 +167,35 @@ func newEpicCommand() *cobra.Command {
 		},
 	}
 
-	cmd.AddCommand(create, promote, list, show, shape)
+	handoff := &cobra.Command{
+		Use:   "handoff <epic-slug>",
+		Short: "Continue a guided epic into the spec stage at a stable checkpoint",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			reader := bufio.NewReader(cmd.InOrStdin())
+			out := cmd.OutOrStdout()
+			session, err := planningManager().ReadGuidedSessionByEpic(args[0])
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(out, "Epic recap:\nCurrent understanding: %s\nRecommended next stage: continue into spec.\nProceed? [y/N]\n", session.Summary)
+			confirm, err := reader.ReadString('\n')
+			if err != nil && !errors.Is(err, io.EOF) {
+				return err
+			}
+			if strings.ToLower(strings.TrimSpace(confirm)) != "y" {
+				fmt.Fprintf(out, "Canceled epic handoff for %s\n", args[0])
+				return nil
+			}
+			updated, spec, err := planningManager().AdvanceGuidedSessionToSpec(args[0])
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(out, "Using spec %s\nNext: %s\n", spec.Path, updated.NextAction)
+			return nil
+		},
+	}
+
+	cmd.AddCommand(create, promote, list, show, shape, handoff)
 	return cmd
 }
