@@ -297,4 +297,49 @@ func TestBrainstormResumeContinuesClusterWithReflectionAndGapGuidance(t *testing
 	if !strings.Contains(output.String(), "Potential gap: the problem or value is still vague.") {
 		t.Fatalf("expected gap guidance output:\n%s", output.String())
 	}
+	if !strings.Contains(output.String(), "Recap:\nCurrent understanding:") {
+		t.Fatalf("expected structured recap output:\n%s", output.String())
+	}
+}
+
+func TestBrainstormSwitchSetsLastActiveSessionForResume(t *testing.T) {
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := planning.New(ws)
+	for _, slug := range []string{"alpha", "beta"} {
+		if _, err := manager.CreateBrainstorm(slug); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := manager.UpdateGuidedBrainstormIntake(slug, planning.GuidedBrainstormIntakeInput{
+			Vision:             "Vision for " + slug,
+			SupportingMaterial: "docs/" + slug + ".md",
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var switchOutput bytes.Buffer
+	command := newRootCmd()
+	command.SetOut(&switchOutput)
+	command.SetErr(&switchOutput)
+	command.SetArgs([]string{"--project", root, "brainstorm", "switch", "alpha"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("expected brainstorm switch to succeed: %v\n%s", err, switchOutput.String())
+	}
+
+	var resumeOutput bytes.Buffer
+	command = newRootCmd()
+	command.SetOut(&resumeOutput)
+	command.SetErr(&resumeOutput)
+	command.SetIn(strings.NewReader("3\n"))
+	command.SetArgs([]string{"--project", root, "brainstorm", "resume"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("expected resume without slug to use last active session: %v\n%s", err, resumeOutput.String())
+	}
+	if !strings.Contains(resumeOutput.String(), "Resuming brainstorm/alpha") {
+		t.Fatalf("expected resume to target switched session:\n%s", resumeOutput.String())
+	}
 }

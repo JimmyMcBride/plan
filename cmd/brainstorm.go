@@ -132,6 +132,81 @@ func newBrainstormCommand() *cobra.Command {
 		},
 	}
 
+	sessions := &cobra.Command{
+		Use:   "sessions",
+		Short: "List guided brainstorm sessions",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			out := cmd.OutOrStdout()
+			list, err := planningManager().ListGuidedSessions()
+			if err != nil {
+				return err
+			}
+			last, err := planningManager().ReadLastActiveGuidedSession()
+			if err != nil && !strings.Contains(err.Error(), "no active guided session") {
+				return err
+			}
+			lastActive := ""
+			if last != nil {
+				lastActive = last.ChainID
+			}
+			for _, session := range list {
+				marker := " "
+				if session.ChainID == lastActive {
+					marker = "*"
+				}
+				fmt.Fprintf(out, "%s %s stage=%s next=%s\n", marker, session.ChainID, session.CurrentStage, session.NextAction)
+			}
+			return nil
+		},
+	}
+
+	switchCmd := &cobra.Command{
+		Use:   "switch <brainstorm-slug>",
+		Short: "Switch the last-active guided brainstorm session",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			out := cmd.OutOrStdout()
+			session, err := planningManager().SwitchGuidedSession("brainstorm/" + strings.TrimSpace(args[0]))
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(out, "Switched to %s\nSummary: %s\nNext: %s\n", session.ChainID, session.Summary, session.NextAction)
+			return nil
+		},
+	}
+
+	reopen := &cobra.Command{
+		Use:   "reopen <brainstorm-slug> <stage>",
+		Short: "Reopen a stage and mark downstream stages as needs review",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			reader := bufio.NewReader(cmd.InOrStdin())
+			out := cmd.OutOrStdout()
+			chainID := "brainstorm/" + strings.TrimSpace(args[0])
+			stage := strings.TrimSpace(args[1])
+			session, err := planningManager().ReadGuidedSession(chainID)
+			if err != nil {
+				return err
+			}
+			downstream := guidedDownstreamStagesForOutput(stage)
+			fmt.Fprintf(out, "Reopen stage: %s\nDownstream stages affected: %s\nRecommended path: reopen this stage and mark downstream work as needs review.\nAlternative 1: stay on the current stage and refine locally.\nAlternative 2: stop for now and revisit after a recap pass.\nProceed? [y/N]\n", stage, strings.Join(downstream, ", "))
+			confirm, err := reader.ReadString('\n')
+			if err != nil && !errors.Is(err, io.EOF) {
+				return err
+			}
+			if strings.ToLower(strings.TrimSpace(confirm)) != "y" {
+				fmt.Fprintf(out, "Canceled reopen for %s\n", session.ChainID)
+				return nil
+			}
+			updated, impacted, err := planningManager().ReopenGuidedSessionStage(chainID, stage)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(out, "Reopened %s for %s\nMarked needs review: %s\nNext: %s\n", stage, updated.ChainID, strings.Join(impacted, ", "), updated.NextAction)
+			return nil
+		},
+	}
+
 	var ideaBody string
 	var ideaStdin bool
 	var section string
@@ -357,7 +432,7 @@ func newBrainstormCommand() *cobra.Command {
 		},
 	}
 
-	cmd.AddCommand(start, resume, idea, show, refine, challenge)
+	cmd.AddCommand(start, resume, sessions, switchCmd, reopen, idea, show, refine, challenge)
 	return cmd
 }
 
@@ -402,13 +477,15 @@ func runGuidedBrainstormResume(reader *bufio.Reader, out io.Writer, manager *pla
 	if gap != "" {
 		fmt.Fprintf(out, "%s\n", gap)
 	}
+	recap := renderBrainstormStageRecap(state, cluster.nextAction)
+	fmt.Fprintf(out, "%s\n", recap)
 
 	updated, err := manager.UpdateGuidedSession(session.ChainID, planning.GuidedSessionUpdateInput{
 		CurrentStage:        "brainstorm",
 		CurrentCluster:      cluster.nextIndex,
 		CurrentClusterLabel: cluster.nextLabel,
 		StageStatus:         "in_progress",
-		Summary:             reflection,
+		Summary:             recap,
 		NextAction:          cluster.nextAction,
 	})
 	if err != nil {
@@ -639,4 +716,40 @@ func looksVague(value string) bool {
 		}
 	}
 	return false
+}
+
+func renderBrainstormStageRecap(state *planning.BrainstormRefinement, nextAction string) string {
+	currentUnderstanding := "Current understanding: vision shaping is in progress."
+	if strings.TrimSpace(state.Problem) != "" && strings.TrimSpace(state.UserValue) != "" {
+		currentUnderstanding = fmt.Sprintf("Current understanding: %s / %s", strings.TrimSpace(state.Problem), strings.TrimSpace(state.UserValue))
+	}
+	keyDecisions := "Key decisions: none yet."
+	if strings.TrimSpace(state.Appetite) != "" {
+		keyDecisions = "Key decisions: appetite captured."
+	}
+	unresolved := "Unresolved risks or questions: none captured yet."
+	if strings.TrimSpace(state.RemainingOpenQuestions) != "" {
+		unresolved = "Unresolved risks or questions: there are still open questions to review."
+	}
+	return strings.Join([]string{
+		"Recap:",
+		currentUnderstanding,
+		keyDecisions,
+		unresolved,
+		"Parked items: none.",
+		"Recommended next stage: " + nextAction,
+	}, "\n")
+}
+
+func guidedDownstreamStagesForOutput(stage string) []string {
+	switch strings.TrimSpace(stage) {
+	case "brainstorm":
+		return []string{"epic", "spec", "stories"}
+	case "epic":
+		return []string{"spec", "stories"}
+	case "spec":
+		return []string{"stories"}
+	default:
+		return []string{"none"}
+	}
 }

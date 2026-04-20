@@ -79,3 +79,58 @@ func TestGuidedBrainstormSessionPersistsChainStateAndStaysStable(t *testing.T) {
 		t.Fatalf("unexpected updated note path: %+v", updatedNote)
 	}
 }
+
+func TestSwitchAndReopenGuidedSessionState(t *testing.T) {
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := New(ws)
+	for _, slug := range []string{"alpha", "beta"} {
+		if _, err := manager.CreateBrainstorm(slug); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := manager.UpdateGuidedBrainstormIntake(slug, GuidedBrainstormIntakeInput{
+			Vision:             "Vision for " + slug,
+			SupportingMaterial: "docs/" + slug + ".md",
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if _, err := manager.SwitchGuidedSession("brainstorm/alpha"); err != nil {
+		t.Fatal(err)
+	}
+	last, err := manager.ReadLastActiveGuidedSession()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if last.ChainID != "brainstorm/alpha" {
+		t.Fatalf("unexpected last active session: %+v", last)
+	}
+
+	if _, err := manager.UpdateGuidedSession("brainstorm/alpha", GuidedSessionUpdateInput{
+		CurrentStage: "epic",
+		StageStatus:  "done",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.UpdateGuidedSession("brainstorm/alpha", GuidedSessionUpdateInput{
+		CurrentStage: "spec",
+		StageStatus:  "done",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	updated, downstream, err := manager.ReopenGuidedSessionStage("brainstorm/alpha", "brainstorm")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(downstream) != 3 {
+		t.Fatalf("unexpected downstream stage count: %+v", downstream)
+	}
+	if updated.StageStatuses["epic"] != "needs_review" || updated.StageStatuses["spec"] != "needs_review" || updated.StageStatuses["stories"] != "needs_review" {
+		t.Fatalf("expected downstream stages to be marked needs_review: %+v", updated)
+	}
+}
