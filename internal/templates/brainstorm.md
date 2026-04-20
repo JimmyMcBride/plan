@@ -6,6 +6,10 @@ Started: {{ .Now }}
 
 ## Desired Outcome
 
+## Vision
+
+## Supporting Material
+
 ## Constraints
 
 ## Open Questions
