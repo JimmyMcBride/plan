@@ -102,6 +102,10 @@ home when they are real but premature.
 
 ## Story Breakdown
 
+- [ ] [Add Reopen Impact Summary And Needs Review Markers](https://github.com/JimmyMcBride/plan/issues/19)
+- [ ] [Implement Downstream Review Checkpoints](https://github.com/JimmyMcBride/plan/issues/20)
+- [ ] [Add Roadmap Parking Writes And Source Links](https://github.com/JimmyMcBride/plan/issues/21)
+
 ## Analysis
 
 ### Missing Constraints

@@ -103,6 +103,10 @@ idea through back-and-forth before locking it into planning artifacts.
 
 ## Story Breakdown
 
+- [ ] [Implement Guided Vision Intake](https://github.com/JimmyMcBride/plan/issues/11)
+- [ ] [Add Cluster Reflection And Gap Guidance](https://github.com/JimmyMcBride/plan/issues/14)
+- [ ] [Add Brainstorm Stage Recap And Stop Flow](https://github.com/JimmyMcBride/plan/issues/15)
+
 ## Analysis
 
 ### Missing Constraints

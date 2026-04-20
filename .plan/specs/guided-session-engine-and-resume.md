@@ -92,6 +92,10 @@ chain.
 
 ## Story Breakdown
 
+- [ ] [Add Guided Session State Model](https://github.com/JimmyMcBride/plan/issues/10)
+- [ ] [Implement Resume Flow And Session Menu](https://github.com/JimmyMcBride/plan/issues/12)
+- [ ] [Add Multi-Session Switching And Coverage](https://github.com/JimmyMcBride/plan/issues/13)
+
 ## Analysis
 
 ### Missing Constraints

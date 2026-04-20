@@ -97,6 +97,10 @@ guide-like.
 
 ## Story Breakdown
 
+- [ ] [Implement Brainstorm To Epic Handoff](https://github.com/JimmyMcBride/plan/issues/16)
+- [ ] [Implement Epic To Spec Handoff](https://github.com/JimmyMcBride/plan/issues/17)
+- [ ] [Implement Guided Story Creation Handoff](https://github.com/JimmyMcBride/plan/issues/18)
+
 ## Analysis
 
 ### Missing Constraints

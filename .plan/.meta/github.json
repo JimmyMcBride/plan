@@ -3,6 +3,339 @@
   "repo_url": "https://github.com/JimmyMcBride/plan",
   "default_branch": "main",
   "last_enabled_at": "2026-04-20T03:04:26Z",
-  "last_updated_at": "2026-04-20T03:04:26Z",
-  "stories": {}
+  "last_updated_at": "2026-04-20T03:06:24Z",
+  "stories": {
+    "add-brainstorm-stage-recap-and-stop-flow": {
+      "slug": "add-brainstorm-stage-recap-and-stop-flow",
+      "title": "Add Brainstorm Stage Recap And Stop Flow",
+      "epic": "vision-intake-and-brainstorm-co-planning",
+      "spec": "vision-intake-and-brainstorm-co-planning",
+      "status": "todo",
+      "description": "Add structured brainstorm-stage recap and numbered continue/refine/stop flow, including next-best-action output when the user stops for now.",
+      "acceptance_criteria": [
+        "Brainstorm stage closes with structured recap.",
+        "Stop for now saves state and prints next-best action.",
+        "Numbered continue/refine/stop stays consistent with the session engine."
+      ],
+      "verification": [
+        "Run brainstorm-stage recap coverage.",
+        "Verify stop-for-now output after partial progress."
+      ],
+      "dependencies": [
+        "add-cluster-reflection-and-gap-guidance",
+        "implement-resume-flow-and-session-menu"
+      ],
+      "issue_number": 15,
+      "issue_url": "https://github.com/JimmyMcBride/plan/issues/15",
+      "remote_state": "open",
+      "planning_pr_number": 9,
+      "planning_pr_url": "https://github.com/JimmyMcBride/plan/pull/9",
+      "doc_ref_mode": "sha",
+      "doc_ref": "8ba14acadf5a04439647c6367bd5f19fa05fe071",
+      "updated_at": "2026-04-20T03:07:30Z"
+    },
+    "add-cluster-reflection-and-gap-guidance": {
+      "slug": "add-cluster-reflection-and-gap-guidance",
+      "title": "Add Cluster Reflection And Gap Guidance",
+      "epic": "vision-intake-and-brainstorm-co-planning",
+      "spec": "vision-intake-and-brainstorm-co-planning",
+      "status": "todo",
+      "description": "Reflect back once per 2-4 question cluster and handle gaps with one recommended path plus one or two alternatives.",
+      "acceptance_criteria": [
+        "Reflection happens once per completed cluster.",
+        "Gap handling explains the issue and offers one recommended path plus alternatives.",
+        "Guidance stays short and opinionated."
+      ],
+      "verification": [
+        "Run cluster-reflection coverage.",
+        "Verify gap prompts stay within the opinionated option format."
+      ],
+      "dependencies": [
+        "implement-guided-vision-intake"
+      ],
+      "issue_number": 14,
+      "issue_url": "https://github.com/JimmyMcBride/plan/issues/14",
+      "remote_state": "open",
+      "planning_pr_number": 9,
+      "planning_pr_url": "https://github.com/JimmyMcBride/plan/pull/9",
+      "doc_ref_mode": "sha",
+      "doc_ref": "8ba14acadf5a04439647c6367bd5f19fa05fe071",
+      "updated_at": "2026-04-20T03:07:26Z"
+    },
+    "add-guided-session-state-model": {
+      "slug": "add-guided-session-state-model",
+      "title": "Add Guided Session State Model",
+      "epic": "guided-session-engine-and-resume",
+      "spec": "guided-session-engine-and-resume",
+      "status": "todo",
+      "description": "Add chain-scoped guided session state in .plan/.meta with active stage, cluster progress, linked artifacts, and repo-level last-active support.",
+      "acceptance_criteria": [
+        "Guided sessions are stored per planning chain.",
+        "A repo-level last-active pointer can reopen the most recent chain.",
+        "Session metadata stays durable across stop/resume cycles."
+      ],
+      "verification": [
+        "Run targeted session-state tests.",
+        "Verify guided-session metadata writes stay stable across reruns."
+      ],
+      "issue_number": 10,
+      "issue_url": "https://github.com/JimmyMcBride/plan/issues/10",
+      "remote_state": "open",
+      "planning_pr_number": 9,
+      "planning_pr_url": "https://github.com/JimmyMcBride/plan/pull/9",
+      "doc_ref_mode": "sha",
+      "doc_ref": "8ba14acadf5a04439647c6367bd5f19fa05fe071",
+      "updated_at": "2026-04-20T03:06:24Z"
+    },
+    "add-multi-session-switching-and-coverage": {
+      "slug": "add-multi-session-switching-and-coverage",
+      "title": "Add Multi-Session Switching And Coverage",
+      "epic": "guided-session-engine-and-resume",
+      "spec": "guided-session-engine-and-resume",
+      "status": "todo",
+      "description": "Add switching between guided planning chains plus coverage for multiple concurrent sessions in one repo.",
+      "acceptance_criteria": [
+        "Users can switch between multiple planning-chain sessions.",
+        "Last-active resume remains predictable after switching.",
+        "Session coverage protects against cross-chain clobbering."
+      ],
+      "verification": [
+        "Run multi-session coverage.",
+        "Verify one chain cannot overwrite another chain state."
+      ],
+      "dependencies": [
+        "implement-resume-flow-and-session-menu"
+      ],
+      "issue_number": 13,
+      "issue_url": "https://github.com/JimmyMcBride/plan/issues/13",
+      "remote_state": "open",
+      "planning_pr_number": 9,
+      "planning_pr_url": "https://github.com/JimmyMcBride/plan/pull/9",
+      "doc_ref_mode": "sha",
+      "doc_ref": "8ba14acadf5a04439647c6367bd5f19fa05fe071",
+      "updated_at": "2026-04-20T03:07:22Z"
+    },
+    "add-reopen-impact-summary-and-needs-review-markers": {
+      "slug": "add-reopen-impact-summary-and-needs-review-markers",
+      "title": "Add Reopen Impact Summary And Needs Review Markers",
+      "epic": "reopen-review-and-roadmap-parking",
+      "spec": "reopen-review-and-roadmap-parking",
+      "status": "todo",
+      "description": "Add explicit reopen-stage flow that shows impact before mutation and marks downstream stages as needs review.",
+      "acceptance_criteria": [
+        "Reopen flow shows impacted downstream stages before mutation.",
+        "Downstream stages are marked needs review after upstream changes.",
+        "The user stays in control of whether to reopen."
+      ],
+      "verification": [
+        "Run reopen impact-summary coverage.",
+        "Verify downstream stages receive needs-review markers."
+      ],
+      "dependencies": [
+        "implement-resume-flow-and-session-menu"
+      ],
+      "issue_number": 19,
+      "issue_url": "https://github.com/JimmyMcBride/plan/issues/19",
+      "remote_state": "open",
+      "planning_pr_number": 9,
+      "planning_pr_url": "https://github.com/JimmyMcBride/plan/pull/9",
+      "doc_ref_mode": "sha",
+      "doc_ref": "8ba14acadf5a04439647c6367bd5f19fa05fe071",
+      "updated_at": "2026-04-20T03:07:46Z"
+    },
+    "add-roadmap-parking-writes-and-source-links": {
+      "slug": "add-roadmap-parking-writes-and-source-links",
+      "title": "Add Roadmap Parking Writes And Source Links",
+      "epic": "reopen-review-and-roadmap-parking",
+      "spec": "reopen-review-and-roadmap-parking",
+      "status": "todo",
+      "description": "When a good idea is valid but too early, let plan suggest parking it in ROADMAP.md with value, reason, unlock, and source link metadata.",
+      "acceptance_criteria": [
+        "Good-but-early ideas can be parked in ROADMAP.md on confirmation.",
+        "Parking entries include value, why parked, unlock condition, and source.",
+        "Parking suggestions do not derail the active stage."
+      ],
+      "verification": [
+        "Run roadmap-parking write coverage.",
+        "Verify parked entries preserve source links back to active planning material."
+      ],
+      "dependencies": [
+        "add-brainstorm-stage-recap-and-stop-flow"
+      ],
+      "issue_number": 21,
+      "issue_url": "https://github.com/JimmyMcBride/plan/issues/21",
+      "remote_state": "open",
+      "planning_pr_number": 9,
+      "planning_pr_url": "https://github.com/JimmyMcBride/plan/pull/9",
+      "doc_ref_mode": "sha",
+      "doc_ref": "8ba14acadf5a04439647c6367bd5f19fa05fe071",
+      "updated_at": "2026-04-20T03:07:54Z"
+    },
+    "implement-brainstorm-to-epic-handoff": {
+      "slug": "implement-brainstorm-to-epic-handoff",
+      "title": "Implement Brainstorm To Epic Handoff",
+      "epic": "guided-stage-handoffs-and-artifact-writing",
+      "spec": "guided-stage-handoffs-and-artifact-writing",
+      "status": "todo",
+      "description": "Carry users from guided brainstorm completion into epic creation with a recap, recommendation, and durable epic write at the checkpoint.",
+      "acceptance_criteria": [
+        "Brainstorm completion can continue directly into epic stage.",
+        "Epic write happens at a stable checkpoint after confirmation.",
+        "Handoff carries forward shaped context without forcing restatement."
+      ],
+      "verification": [
+        "Run brainstorm-to-epic handoff coverage.",
+        "Verify epic artifact write only happens at checkpoint confirmation."
+      ],
+      "dependencies": [
+        "add-brainstorm-stage-recap-and-stop-flow",
+        "implement-resume-flow-and-session-menu"
+      ],
+      "issue_number": 16,
+      "issue_url": "https://github.com/JimmyMcBride/plan/issues/16",
+      "remote_state": "open",
+      "planning_pr_number": 9,
+      "planning_pr_url": "https://github.com/JimmyMcBride/plan/pull/9",
+      "doc_ref_mode": "sha",
+      "doc_ref": "8ba14acadf5a04439647c6367bd5f19fa05fe071",
+      "updated_at": "2026-04-20T03:07:34Z"
+    },
+    "implement-downstream-review-checkpoints": {
+      "slug": "implement-downstream-review-checkpoints",
+      "title": "Implement Downstream Review Checkpoints",
+      "epic": "reopen-review-and-roadmap-parking",
+      "spec": "reopen-review-and-roadmap-parking",
+      "status": "todo",
+      "description": "Before moving forward again after upstream changes, run lightweight downstream review checkpoints in order.",
+      "acceptance_criteria": [
+        "Stale downstream stages require a lightweight review checkpoint.",
+        "Review checkpoints stay lightweight rather than blocking behind heavy ceremony.",
+        "Users can regain forward flow after review."
+      ],
+      "verification": [
+        "Run downstream review-checkpoint coverage.",
+        "Verify stale stages are reviewed in order."
+      ],
+      "dependencies": [
+        "add-reopen-impact-summary-and-needs-review-markers"
+      ],
+      "issue_number": 20,
+      "issue_url": "https://github.com/JimmyMcBride/plan/issues/20",
+      "remote_state": "open",
+      "planning_pr_number": 9,
+      "planning_pr_url": "https://github.com/JimmyMcBride/plan/pull/9",
+      "doc_ref_mode": "sha",
+      "doc_ref": "8ba14acadf5a04439647c6367bd5f19fa05fe071",
+      "updated_at": "2026-04-20T03:07:50Z"
+    },
+    "implement-epic-to-spec-handoff": {
+      "slug": "implement-epic-to-spec-handoff",
+      "title": "Implement Epic To Spec Handoff",
+      "epic": "guided-stage-handoffs-and-artifact-writing",
+      "spec": "guided-stage-handoffs-and-artifact-writing",
+      "status": "todo",
+      "description": "Guide users from shaped epic into spec stage with the same recap and checkpoint pattern.",
+      "acceptance_criteria": [
+        "Epic stage can continue directly into spec stage.",
+        "Spec writing occurs at a stable checkpoint after confirmation.",
+        "Recap contract stays consistent across stages."
+      ],
+      "verification": [
+        "Run epic-to-spec handoff coverage.",
+        "Verify checkpoint recap content stays stable."
+      ],
+      "dependencies": [
+        "implement-brainstorm-to-epic-handoff"
+      ],
+      "issue_number": 17,
+      "issue_url": "https://github.com/JimmyMcBride/plan/issues/17",
+      "remote_state": "open",
+      "planning_pr_number": 9,
+      "planning_pr_url": "https://github.com/JimmyMcBride/plan/pull/9",
+      "doc_ref_mode": "sha",
+      "doc_ref": "8ba14acadf5a04439647c6367bd5f19fa05fe071",
+      "updated_at": "2026-04-20T03:07:38Z"
+    },
+    "implement-guided-story-creation-handoff": {
+      "slug": "implement-guided-story-creation-handoff",
+      "title": "Implement Guided Story Creation Handoff",
+      "epic": "guided-stage-handoffs-and-artifact-writing",
+      "spec": "guided-stage-handoffs-and-artifact-writing",
+      "status": "todo",
+      "description": "Guide users from approved spec into first story set with execution-ready outputs and next-best-action summaries.",
+      "acceptance_criteria": [
+        "Spec stage can continue directly into story creation.",
+        "Story outputs remain execution-ready and verification-aware.",
+        "Stop-for-now still prints next-best-action guidance."
+      ],
+      "verification": [
+        "Run guided story-creation handoff coverage.",
+        "Verify story outputs keep execution-readiness fields intact."
+      ],
+      "dependencies": [
+        "implement-epic-to-spec-handoff"
+      ],
+      "issue_number": 18,
+      "issue_url": "https://github.com/JimmyMcBride/plan/issues/18",
+      "remote_state": "open",
+      "planning_pr_number": 9,
+      "planning_pr_url": "https://github.com/JimmyMcBride/plan/pull/9",
+      "doc_ref_mode": "sha",
+      "doc_ref": "8ba14acadf5a04439647c6367bd5f19fa05fe071",
+      "updated_at": "2026-04-20T03:07:42Z"
+    },
+    "implement-guided-vision-intake": {
+      "slug": "implement-guided-vision-intake",
+      "title": "Implement Guided Vision Intake",
+      "epic": "vision-intake-and-brainstorm-co-planning",
+      "spec": "vision-intake-and-brainstorm-co-planning",
+      "status": "todo",
+      "description": "Turn brainstorm start into guided vision intake that asks for the user's vision first and then asks whether they have relevant docs, links, or research to provide.",
+      "acceptance_criteria": [
+        "Brainstorm start begins with plain-language vision capture.",
+        "plan asks the user for relevant supporting material directly.",
+        "The brainstorm note remains the durable artifact for this stage."
+      ],
+      "verification": [
+        "Run guided brainstorm start coverage.",
+        "Verify supporting-material prompts are user-driven and not auto-scanned."
+      ],
+      "issue_number": 11,
+      "issue_url": "https://github.com/JimmyMcBride/plan/issues/11",
+      "remote_state": "open",
+      "planning_pr_number": 9,
+      "planning_pr_url": "https://github.com/JimmyMcBride/plan/pull/9",
+      "doc_ref_mode": "sha",
+      "doc_ref": "8ba14acadf5a04439647c6367bd5f19fa05fe071",
+      "updated_at": "2026-04-20T03:05:34Z"
+    },
+    "implement-resume-flow-and-session-menu": {
+      "slug": "implement-resume-flow-and-session-menu",
+      "title": "Implement Resume Flow And Session Menu",
+      "epic": "guided-session-engine-and-resume",
+      "spec": "guided-session-engine-and-resume",
+      "status": "todo",
+      "description": "Implement guided resume with short summary so far, reopen the active stage, and expose numbered continue/refine/stop choices.",
+      "acceptance_criteria": [
+        "Resume shows a short summary before reopening the stage.",
+        "Numbered continue/refine/stop choices are available in the CLI.",
+        "Session actions update durable session state cleanly."
+      ],
+      "verification": [
+        "Run resume-flow coverage.",
+        "Verify numbered menu handling across reruns."
+      ],
+      "dependencies": [
+        "add-guided-session-state-model"
+      ],
+      "issue_number": 12,
+      "issue_url": "https://github.com/JimmyMcBride/plan/issues/12",
+      "remote_state": "open",
+      "planning_pr_number": 9,
+      "planning_pr_url": "https://github.com/JimmyMcBride/plan/pull/9",
+      "doc_ref_mode": "sha",
+      "doc_ref": "8ba14acadf5a04439647c6367bd5f19fa05fe071",
+      "updated_at": "2026-04-20T03:07:18Z"
+    }
+  }
 }
