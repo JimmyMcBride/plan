@@ -193,3 +193,130 @@ func TestSpecChecklistCommandWritesChecklistAndFailsOnBlockingFindings(t *testin
 		t.Fatalf("expected checklist section in spec note:\n%s", note.Content)
 	}
 }
+
+func TestSpecHandoffAppliesStorySlicesAndAdvancesSessionToStories(t *testing.T) {
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := planning.New(ws)
+	if _, err := manager.CreateBrainstorm("Guided Planning"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := manager.UpdateGuidedBrainstormIntake("guided-planning", planning.GuidedBrainstormIntakeInput{
+		Vision:             "Guide a user from a rough feature idea into a shaped plan.",
+		SupportingMaterial: "docs/research.md",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.UpdateBrainstormRefinement("guided-planning", planning.BrainstormRefinementInput{
+		Problem:                "Planning starts too artifact-first.",
+		UserValue:              "Users get a collaborative planning flow.",
+		Constraints:            "Keep the tool local-first.",
+		Appetite:               "One focused planning session.",
+		RemainingOpenQuestions: "How far should the guided loop go in v1?",
+		CandidateApproaches:    "Promote at an explicit checkpoint.",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := manager.PromoteGuidedBrainstormSession("guided-planning"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := manager.AdvanceGuidedSessionToSpec("guided-planning"); err != nil {
+		t.Fatal(err)
+	}
+
+	body := strings.Join([]string{
+		"# Guided Planning Spec",
+		"",
+		"Created: now",
+		"",
+		"## Why",
+		"",
+		"Guided planning needs execution-ready stories.",
+		"",
+		"## Problem",
+		"",
+		"Story creation is still manual.",
+		"",
+		"## Goals",
+		"",
+		"- derive a first story set",
+		"",
+		"## Non-Goals",
+		"",
+		"- reinvent task tracking",
+		"",
+		"## Constraints",
+		"",
+		"- keep the output local-first",
+		"",
+		"## Solution Shape",
+		"",
+		"Use the approved spec to drive story creation.",
+		"",
+		"## Flows",
+		"",
+		"1. Review spec.",
+		"2. Create stories.",
+		"",
+		"## Data / Interfaces",
+		"",
+		"- guided session state",
+		"",
+		"## Risks / Open Questions",
+		"",
+		"- duplicate stories",
+		"",
+		"## Rollout",
+		"",
+		"- dogfood locally",
+		"",
+		"## Verification",
+		"",
+		"- run story slice coverage",
+		"",
+		"## Story Breakdown",
+		"",
+		"- Carry forward recap state",
+		"- Apply first story set",
+		"",
+	}, "\n")
+	if _, err := manager.UpdateSpec("guided-planning", notes.UpdateInput{
+		Body: &body,
+		Metadata: map[string]any{
+			"status": "approved",
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var output bytes.Buffer
+	command := newRootCmd()
+	command.SetOut(&output)
+	command.SetErr(&output)
+	command.SetIn(strings.NewReader("y\n"))
+	command.SetArgs([]string{"--project", root, "spec", "handoff", "guided-planning"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("expected spec handoff to succeed: %v\n%s", err, output.String())
+	}
+
+	state, err := ws.ReadGuidedSessionState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	session := state.Sessions["brainstorm/guided-planning"]
+	if session.CurrentStage != "stories" {
+		t.Fatalf("expected session to advance to stories stage: %+v", session)
+	}
+	if session.StageStatuses["spec"] != "done" || session.StageStatuses["stories"] != "in_progress" {
+		t.Fatalf("expected story-stage handoff statuses: %+v", session)
+	}
+	if _, err := notes.Read(filepath.Join(root, ".plan", "stories", "carry-forward-recap-state.md")); err != nil {
+		t.Fatalf("expected first story to be created: %v", err)
+	}
+	if !strings.Contains(output.String(), "story_slice_apply: .plan/specs/guided-planning.md") {
+		t.Fatalf("expected story handoff output:\n%s", output.String())
+	}
+}

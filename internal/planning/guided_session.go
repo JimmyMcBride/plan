@@ -304,6 +304,37 @@ func (m *Manager) AdvanceGuidedSessionToSpec(epicSlug string) (*workspace.Guided
 	return &record, spec, nil
 }
 
+func (m *Manager) AdvanceGuidedSessionToStories(epicSlug string) (*workspace.GuidedSessionRecord, error) {
+	session, err := m.ReadGuidedSessionByEpic(epicSlug)
+	if err != nil {
+		return nil, err
+	}
+	updated, err := m.UpdateGuidedSession(session.ChainID, GuidedSessionUpdateInput{
+		CurrentStage: "stories",
+		Summary:      "Spec handoff complete. Continue the planning flow in the stories stage.",
+		NextAction:   "Start implementation from the created execution-ready story set.",
+		StageStatus:  "in_progress",
+	})
+	if err != nil {
+		return nil, err
+	}
+	state, err := m.workspace.ReadGuidedSessionState()
+	if err != nil {
+		return nil, err
+	}
+	record := state.Sessions[updated.ChainID]
+	record.StageStatuses["spec"] = "done"
+	record.StageStatuses["stories"] = "in_progress"
+	record.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+	state.LastActiveChain = record.ChainID
+	state.LastUpdatedAt = record.UpdatedAt
+	state.Sessions[record.ChainID] = record
+	if err := m.workspace.WriteGuidedSessionState(*state); err != nil {
+		return nil, err
+	}
+	return &record, nil
+}
+
 func (m *Manager) ReviewGuidedSessionStages(chainID string) (*workspace.GuidedSessionRecord, []string, error) {
 	state, err := m.workspace.ReadGuidedSessionState()
 	if err != nil {
