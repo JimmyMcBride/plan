@@ -118,6 +118,7 @@ type Info struct {
 	WorkspaceFile  string
 	MigrationsFile string
 	GitHubFile     string
+	SessionsFile   string
 }
 
 type InitResult struct {
@@ -178,6 +179,7 @@ func (m *Manager) Resolve() (*Info, error) {
 		WorkspaceFile:  filepath.Join(metaDir, "workspace.json"),
 		MigrationsFile: filepath.Join(metaDir, "migrations.json"),
 		GitHubFile:     filepath.Join(metaDir, "github.json"),
+		SessionsFile:   filepath.Join(metaDir, "guided_sessions.json"),
 	}, nil
 }
 
@@ -205,6 +207,7 @@ func (i *Info) ToolManagedSurfaces() []Surface {
 		i.newSurface("workspace.json", i.WorkspaceFile, "tool_managed", "file"),
 		i.newSurface("migrations.json", i.MigrationsFile, "tool_managed", "file"),
 		i.newSurface("github.json", i.GitHubFile, "tool_managed", "file"),
+		i.newSurface("guided_sessions.json", i.SessionsFile, "tool_managed", "file"),
 	}
 }
 
@@ -273,6 +276,11 @@ func (m *Manager) Init() (*InitResult, error) {
 		return nil, err
 	} else if created {
 		result.Created = append(result.Created, rel(info.ProjectDir, info.GitHubFile))
+	}
+	if created, err := ensureGuidedSessionState(info.SessionsFile, now); err != nil {
+		return nil, err
+	} else if created {
+		result.Created = append(result.Created, rel(info.ProjectDir, info.SessionsFile))
 	}
 	if err := recordMigrationRun(info, "init", result.Created, nil, now); err != nil {
 		return nil, err
@@ -440,6 +448,17 @@ func (m *Manager) Doctor() (*DoctorReport, error) {
 		}
 	}
 
+	sessionsState, err := readGuidedSessionStateFile(info.SessionsFile)
+	if err != nil {
+		if !contains(report.Missing, "guided_sessions.json") {
+			report.Broken = append(report.Broken, "guided_sessions.json")
+		}
+	} else if err := validateGuidedSessionState(sessionsState); err != nil {
+		if !contains(report.Broken, "guided_sessions.json") {
+			report.Broken = append(report.Broken, "guided_sessions.json")
+		}
+	}
+
 	report.WorkspaceStatus = classifyDoctorWorkspace(report.Missing, report.Broken)
 	if report.WorkspaceStatus == "partial" && report.MigrationStatus == "current" {
 		report.MigrationStatus = "partial"
@@ -548,6 +567,19 @@ func (m *Manager) repairWorkspace(info *Info, operation string) (*UpdateResult, 
 		}
 		if updated {
 			result.Updated = append(result.Updated, rel(info.ProjectDir, info.GitHubFile))
+		}
+	}
+	if created, err := ensureGuidedSessionState(info.SessionsFile, now); err != nil {
+		return nil, err
+	} else if created {
+		result.Created = append(result.Created, rel(info.ProjectDir, info.SessionsFile))
+	} else {
+		updated, err := reconcileGuidedSessionState(info.SessionsFile, now)
+		if err != nil {
+			return nil, err
+		}
+		if updated {
+			result.Updated = append(result.Updated, rel(info.ProjectDir, info.SessionsFile))
 		}
 	}
 	if err := recordMigrationRun(info, operation, result.Created, result.Updated, now); err != nil {
@@ -910,11 +942,11 @@ func classifyDoctorWorkspace(missing, broken []string) string {
 }
 
 func isPartialWorkspace(missing []string) bool {
-	return contains(missing, ".meta/") || contains(missing, "workspace.json") || contains(missing, "migrations.json") || contains(missing, "github.json")
+	return contains(missing, ".meta/") || contains(missing, "workspace.json") || contains(missing, "migrations.json") || contains(missing, "github.json") || contains(missing, "guided_sessions.json")
 }
 
 func isBrokenWorkspace(broken []string) bool {
-	return contains(broken, "workspace.json") || contains(broken, "migrations.json") || contains(broken, "github.json")
+	return contains(broken, "workspace.json") || contains(broken, "migrations.json") || contains(broken, "github.json") || contains(broken, "guided_sessions.json")
 }
 
 func guidanceForWorkspaceStatus(status string) []string {

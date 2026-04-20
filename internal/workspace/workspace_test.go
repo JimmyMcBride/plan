@@ -30,6 +30,7 @@ func TestInitCreatesPlanWorkspace(t *testing.T) {
 		filepath.Join(root, ".plan", ".meta", "workspace.json"),
 		filepath.Join(root, ".plan", ".meta", "migrations.json"),
 		filepath.Join(root, ".plan", ".meta", "github.json"),
+		filepath.Join(root, ".plan", ".meta", "guided_sessions.json"),
 	} {
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("expected %s: %v", path, err)
@@ -50,7 +51,7 @@ func TestWorkspaceContractSeparatesUserAuthoredAndToolManagedSurfaces(t *testing
 	if len(contract.UserAuthored) != 6 {
 		t.Fatalf("unexpected user-authored surface count: %d", len(contract.UserAuthored))
 	}
-	if len(contract.ToolManaged) != 4 {
+	if len(contract.ToolManaged) != 5 {
 		t.Fatalf("unexpected tool-managed surface count: %d", len(contract.ToolManaged))
 	}
 
@@ -222,6 +223,9 @@ func TestUpdateRepairsToolManagedStateWithoutTouchingUserNotes(t *testing.T) {
 	if err := os.Remove(filepath.Join(root, ".plan", ".meta", "github.json")); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.Remove(filepath.Join(root, ".plan", ".meta", "guided_sessions.json")); err != nil {
+		t.Fatal(err)
+	}
 
 	result, err := manager.Update()
 	if err != nil {
@@ -235,6 +239,9 @@ func TestUpdateRepairsToolManagedStateWithoutTouchingUserNotes(t *testing.T) {
 	}
 	if !contains(result.Created, ".plan/.meta/github.json") {
 		t.Fatalf("expected GitHub state recreation: %+v", result)
+	}
+	if !contains(result.Created, ".plan/.meta/guided_sessions.json") {
+		t.Fatalf("expected guided session state recreation: %+v", result)
 	}
 
 	raw, err := os.ReadFile(projectPath)

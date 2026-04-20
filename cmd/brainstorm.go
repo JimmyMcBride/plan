@@ -25,6 +25,9 @@ func newBrainstormCommand() *cobra.Command {
 		Short: "Start a new brainstorm",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			reader := bufio.NewReader(cmd.InOrStdin())
+			out := cmd.OutOrStdout()
+
 			note, err := planningManager().CreateBrainstormWithInput(planning.BrainstormCreateInput{
 				Topic:         args[0],
 				FocusQuestion: focusQuestion,
@@ -33,7 +36,32 @@ func newBrainstormCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Printf("Created brainstorm %s\n", note.Path)
+			if _, err := planningManager().EnsureGuidedBrainstormSession(args[0]); err != nil {
+				return err
+			}
+			fmt.Fprintf(out, "Created brainstorm %s\n", note.Path)
+
+			vision, err := promptSectionValue(reader, out, "Vision", "Describe the vision in plain language. What do you see in your head? Focus on the outcome first, not the implementation.")
+			if err != nil {
+				return err
+			}
+			if _, _, err := planningManager().UpdateGuidedBrainstormIntake(args[0], planning.GuidedBrainstormIntakeInput{
+				Vision: vision,
+			}); err != nil {
+				return err
+			}
+
+			supportingMaterial, err := promptSectionValue(reader, out, "Supporting Material", "List any relevant docs, links, or research you want to provide for this brainstorm. Enter one per line. Leave empty if none.")
+			if err != nil {
+				return err
+			}
+			note, session, err := planningManager().UpdateGuidedBrainstormIntake(args[0], planning.GuidedBrainstormIntakeInput{
+				SupportingMaterial: supportingMaterial,
+			})
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(out, "Guided brainstorm session ready for %s\nSummary: %s\nNext: %s\n", note.Path, session.Summary, session.NextAction)
 			return nil
 		},
 	}

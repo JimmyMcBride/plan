@@ -140,3 +140,59 @@ func TestBrainstormChallengeCommandPersistsClustersAndResumes(t *testing.T) {
 		t.Fatalf("expected simpler alternative after resume:\n%s", note.Content)
 	}
 }
+
+func TestBrainstormStartGuidesVisionIntakeAndCreatesSession(t *testing.T) {
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	input := strings.Join([]string{
+		"I want plan to guide me from a rough vision to execution-ready work without making me fill out a template first.",
+		"",
+		"docs/guided-planning-notes.md",
+		"https://example.com/research/guided-planning",
+		"",
+	}, "\n")
+
+	var output bytes.Buffer
+	command := newRootCmd()
+	command.SetOut(&output)
+	command.SetErr(&output)
+	command.SetIn(strings.NewReader(input))
+	command.SetArgs([]string{"--project", root, "brainstorm", "start", "Guided Planning"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("expected guided brainstorm start to succeed: %v\n%s", err, output.String())
+	}
+
+	note, err := notes.Read(filepath.Join(root, ".plan", "brainstorms", "guided-planning.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := notes.ExtractSection(note.Content, "Vision"); got != "I want plan to guide me from a rough vision to execution-ready work without making me fill out a template first." {
+		t.Fatalf("unexpected vision section:\n%s", got)
+	}
+	supporting := notes.ExtractSection(note.Content, "Supporting Material")
+	if !strings.Contains(supporting, "- docs/guided-planning-notes.md") || !strings.Contains(supporting, "- https://example.com/research/guided-planning") {
+		t.Fatalf("unexpected supporting material section:\n%s", supporting)
+	}
+
+	state, err := ws.ReadGuidedSessionState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	session, ok := state.Sessions["brainstorm/guided-planning"]
+	if !ok {
+		t.Fatalf("expected guided session record: %+v", state)
+	}
+	if session.CurrentStage != "brainstorm" || session.CurrentClusterLabel != "vision-intake" {
+		t.Fatalf("unexpected guided session progress: %+v", session)
+	}
+	if session.NextAction != "Continue guided brainstorm clarification." {
+		t.Fatalf("unexpected guided session next action: %+v", session)
+	}
+	if !strings.Contains(output.String(), "Created brainstorm .plan/brainstorms/guided-planning.md") {
+		t.Fatalf("expected creation output:\n%s", output.String())
+	}
+}
