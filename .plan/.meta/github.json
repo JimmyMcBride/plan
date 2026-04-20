@@ -3,8 +3,8 @@
   "repo_url": "https://github.com/JimmyMcBride/plan",
   "default_branch": "main",
   "last_enabled_at": "2026-04-20T03:04:26Z",
-  "last_updated_at": "2026-04-20T04:09:51Z",
-  "last_reconciled_at": "2026-04-20T04:09:51Z",
+  "last_updated_at": "2026-04-20T04:15:03Z",
+  "last_reconciled_at": "2026-04-20T04:15:03Z",
   "stories": {
     "add-brainstorm-stage-recap-and-stop-flow": {
       "slug": "add-brainstorm-stage-recap-and-stop-flow",
@@ -28,14 +28,13 @@
       ],
       "issue_number": 15,
       "issue_url": "https://github.com/JimmyMcBride/plan/issues/15",
-      "remote_state": "open",
+      "remote_state": "closed",
       "planning_pr_number": 9,
       "planning_pr_url": "https://github.com/JimmyMcBride/plan/pull/9",
       "planning_pr_merged": true,
       "doc_ref_mode": "main",
       "doc_ref": "main",
-      "visible_ready_marker_set": true,
-      "updated_at": "2026-04-20T04:09:44Z"
+      "updated_at": "2026-04-20T04:14:52Z"
     },
     "add-cluster-reflection-and-gap-guidance": {
       "slug": "add-cluster-reflection-and-gap-guidance",
@@ -64,7 +63,7 @@
       "planning_pr_merged": true,
       "doc_ref_mode": "main",
       "doc_ref": "main",
-      "updated_at": "2026-04-20T04:09:45Z"
+      "updated_at": "2026-04-20T04:14:53Z"
     },
     "add-guided-session-state-model": {
       "slug": "add-guided-session-state-model",
@@ -90,7 +89,7 @@
       "planning_pr_merged": true,
       "doc_ref_mode": "main",
       "doc_ref": "main",
-      "updated_at": "2026-04-20T04:09:46Z"
+      "updated_at": "2026-04-20T04:14:54Z"
     },
     "add-multi-session-switching-and-coverage": {
       "slug": "add-multi-session-switching-and-coverage",
@@ -113,14 +112,13 @@
       ],
       "issue_number": 13,
       "issue_url": "https://github.com/JimmyMcBride/plan/issues/13",
-      "remote_state": "open",
+      "remote_state": "closed",
       "planning_pr_number": 9,
       "planning_pr_url": "https://github.com/JimmyMcBride/plan/pull/9",
       "planning_pr_merged": true,
       "doc_ref_mode": "main",
       "doc_ref": "main",
-      "visible_ready_marker_set": true,
-      "updated_at": "2026-04-20T04:09:47Z"
+      "updated_at": "2026-04-20T04:14:55Z"
     },
     "add-reopen-impact-summary-and-needs-review-markers": {
       "slug": "add-reopen-impact-summary-and-needs-review-markers",
@@ -143,14 +141,13 @@
       ],
       "issue_number": 19,
       "issue_url": "https://github.com/JimmyMcBride/plan/issues/19",
-      "remote_state": "open",
+      "remote_state": "closed",
       "planning_pr_number": 9,
       "planning_pr_url": "https://github.com/JimmyMcBride/plan/pull/9",
       "planning_pr_merged": true,
       "doc_ref_mode": "main",
       "doc_ref": "main",
-      "visible_ready_marker_set": true,
-      "updated_at": "2026-04-20T04:09:47Z"
+      "updated_at": "2026-04-20T04:14:56Z"
     },
     "add-roadmap-parking-writes-and-source-links": {
       "slug": "add-roadmap-parking-writes-and-source-links",
@@ -180,7 +177,7 @@
       "doc_ref_mode": "main",
       "doc_ref": "main",
       "visible_ready_marker_set": true,
-      "updated_at": "2026-04-20T04:09:47Z"
+      "updated_at": "2026-04-20T04:14:57Z"
     },
     "implement-brainstorm-to-epic-handoff": {
       "slug": "implement-brainstorm-to-epic-handoff",
@@ -211,7 +208,7 @@
       "doc_ref_mode": "main",
       "doc_ref": "main",
       "visible_ready_marker_set": true,
-      "updated_at": "2026-04-20T04:09:48Z"
+      "updated_at": "2026-04-20T04:14:58Z"
     },
     "implement-downstream-review-checkpoints": {
       "slug": "implement-downstream-review-checkpoints",
@@ -241,7 +238,7 @@
       "doc_ref_mode": "main",
       "doc_ref": "main",
       "visible_ready_marker_set": true,
-      "updated_at": "2026-04-20T04:09:48Z"
+      "updated_at": "2026-04-20T04:15:00Z"
     },
     "implement-epic-to-spec-handoff": {
       "slug": "implement-epic-to-spec-handoff",
@@ -271,7 +268,7 @@
       "doc_ref_mode": "main",
       "doc_ref": "main",
       "visible_ready_marker_set": true,
-      "updated_at": "2026-04-20T04:09:48Z"
+      "updated_at": "2026-04-20T04:15:00Z"
     },
     "implement-guided-story-creation-handoff": {
       "slug": "implement-guided-story-creation-handoff",
@@ -301,7 +298,7 @@
       "doc_ref_mode": "main",
       "doc_ref": "main",
       "visible_ready_marker_set": true,
-      "updated_at": "2026-04-20T04:09:49Z"
+      "updated_at": "2026-04-20T04:15:00Z"
     },
     "implement-guided-vision-intake": {
       "slug": "implement-guided-vision-intake",
@@ -327,7 +324,7 @@
       "planning_pr_merged": true,
       "doc_ref_mode": "main",
       "doc_ref": "main",
-      "updated_at": "2026-04-20T04:09:50Z"
+      "updated_at": "2026-04-20T04:15:01Z"
     },
     "implement-resume-flow-and-session-menu": {
       "slug": "implement-resume-flow-and-session-menu",
@@ -356,7 +353,7 @@
       "planning_pr_merged": true,
       "doc_ref_mode": "main",
       "doc_ref": "main",
-      "updated_at": "2026-04-20T04:09:51Z"
+      "updated_at": "2026-04-20T04:15:03Z"
     }
   }
 }

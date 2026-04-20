@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -341,5 +342,158 @@ func TestBrainstormSwitchSetsLastActiveSessionForResume(t *testing.T) {
 	}
 	if !strings.Contains(resumeOutput.String(), "Resuming brainstorm/alpha") {
 		t.Fatalf("expected resume to target switched session:\n%s", resumeOutput.String())
+	}
+}
+
+func TestBrainstormResumeCanPromoteIntoEpicAtCheckpoint(t *testing.T) {
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := planning.New(ws)
+	if _, err := manager.CreateBrainstorm("Guided Planning"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := manager.UpdateGuidedBrainstormIntake("guided-planning", planning.GuidedBrainstormIntakeInput{
+		Vision:             "Guide a user from a rough feature idea into a shaped plan.",
+		SupportingMaterial: "docs/research.md",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.UpdateBrainstormRefinement("guided-planning", planning.BrainstormRefinementInput{
+		Problem:                "Planning starts too artifact-first.",
+		UserValue:              "Users get a collaborative planning flow.",
+		Constraints:            "Keep the tool local-first.",
+		Appetite:               "One focused planning session.",
+		RemainingOpenQuestions: "How far should the guided loop go in v1?",
+		CandidateApproaches:    "Promote at an explicit checkpoint.",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.UpdateGuidedSession("brainstorm/guided-planning", planning.GuidedSessionUpdateInput{
+		CurrentStage:        "brainstorm",
+		CurrentCluster:      5,
+		CurrentClusterLabel: "handoff-epic",
+		StageStatus:         "in_progress",
+		Summary:             "Brainstorm shaping is complete.",
+		NextAction:          "Continue into the epic stage.",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var output bytes.Buffer
+	command := newRootCmd()
+	command.SetOut(&output)
+	command.SetErr(&output)
+	command.SetIn(strings.NewReader("1\ny\n"))
+	command.SetArgs([]string{"--project", root, "brainstorm", "resume", "guided-planning"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("expected brainstorm handoff to epic to succeed: %v\n%s", err, output.String())
+	}
+
+	if _, err := notes.Read(filepath.Join(root, ".plan", "epics", "guided-planning.md")); err != nil {
+		t.Fatalf("expected epic to be created: %v", err)
+	}
+	if _, err := notes.Read(filepath.Join(root, ".plan", "specs", "guided-planning.md")); err != nil {
+		t.Fatalf("expected spec to be created: %v", err)
+	}
+	state, err := ws.ReadGuidedSessionState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	session := state.Sessions["brainstorm/guided-planning"]
+	if session.CurrentStage != "epic" || session.Epic != "guided-planning" || session.Spec != "guided-planning" {
+		t.Fatalf("expected session to move into epic stage: %+v", session)
+	}
+}
+
+func TestBrainstormReviewMarksNeedsReviewStagesAsReviewed(t *testing.T) {
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := planning.New(ws)
+	if _, err := manager.CreateBrainstorm("Guided Planning"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := manager.UpdateGuidedBrainstormIntake("guided-planning", planning.GuidedBrainstormIntakeInput{
+		Vision:             "Guide a user from a rough feature idea into a shaped plan.",
+		SupportingMaterial: "docs/research.md",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.UpdateGuidedSession("brainstorm/guided-planning", planning.GuidedSessionUpdateInput{
+		CurrentStage: "epic",
+		StageStatus:  "done",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.UpdateGuidedSession("brainstorm/guided-planning", planning.GuidedSessionUpdateInput{
+		CurrentStage: "spec",
+		StageStatus:  "done",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := manager.ReopenGuidedSessionStage("brainstorm/guided-planning", "brainstorm"); err != nil {
+		t.Fatal(err)
+	}
+
+	var output bytes.Buffer
+	command := newRootCmd()
+	command.SetOut(&output)
+	command.SetErr(&output)
+	command.SetArgs([]string{"--project", root, "brainstorm", "review", "guided-planning"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("expected brainstorm review to succeed: %v\n%s", err, output.String())
+	}
+
+	state, err := ws.ReadGuidedSessionState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	session := state.Sessions["brainstorm/guided-planning"]
+	if session.StageStatuses["epic"] != "reviewed" || session.StageStatuses["spec"] != "reviewed" {
+		t.Fatalf("expected downstream stages to be reviewed: %+v", session)
+	}
+}
+
+func TestBrainstormParkWritesRoadmapParkingEntry(t *testing.T) {
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := planning.New(ws)
+	if _, err := manager.CreateBrainstorm("Guided Planning"); err != nil {
+		t.Fatal(err)
+	}
+
+	var output bytes.Buffer
+	command := newRootCmd()
+	command.SetOut(&output)
+	command.SetErr(&output)
+	command.SetArgs([]string{
+		"--project", root,
+		"brainstorm", "park", "guided-planning", "Guided Story Drafting",
+		"--value", "Turn shaped specs into first-pass stories later.",
+		"--reason", "Need the guided session foundation first.",
+		"--unlock", "After the brainstorm-to-epic checkpoint is stable.",
+	})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("expected brainstorm park to succeed: %v\n%s", err, output.String())
+	}
+
+	raw, err := os.ReadFile(filepath.Join(root, ".plan", "ROADMAP.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(raw)
+	if !strings.Contains(body, "Guided Story Drafting | value: Turn shaped specs into first-pass stories later.") {
+		t.Fatalf("expected roadmap parking entry:\n%s", body)
+	}
+	if !strings.Contains(body, "source: [Brainstorm](../brainstorms/guided-planning.md)") {
+		t.Fatalf("expected source link in parking entry:\n%s", body)
 	}
 }
