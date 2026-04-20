@@ -3,6 +3,7 @@ package planning
 import (
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"time"
 
@@ -53,6 +54,8 @@ func (m *Manager) ReconcileGitHubStories(options GitHubReconcileOptions) (*GitHu
 	if context.CurrentBranch == context.Repo.DefaultBranch {
 		result.PlanningPromote = true
 	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	stateChanged := false
 
 	slugs := make([]string, 0, len(state.Stories))
 	for slug := range state.Stories {
@@ -62,6 +65,7 @@ func (m *Manager) ReconcileGitHubStories(options GitHubReconcileOptions) (*GitHu
 
 	for _, slug := range slugs {
 		record := state.Stories[slug]
+		previous := record
 		epic, err := notes.Read(filepath.Join(info.EpicsDir, record.Epic+".md"))
 		if err != nil {
 			return nil, err
@@ -76,6 +80,7 @@ func (m *Manager) ReconcileGitHubStories(options GitHubReconcileOptions) (*GitHu
 		}
 		record.IssueURL = issue.URL
 		record.RemoteState = issue.State
+		record.VisibleReadyMarkerSet = containsString(issue.Labels, planIssueReadyLabel) || containsString(issue.Labels, planIssueBlockedLabel)
 		if result.PlanningPromote {
 			record.PlanningPRMerged = true
 			record.DocRefMode = "main"
@@ -110,16 +115,27 @@ func (m *Manager) ReconcileGitHubStories(options GitHubReconcileOptions) (*GitHu
 			record.VisibleReadyMarkerSet = containsString(labels, planIssueReadyLabel) || containsString(labels, planIssueBlockedLabel)
 			result.UpdatedIssues = append(result.UpdatedIssues, fmt.Sprintf("#%d", record.IssueNumber))
 		}
-		record.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
-		state.Stories[slug] = record
+		if gitHubStoryRecordChanged(previous, record) {
+			record.UpdatedAt = now
+			state.Stories[slug] = record
+			stateChanged = true
+		}
 	}
 
-	state.LastReconciled = time.Now().UTC().Format(time.RFC3339)
-	state.LastUpdatedAt = state.LastReconciled
-	if err := m.workspace.WriteGitHubState(*state); err != nil {
-		return nil, err
+	if stateChanged {
+		state.LastReconciled = now
+		state.LastUpdatedAt = now
+		if err := m.workspace.WriteGitHubState(*state); err != nil {
+			return nil, err
+		}
 	}
 	return result, nil
+}
+
+func gitHubStoryRecordChanged(before, after workspace.GitHubStoryRecord) bool {
+	before.UpdatedAt = ""
+	after.UpdatedAt = ""
+	return !reflect.DeepEqual(before, after)
 }
 
 func sameStringSlice(a, b []string) bool {
