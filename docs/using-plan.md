@@ -13,6 +13,7 @@ Right now:
 - `story slice` and `story critique` are part of the current workflow
 - `plan check` validates the spec-to-story handoff more aggressively than it
   did in earlier versions
+- GitHub-backed story execution is available when you enable GitHub story mode
 
 So this guide covers the current command surface as it exists today.
 
@@ -64,6 +65,7 @@ Workflow entry:
   .meta/
     workspace.json
     migrations.json
+    github.json
 ```
 
 Meaning:
@@ -73,8 +75,8 @@ Meaning:
 - `brainstorms/`: discovery notes
 - `epics/`: outcome boundaries
 - `specs/`: canonical execution contracts
-- `stories/`: execution-ready slices
-- `.meta/`: tool-owned state only
+- `stories/`: execution-ready slices in local story mode
+- `.meta/`: tool-owned state only, including GitHub story metadata when enabled
 
 ## New Repo Setup
 
@@ -104,6 +106,29 @@ If the repo already exists and you want `plan` to manage it:
 plan adopt --project .
 plan doctor --project .
 ```
+
+## Optional: Enable GitHub Story Mode
+
+If you want brainstorms, epics, and specs local but stories stored as GitHub
+Issues:
+
+```bash
+plan update --project .
+plan github enable --project .
+```
+
+Preconditions:
+
+- `gh` is installed
+- `gh auth status` passes
+- the repo has GitHub Issues enabled
+- local story notes are not still active in `.plan/stories/`
+
+When GitHub story mode is enabled:
+
+- stories are created as GitHub Issues
+- `.plan/.meta/github.json` becomes the local issue-state index
+- `plan status --project .` shows `ready_work` after reconcile
 
 ## Step-By-Step Workflow
 
@@ -362,11 +387,52 @@ plan story create --project . newsletter-system "Build template editor" \
   --verify "Manually verify the editor flow"
 ```
 
+If GitHub story mode is enabled, the same command creates a GitHub Issue-backed
+story instead of a local markdown story note.
+
 Important rules:
 
 - a story requires at least one acceptance criterion
 - a story requires at least one verification step
 - story creation is blocked until the spec is `approved`
+
+### 11A. GitHub Queue Workflow
+
+If stories are GitHub-backed, use this execution loop:
+
+1. Establish queue with `plan status --project .`
+2. Grab issue or issues from `ready_work`
+3. Do the work on a feature branch and open a PR
+4. Review and iterate until the PR is ready
+5. Squash-merge the PR
+6. Return to `main`
+7. Pull latest changes
+8. Run `plan update --project .`
+9. Run `plan github reconcile --project . --update-visible`
+10. Re-check `plan status --project .`
+11. Grab the next ready issue or issues and repeat
+
+Recommended commands:
+
+```bash
+plan status --project .
+
+# do issue work on a branch and merge the PR
+
+git switch main
+git pull --ff-only origin main
+plan update --project .
+plan github reconcile --project . --update-visible
+plan status --project .
+```
+
+Use this model:
+
+- `plan status` = queue view
+- GitHub Issue = execution unit
+- PR = implementation review loop
+- squash-merge = queue advancement
+- `update` + `reconcile` = refresh local truth before taking the next issue
 
 Show a story:
 
@@ -571,6 +637,7 @@ Top-level commands available today:
 - `plan epic`
 - `plan spec`
 - `plan story`
+- `plan github`
 - `plan roadmap`
 - `plan check`
 - `plan status`
@@ -584,4 +651,5 @@ plan brainstorm --help
 plan epic --help
 plan spec --help
 plan story --help
+plan github --help
 ```

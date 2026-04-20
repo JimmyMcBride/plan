@@ -5,6 +5,9 @@
 It keeps planning material in `.plan/` and focuses on one job: turning rough
 ideas into shaped, execution-ready plans that agents can follow cleanly.
 
+If GitHub story mode is enabled, brainstorms, epics, and specs stay local in
+`.plan/`, while stories execute as GitHub Issues.
+
 ## Philosophy
 
 - local-first
@@ -37,6 +40,16 @@ Workflow entry:
 8. Slice into stories
 9. Critique story readiness
 
+Execution loop in GitHub mode:
+
+1. Establish queue
+2. Grab next ready issue or issues
+3. Implement on a branch and open PR
+4. Review and iterate until ready
+5. Squash-merge
+6. Return to `main`, pull latest, update and reconcile
+7. Grab next ready issue and repeat
+
 The default path stays small. New shaping passes should improve the same
 artifacts rather than add new top-level planning objects.
 
@@ -54,6 +67,7 @@ my-project/
     .meta/
       workspace.json
       migrations.json
+      github.json
 ```
 
 User-authored planning material lives in:
@@ -63,12 +77,13 @@ User-authored planning material lives in:
 - `.plan/brainstorms/`
 - `.plan/epics/`
 - `.plan/specs/`
-- `.plan/stories/`
+- `.plan/stories/` in local story mode
 
 Tool-owned state lives only in:
 
 - `.plan/.meta/workspace.json`
 - `.plan/.meta/migrations.json`
+- `.plan/.meta/github.json` when GitHub story mode is enabled
 
 `plan update` may repair or normalize tool-owned state. It must not rewrite
 user-authored planning notes just to migrate product direction.
@@ -108,10 +123,36 @@ Full guide:
 - `plan epic create|promote|list|show|shape`
 - `plan spec show|edit|status|analyze|checklist`
 - `plan story create|update|list|show|slice|critique`
+- `plan github enable|reconcile`
 - `plan roadmap show|edit`
 - `plan check`
 - `plan status`
 - `plan skills install|targets`
+
+## GitHub Queue Workflow
+
+For GitHub-backed stories, use this loop:
+
+```bash
+plan status --project .
+
+# do issue work on a branch and merge the PR
+
+git switch main
+git pull --ff-only origin main
+plan update --project .
+plan github reconcile --project . --update-visible
+plan status --project .
+```
+
+Rules:
+
+- use `plan status --project .` as the queue view
+- take only issues shown in `ready_work`
+- work on a feature branch, not on `main`
+- squash-merge the PR when work is accepted
+- after merge, always return to `main`, pull, update, and reconcile before
+  grabbing the next issue
 
 ## Roadmap Direction
 
@@ -121,6 +162,7 @@ Product phases, not release-tag numbers:
 - `v5`: Planning Skills, Shaping, and Evals
 - `v6`: Story Slicing and Execution Readiness
 - `v7`: External Sync, only if the local loop clearly wins
+- `v8`: Guided Co-Planning System
 
 Release tags can stay in `v0.x.y` semver until a separate `1.0` decision.
 

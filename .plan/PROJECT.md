@@ -32,6 +32,11 @@ memory/context-management bloat.
 - Stories are created only after spec approval.
 - Stories should be execution-ready and verification-aware.
 - New passes should improve clarity, boundedness, and agent executability.
+- If GitHub story mode is enabled, stories live in GitHub Issues rather than
+  local markdown notes.
+- GitHub execution follows a queue loop: establish ready work, grab the next
+  issue or issues, ship a PR, review until ready, squash-merge, return to
+  `main`, run `plan update`, reconcile, then grab the next ready work.
 
 ## Notes
 
@@ -39,3 +44,4 @@ memory/context-management bloat.
 - v5 focuses on skill quality, shaping, and evals.
 - v6 focuses on story slicing and critique.
 - v7 is GitHub sync only if local planning quality clearly earns the added complexity.
+- v8 focuses on guided co-planning and stage-by-stage execution handoffs.
