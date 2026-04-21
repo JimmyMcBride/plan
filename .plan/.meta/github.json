@@ -65,6 +65,35 @@
       "doc_ref": "develop",
       "updated_at": "2026-04-20T06:05:20Z"
     },
+    "add-guide-packet-types-and-brainstorm-stage-packet-builder": {
+      "slug": "add-guide-packet-types-and-brainstorm-stage-packet-builder",
+      "title": "Add guide packet types and brainstorm-stage packet builder",
+      "epic": "guide-packet-and-cli-foundation",
+      "spec": "guide-packet-and-cli-foundation",
+      "status": "todo",
+      "description": "Add the internal guide-packet types and a brainstorm-stage packet builder that composes existing guided session state, workspace rules, and linked brainstorm artifact data into one stable read-only packet.",
+      "acceptance_criteria": [
+        "Guide packet types cover the approved v1 top-level packet sections and nested contract fields needed for brainstorm-stage guidance.",
+        "The brainstorm-stage builder maps existing guided session stage and checkpoint data into packet mode and session fields without introducing parallel durable state.",
+        "Packet generation is read-only and does not rewrite guided session metadata or planning artifacts."
+      ],
+      "verification": [
+        "Add focused tests for packet-building success, packet field coverage, and no-session or missing-artifact error paths.",
+        "Verify packet generation leaves .plan/.meta/guided_sessions.json unchanged."
+      ],
+      "resources": [
+        "Spec: .plan/specs/guide-packet-and-cli-foundation.md",
+        "Research: .plan/research/guide-packet-schema-and-cli-design.md"
+      ],
+      "issue_number": 34,
+      "issue_url": "https://github.com/JimmyMcBride/plan/issues/34",
+      "remote_state": "open",
+      "planning_pr_number": 33,
+      "planning_pr_url": "https://github.com/JimmyMcBride/plan/pull/33",
+      "doc_ref_mode": "sha",
+      "doc_ref": "d3edd3f752a39d558133ae979313ff7012cc9c10",
+      "updated_at": "2026-04-21T14:08:07Z"
+    },
     "add-guided-session-state-model": {
       "slug": "add-guided-session-state-model",
       "title": "Add Guided Session State Model",
@@ -119,6 +148,64 @@
       "doc_ref_mode": "main",
       "doc_ref": "develop",
       "updated_at": "2026-04-20T06:05:20Z"
+    },
+    "add-plan-guide-current-json-command": {
+      "slug": "add-plan-guide-current-json-command",
+      "title": "Add `plan guide current` JSON command",
+      "epic": "guide-packet-and-cli-foundation",
+      "spec": "guide-packet-and-cli-foundation",
+      "status": "todo",
+      "description": "Add `plan guide current` as the active-session entry point that resolves the last-active guided brainstorm session and emits the approved v1 guide packet as JSON.",
+      "acceptance_criteria": [
+        "The command emits valid JSON for an active guided brainstorm session using the shared packet builder.",
+        "The command returns a clear actionable error when no active guided session exists.",
+        "The command stays read-only and does not mutate guided session state while rendering output."
+      ],
+      "verification": [
+        "Add command tests for active-session success and missing-session failure behavior.",
+        "Verify JSON output includes current stage, checkpoint, summary, next action, and linked artifact path."
+      ],
+      "resources": [
+        "Spec: .plan/specs/guide-packet-and-cli-foundation.md",
+        "Research: .plan/research/guide-packet-schema-and-cli-design.md"
+      ],
+      "issue_number": 35,
+      "issue_url": "https://github.com/JimmyMcBride/plan/issues/35",
+      "remote_state": "open",
+      "planning_pr_number": 33,
+      "planning_pr_url": "https://github.com/JimmyMcBride/plan/pull/33",
+      "doc_ref_mode": "sha",
+      "doc_ref": "d3edd3f752a39d558133ae979313ff7012cc9c10",
+      "updated_at": "2026-04-21T14:08:09Z"
+    },
+    "add-plan-guide-show-json-command": {
+      "slug": "add-plan-guide-show-json-command",
+      "title": "Add `plan guide show` JSON command",
+      "epic": "guide-packet-and-cli-foundation",
+      "spec": "guide-packet-and-cli-foundation",
+      "status": "todo",
+      "description": "Add `plan guide show` as the explicit preview entry point that accepts a chain and optional stage or checkpoint overrides, then emits a compatible brainstorm-stage guide packet as JSON without mutating session state.",
+      "acceptance_criteria": [
+        "The command accepts an explicit chain and returns a compatible guide packet for the requested brainstorm-stage context.",
+        "Explicit stage or checkpoint handling rejects unsupported or incompatible values with clear errors.",
+        "The command stays compatible with the shared packet builder and remains read-only."
+      ],
+      "verification": [
+        "Add command tests for explicit-chain success, unknown-chain failure, and unsupported-stage or checkpoint failure.",
+        "Verify output remains schema-compatible with `plan guide current`."
+      ],
+      "resources": [
+        "Spec: .plan/specs/guide-packet-and-cli-foundation.md",
+        "Research: .plan/research/guide-packet-schema-and-cli-design.md"
+      ],
+      "issue_number": 36,
+      "issue_url": "https://github.com/JimmyMcBride/plan/issues/36",
+      "remote_state": "open",
+      "planning_pr_number": 33,
+      "planning_pr_url": "https://github.com/JimmyMcBride/plan/pull/33",
+      "doc_ref_mode": "sha",
+      "doc_ref": "d3edd3f752a39d558133ae979313ff7012cc9c10",
+      "updated_at": "2026-04-21T14:08:11Z"
     },
     "add-reopen-impact-summary-and-needs-review-markers": {
       "slug": "add-reopen-impact-summary-and-needs-review-markers",
