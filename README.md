@@ -212,6 +212,25 @@ Preview install targets:
 plan skills targets --scope both --agent codex --project .
 ```
 
+## Codex Cloud + Brain
+
+If you want a Codex cloud environment for this repo to have optional access to
+[`brain`](https://github.com/JimmyMcBride/brain), point the environment setup
+step at:
+
+```bash
+./scripts/setup-codex-cloud.sh
+```
+
+That script:
+
+- installs a repo-local Brain binary at `.codex/bin/brain`
+- installs the repo-local Brain skill for Codex at `.codex/skills/brain`
+- leaves Brain optional when the repo does not contain a `.brain/` workspace
+
+`plan` remains the planning source of truth. Brain is only for context,
+retrieval, and session hygiene when present.
+
 ## Evaluating Prompt And Workflow Changes
 
 `v5` adds a local benchmark and rubric harness for maintainers. `v6` adds

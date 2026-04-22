@@ -3,3 +3,5 @@ dist/
 /plan
 *.exe
 .DS_Store
+.codex/bin/
+.codex/skills/brain/
