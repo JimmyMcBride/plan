@@ -81,10 +81,6 @@ func (m *Manager) ReconcileGitHubStories(options GitHubReconcileOptions) (*GitHu
 	for _, slug := range slugs {
 		record := state.Stories[slug]
 		previous := record
-		epic, err := notes.Read(filepath.Join(info.EpicsDir, record.Epic+".md"))
-		if err != nil {
-			return nil, err
-		}
 		spec, err := notes.Read(filepath.Join(info.SpecsDir, record.Spec+".md"))
 		if err != nil {
 			return nil, err
@@ -110,17 +106,22 @@ func (m *Manager) ReconcileGitHubStories(options GitHubReconcileOptions) (*GitHu
 			result.BlockedStories = append(result.BlockedStories, slug)
 		}
 
-		body := mergeManagedIssueBody(issue.Body, renderGitHubStoryIssueBody(state, &context.Repo, epic, spec, record))
+		body := mergeManagedIssueBody(issue.Body, renderGitHubStoryIssueBody(state, &context.Repo, spec, record))
+		milestoneNumber, err := m.resolveSpecInitiativeMilestone(info, state.Repo, spec)
+		if err != nil {
+			return nil, err
+		}
 		labels := issue.Labels
 		if options.UpdateVisible {
 			labels = applyDerivedReadyLabels(labels, status, ready)
 		}
 		if body != issue.Body || !sameStringSlice(labels, issue.Labels) {
 			updatedIssue, err := m.github.UpdateIssue(info.ProjectDir, state.Repo, record.IssueNumber, GitHubIssueInput{
-				Title:  record.Title,
-				Body:   body,
-				State:  issue.State,
-				Labels: labels,
+				Title:     record.Title,
+				Body:      body,
+				State:     issue.State,
+				Labels:    labels,
+				Milestone: milestoneNumber,
 			})
 			if err != nil {
 				return nil, err

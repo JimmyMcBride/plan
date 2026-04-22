@@ -26,7 +26,7 @@ type GuidedSessionUpdateInput struct {
 	StageStatus         string
 }
 
-var guidedStageOrder = []string{"brainstorm", "epic", "spec", "stories"}
+var guidedStageOrder = []string{"brainstorm", "epic", "spec", "execution"}
 
 func (m *Manager) EnsureGuidedBrainstormSession(brainstormSlug string) (*workspace.GuidedSessionRecord, error) {
 	info, err := m.workspace.EnsureInitialized()
@@ -304,15 +304,15 @@ func (m *Manager) AdvanceGuidedSessionToSpec(epicSlug string) (*workspace.Guided
 	return &record, spec, nil
 }
 
-func (m *Manager) AdvanceGuidedSessionToStories(epicSlug string) (*workspace.GuidedSessionRecord, error) {
+func (m *Manager) AdvanceGuidedSessionToExecution(epicSlug string) (*workspace.GuidedSessionRecord, error) {
 	session, err := m.ReadGuidedSessionByEpic(epicSlug)
 	if err != nil {
 		return nil, err
 	}
 	updated, err := m.UpdateGuidedSession(session.ChainID, GuidedSessionUpdateInput{
-		CurrentStage: "stories",
-		Summary:      "Spec handoff complete. Continue the planning flow in the stories stage.",
-		NextAction:   "Start implementation from the created execution-ready story set.",
+		CurrentStage: "execution",
+		Summary:      "Spec handoff complete. Continue the planning flow in the execution stage.",
+		NextAction:   "Work through the execution slices one commit at a time until the spec is delivered.",
 		StageStatus:  "in_progress",
 	})
 	if err != nil {
@@ -324,7 +324,7 @@ func (m *Manager) AdvanceGuidedSessionToStories(epicSlug string) (*workspace.Gui
 	}
 	record := state.Sessions[updated.ChainID]
 	record.StageStatuses["spec"] = "done"
-	record.StageStatuses["stories"] = "in_progress"
+	record.StageStatuses["execution"] = "in_progress"
 	record.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 	state.LastActiveChain = record.ChainID
 	state.LastUpdatedAt = record.UpdatedAt

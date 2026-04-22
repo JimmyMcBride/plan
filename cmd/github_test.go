@@ -36,6 +36,10 @@ func (s *stubGitHubEnableClient) GetIssue(projectDir, repo string, issueNumber i
 	panic("unexpected GetIssue call")
 }
 
+func (s *stubGitHubEnableClient) FindMilestone(projectDir, repo, title string) (*planning.GitHubMilestone, error) {
+	panic("unexpected FindMilestone call")
+}
+
 func TestGitHubEnableCommandPrintsBackendSummary(t *testing.T) {
 	reset := planning.SetGitHubClientFactoryForTesting(func() planning.GitHubClient {
 		return &stubGitHubEnableClient{

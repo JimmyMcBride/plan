@@ -62,10 +62,6 @@ func (m *Manager) Check(input CheckInput) (*CheckReport, error) {
 		return nil, err
 	}
 	report := &CheckReport{Project: info.ProjectName}
-	storyInfos, err := m.ListStories("", "")
-	if err != nil {
-		return nil, err
-	}
 
 	specs, err := m.specNotesForCheck(info, input)
 	if err != nil {
@@ -73,7 +69,6 @@ func (m *Manager) Check(input CheckInput) (*CheckReport, error) {
 	}
 	for _, spec := range specs {
 		report.Findings = append(report.Findings, checkSpecNote(rel(info.ProjectDir, spec.Path), spec)...)
-		report.Findings = append(report.Findings, checkSpecStoryReadiness(info, spec, storyInfos)...)
 	}
 	stories, err := m.storyNotesForCheck(info, input)
 	if err != nil {
@@ -118,11 +113,9 @@ func (m *Manager) storyNotesForCheck(info *workspace.Info, input CheckInput) ([]
 	case strings.TrimSpace(input.SpecSlug) != "":
 		return nil, nil
 	case strings.TrimSpace(input.EpicSlug) != "":
-		return m.readStoriesByFilter(info, func(story StoryInfo) bool {
-			return story.Epic == slugify(input.EpicSlug)
-		})
+		return nil, nil
 	default:
-		return readNotesInDir(info.StoriesDir)
+		return nil, nil
 	}
 }
 
@@ -429,7 +422,7 @@ func checkSpecStoryReadiness(info *workspace.Info, spec *notes.Note, stories []S
 func meaningfulStoryBreakdownCandidates(items []parsedStorySliceCandidate) []parsedStorySliceCandidate {
 	var out []parsedStorySliceCandidate
 	for _, item := range items {
-		if item.Title == "" || strings.EqualFold(item.Title, seededStoryBreakdownPlaceholder) {
+		if item.Title == "" || isSeededExecutionPlaceholder(item.Title) {
 			continue
 		}
 		out = append(out, item)

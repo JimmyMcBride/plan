@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"strings"
 
 	"plan/internal/notes"
 	"plan/internal/planning"
@@ -18,8 +19,8 @@ func newSpecCommand() *cobra.Command {
 	}
 
 	show := &cobra.Command{
-		Use:   "show <epic-slug>",
-		Short: "Show the canonical spec for an epic",
+		Use:   "show <spec-slug>",
+		Short: "Show a canonical spec",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			note, err := planningManager().ReadSpec(args[0])
@@ -35,7 +36,7 @@ func newSpecCommand() *cobra.Command {
 	var useStdin bool
 	var editor string
 	edit := &cobra.Command{
-		Use:   "edit <epic-slug>",
+		Use:   "edit <spec-slug>",
 		Short: "Edit a spec via --body, --stdin, or $EDITOR",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -69,7 +70,7 @@ func newSpecCommand() *cobra.Command {
 
 	var status string
 	statusCmd := &cobra.Command{
-		Use:   "status <epic-slug>",
+		Use:   "status <spec-slug>",
 		Short: "Set spec status",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -85,7 +86,7 @@ func newSpecCommand() *cobra.Command {
 	_ = statusCmd.MarkFlagRequired("set")
 
 	analyze := &cobra.Command{
-		Use:   "analyze <epic-slug>",
+		Use:   "analyze <spec-slug>",
 		Short: "Analyze a spec for refinement gaps without rewriting its canonical sections",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -103,7 +104,7 @@ func newSpecCommand() *cobra.Command {
 
 	var profile string
 	checklist := &cobra.Command{
-		Use:   "checklist <epic-slug>",
+		Use:   "checklist <spec-slug>",
 		Short: "Run a profile-driven checklist pass against a spec",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -120,22 +121,76 @@ func newSpecCommand() *cobra.Command {
 	}
 	checklist.Flags().StringVar(&profile, "profile", "general", "checklist profile: general, ui-flow, api-integration, data-migration")
 
+	var initiativeSlug string
+	var initiativeTitle string
+	var initiativeSummary string
+	var clearInitiative bool
+	initiative := &cobra.Command{
+		Use:   "initiative <spec-slug>",
+		Short: "Set or clear lightweight initiative metadata on a spec",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if !clearInitiative && strings.TrimSpace(initiativeSlug) == "" {
+				return fmt.Errorf("initiative --set value is required unless --clear is used")
+			}
+			var (
+				note *notes.Note
+				err  error
+			)
+			if clearInitiative {
+				note, err = planningManager().ClearSpecInitiative(args[0])
+			} else {
+				note, err = planningManager().SetSpecInitiative(args[0], planning.InitiativeRef{
+					Slug:    initiativeSlug,
+					Title:   initiativeTitle,
+					Summary: initiativeSummary,
+				})
+			}
+			if err != nil {
+				return err
+			}
+			fmt.Printf("Updated initiative metadata for %s\n", note.Path)
+			return nil
+		},
+	}
+	initiative.Flags().StringVar(&initiativeSlug, "set", "", "initiative slug or shared reference")
+	initiative.Flags().StringVar(&initiativeTitle, "title", "", "human title for the initiative")
+	initiative.Flags().StringVar(&initiativeSummary, "summary", "", "optional initiative summary or goal")
+	initiative.Flags().BoolVar(&clearInitiative, "clear", false, "clear initiative metadata from the spec")
+
+	var executeBranchPrefix string
+	execute := &cobra.Command{
+		Use:   "execute <spec-slug>",
+		Short: "Start spec execution with a suggested branch and ephemeral slices",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			plan, err := planningManager().BeginSpecExecution(args[0], executeBranchPrefix)
+			if err != nil {
+				return err
+			}
+			printSpecExecutionPlan(cmd.OutOrStdout(), plan)
+			return nil
+		},
+	}
+	execute.Flags().StringVar(&executeBranchPrefix, "branch-prefix", "feature/", "prefix for the suggested execution branch")
+
+	var handoffBranchPrefix string
 	handoff := &cobra.Command{
-		Use:   "handoff <epic-slug>",
-		Short: "Continue a guided spec into the first story set",
+		Use:   "handoff <spec-slug>",
+		Short: "Continue a guided spec into the execution stage",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			session, err := planningManager().ReadGuidedSessionByEpic(args[0])
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Spec recap:\nCurrent understanding: %s\nRecommended next stage: continue into stories.\n", session.Summary)
-			preview, err := planningManager().PreviewStorySlices(args[0])
+			fmt.Fprintf(cmd.OutOrStdout(), "Spec recap:\nCurrent understanding: %s\nRecommended next stage: continue into execution.\n", session.Summary)
+			preview, err := planningManager().PreviewSpecExecution(args[0], handoffBranchPrefix)
 			if err != nil {
 				return err
 			}
-			printStorySlicePreview(cmd.OutOrStdout(), preview)
-			ok, err := confirmStorySliceApply(bufio.NewReader(cmd.InOrStdin()), cmd.OutOrStdout())
+			printSpecExecutionPlan(cmd.OutOrStdout(), preview)
+			ok, err := confirmSpecExecutionStart(bufio.NewReader(cmd.InOrStdin()), cmd.OutOrStdout())
 			if err != nil {
 				return err
 			}
@@ -143,7 +198,7 @@ func newSpecCommand() *cobra.Command {
 				updated, err := planningManager().UpdateGuidedSession(session.ChainID, planning.GuidedSessionUpdateInput{
 					CurrentStage: "spec",
 					StageStatus:  "in_progress",
-					NextAction:   "Spec handoff is ready when you want to create the first story set.",
+					NextAction:   "Spec execution handoff is ready when you want to start implementation.",
 				})
 				if err != nil {
 					return err
@@ -151,21 +206,22 @@ func newSpecCommand() *cobra.Command {
 				fmt.Fprintf(cmd.OutOrStdout(), "Checkpoint saved for %s\nNext: %s\n", updated.ChainID, updated.NextAction)
 				return nil
 			}
-			result, err := planningManager().ApplyStorySlices(args[0])
+			plan, err := planningManager().BeginSpecExecution(args[0], handoffBranchPrefix)
 			if err != nil {
 				return err
 			}
-			printStorySliceApplyResult(cmd.OutOrStdout(), result)
-			updated, err := planningManager().AdvanceGuidedSessionToStories(args[0])
+			updated, err := planningManager().AdvanceGuidedSessionToExecution(args[0])
 			if err != nil {
 				return err
 			}
+			printSpecExecutionPlan(cmd.OutOrStdout(), plan)
 			fmt.Fprintf(cmd.OutOrStdout(), "Next: %s\n", updated.NextAction)
 			return nil
 		},
 	}
+	handoff.Flags().StringVar(&handoffBranchPrefix, "branch-prefix", "feature/", "prefix for the suggested execution branch")
 
-	cmd.AddCommand(show, edit, statusCmd, analyze, checklist, handoff)
+	cmd.AddCommand(show, edit, statusCmd, analyze, checklist, initiative, execute, handoff)
 	return cmd
 }
 
@@ -213,4 +269,32 @@ func printSpecChecklist(out io.Writer, report *planning.SpecChecklistReport) {
 			fmt.Fprintf(out, "  fix: %s\n", item.Recommendation)
 		}
 	}
+}
+
+func printSpecExecutionPlan(out io.Writer, plan *planning.SpecExecutionPlan) {
+	fmt.Fprintf(out, "spec_execution: %s\n", plan.SpecPath)
+	fmt.Fprintf(out, "status: %s\n", plan.Status)
+	fmt.Fprintf(out, "branch: %s\n", plan.SuggestedBranch)
+	fmt.Fprintf(out, "slices: %d\n", len(plan.Slices))
+	for index, slice := range plan.Slices {
+		fmt.Fprintf(out, "%d. %s\n", index+1, slice.Title)
+		fmt.Fprintf(out, "   goal: %s\n", slice.Goal)
+		for _, verify := range slice.Verification {
+			fmt.Fprintf(out, "   verify: %s\n", verify)
+		}
+	}
+	fmt.Fprintln(out, "workflow:")
+	fmt.Fprintln(out, "- implement one slice at a time")
+	fmt.Fprintln(out, "- review and verify each slice before committing it")
+	fmt.Fprintln(out, "- open a PR after the full spec is built")
+}
+
+func confirmSpecExecutionStart(reader *bufio.Reader, out io.Writer) (bool, error) {
+	fmt.Fprint(out, "Start execution from this spec plan? [y/N]: ")
+	line, err := reader.ReadString('\n')
+	if err != nil && err != io.EOF {
+		return false, err
+	}
+	answer := strings.ToLower(strings.TrimSpace(line))
+	return answer == "y" || answer == "yes", nil
 }

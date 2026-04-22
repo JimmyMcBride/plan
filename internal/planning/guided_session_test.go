@@ -130,7 +130,7 @@ func TestSwitchAndReopenGuidedSessionState(t *testing.T) {
 	if len(downstream) != 3 {
 		t.Fatalf("unexpected downstream stage count: %+v", downstream)
 	}
-	if updated.StageStatuses["epic"] != "needs_review" || updated.StageStatuses["spec"] != "needs_review" || updated.StageStatuses["stories"] != "needs_review" {
+	if updated.StageStatuses["epic"] != "needs_review" || updated.StageStatuses["spec"] != "needs_review" || updated.StageStatuses["execution"] != "needs_review" {
 		t.Fatalf("expected downstream stages to be marked needs_review: %+v", updated)
 	}
 }

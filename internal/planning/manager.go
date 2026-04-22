@@ -32,6 +32,15 @@ type BrainstormInfo struct {
 	Title string
 }
 
+type IdeaInfo struct {
+	Slug              string
+	Path              string
+	Title             string
+	Initiative        string
+	InitiativeTitle   string
+	InitiativeSummary string
+}
+
 type BrainstormCreateInput struct {
 	Topic         string
 	FocusQuestion string
@@ -74,6 +83,19 @@ type StoryInfo struct {
 	Started       bool
 }
 
+type SpecInfo struct {
+	Slug              string
+	Path              string
+	Title             string
+	Status            string
+	SourceBrainstorm  string
+	Initiative        string
+	InitiativeTitle   string
+	InitiativeSummary string
+	TargetVersion     string
+	Ready             bool
+}
+
 type VersionStatus struct {
 	Key               string
 	Title             string
@@ -88,6 +110,13 @@ type VersionStatus struct {
 type ProjectStatus struct {
 	Project           string
 	PlanningModel     string
+	Specs             []SpecInfo
+	TotalSpecs        int
+	DraftSpecs        int
+	ApprovedSpecs     int
+	ImplementingSpecs int
+	DoneSpecs         int
+	ReadySpecs        []SpecInfo
 	RoadmapPath       string
 	Versions          []VersionStatus
 	UnassignedEpics   []EpicInfo
@@ -212,6 +241,9 @@ func (m *Manager) AddBrainstormEntry(brainstormSlug, section, body string) (*not
 func (m *Manager) CreateEpic(title, sourceBrainstorm string) (*EpicBundle, error) {
 	info, err := m.workspace.EnsureInitialized()
 	if err != nil {
+		return nil, err
+	}
+	if err := os.MkdirAll(info.EpicsDir, 0o755); err != nil {
 		return nil, err
 	}
 	epicSlug := slugify(title)
@@ -354,6 +386,66 @@ func (m *Manager) ListEpics() ([]EpicInfo, error) {
 	return out, nil
 }
 
+func (m *Manager) ListSpecs() ([]SpecInfo, error) {
+	info, err := m.workspace.EnsureInitialized()
+	if err != nil {
+		return nil, err
+	}
+	specNotes, err := readNotesInDir(info.SpecsDir)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]SpecInfo, 0, len(specNotes))
+	for _, spec := range specNotes {
+		item := SpecInfo{
+			Slug:              slugFromPath(spec.Path),
+			Path:              rel(info.ProjectDir, spec.Path),
+			Title:             spec.Title,
+			Status:            stringValue(spec.Metadata["status"]),
+			SourceBrainstorm:  stringValue(spec.Metadata["source_brainstorm"]),
+			Initiative:        stringValue(spec.Metadata["initiative"]),
+			InitiativeTitle:   stringValue(spec.Metadata["initiative_title"]),
+			InitiativeSummary: stringValue(spec.Metadata["initiative_summary"]),
+			TargetVersion:     stringValue(spec.Metadata["target_version"]),
+		}
+		if item.Status == "" {
+			item.Status = "draft"
+		}
+		item.Ready = item.Status == "approved"
+		out = append(out, item)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].Title < out[j].Title
+	})
+	return out, nil
+}
+
+func (m *Manager) ListIdeas() ([]IdeaInfo, error) {
+	info, err := m.workspace.EnsureInitialized()
+	if err != nil {
+		return nil, err
+	}
+	ideaNotes, err := readNotesInDir(info.IdeasDir)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]IdeaInfo, 0, len(ideaNotes))
+	for _, idea := range ideaNotes {
+		out = append(out, IdeaInfo{
+			Slug:              slugFromPath(idea.Path),
+			Path:              rel(info.ProjectDir, idea.Path),
+			Title:             idea.Title,
+			Initiative:        stringValue(idea.Metadata["initiative"]),
+			InitiativeTitle:   stringValue(idea.Metadata["initiative_title"]),
+			InitiativeSummary: stringValue(idea.Metadata["initiative_summary"]),
+		})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].Title < out[j].Title
+	})
+	return out, nil
+}
+
 func (m *Manager) ReadEpic(epicSlug string) (*notes.Note, error) {
 	info, err := m.workspace.EnsureInitialized()
 	if err != nil {
@@ -424,6 +516,9 @@ func (m *Manager) SetSpecStatus(epicSlug, status string) (*notes.Note, error) {
 func (m *Manager) CreateStory(epicSlug, title, description string, criteria, verification, resources []string) (*notes.Note, error) {
 	info, err := m.workspace.EnsureInitialized()
 	if err != nil {
+		return nil, err
+	}
+	if err := os.MkdirAll(info.StoriesDir, 0o755); err != nil {
 		return nil, err
 	}
 	backend, err := m.storyBackendForInfo()
@@ -593,6 +688,10 @@ func (m *Manager) Status() (*ProjectStatus, error) {
 	if err != nil {
 		return nil, err
 	}
+	specs, err := m.ListSpecs()
+	if err != nil {
+		return nil, err
+	}
 	epics, err := m.ListEpics()
 	if err != nil {
 		return nil, err
@@ -604,8 +703,23 @@ func (m *Manager) Status() (*ProjectStatus, error) {
 	status := &ProjectStatus{
 		Project:       info.ProjectName,
 		PlanningModel: workspace.PlanningModel,
+		Specs:         specs,
+		TotalSpecs:    len(specs),
 		Epics:         epics,
 		TotalStories:  len(stories),
+	}
+	for _, spec := range specs {
+		switch spec.Status {
+		case "approved":
+			status.ApprovedSpecs++
+			status.ReadySpecs = append(status.ReadySpecs, spec)
+		case "implementing":
+			status.ImplementingSpecs++
+		case "done":
+			status.DoneSpecs++
+		default:
+			status.DraftSpecs++
+		}
 	}
 	for _, story := range stories {
 		switch story.Status {
@@ -690,7 +804,7 @@ func (m *Manager) seedSpecFromBrainstorm(info *workspace.Info, spec *notes.Note,
 	if questions := notes.ExtractSection(brainstorm.Content, "Open Questions"); questions != "" {
 		body = notes.AppendUnderHeading(body, "Risks / Open Questions", questions)
 	}
-	body = notes.AppendUnderHeading(body, "Story Breakdown", "- [ ] Split approved spec into execution-ready stories")
+	body = notes.AppendUnderHeading(body, "Execution Plan", "- [ ] Define execution slices when implementation begins")
 	body = notes.AppendUnderHeading(body, "Resources", fmt.Sprintf("- [Source Brainstorm](%s)", relativeLinkPath(filepath.Dir(spec.Path), brainstorm.Path)))
 	updated, err := notes.Update(spec.Path, notes.UpdateInput{
 		Body: ptr(body),
@@ -751,6 +865,9 @@ func (m *Manager) relNote(note *notes.Note, projectDir string) *notes.Note {
 func readNotesInDir(dir string) ([]*notes.Note, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	var out []*notes.Note

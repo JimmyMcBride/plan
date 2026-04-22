@@ -227,7 +227,7 @@ func createHealthyPlanFixture(t *testing.T, root string, manager *planning.Manag
 	}
 }
 
-func TestCheckCommandFlagsImplementingSpecWithoutStoryCoverage(t *testing.T) {
+func TestCheckCommandDoesNotRequireStoryCoverageForImplementingSpecs(t *testing.T) {
 	root := t.TempDir()
 	ws := workspace.New(root)
 	if _, err := ws.Init(); err != nil {
@@ -288,10 +288,6 @@ func TestCheckCommandFlagsImplementingSpecWithoutStoryCoverage(t *testing.T) {
 		"",
 		"- run check tests",
 		"",
-		"## Story Breakdown",
-		"",
-		"- Trigger export job",
-		"",
 	}, "\n")
 	if _, err := manager.UpdateSpec("billing", notes.UpdateInput{
 		Body: &specBody,
@@ -307,11 +303,10 @@ func TestCheckCommandFlagsImplementingSpecWithoutStoryCoverage(t *testing.T) {
 	command.SetOut(&buf)
 	command.SetErr(&buf)
 	command.SetArgs([]string{"--project", root, "check", "spec", "billing"})
-	err := command.Execute()
-	if err == nil {
-		t.Fatalf("expected readiness findings to fail command:\n%s", buf.String())
+	if err := command.Execute(); err != nil {
+		t.Fatalf("expected implementing spec check to avoid legacy story-coverage failure: %v\n%s", err, buf.String())
 	}
-	if !strings.Contains(buf.String(), "no child stories are linked to it") {
-		t.Fatalf("expected missing story coverage finding:\n%s", buf.String())
+	if strings.Contains(buf.String(), "no child stories are linked to it") {
+		t.Fatalf("expected story coverage requirement to be removed:\n%s", buf.String())
 	}
 }

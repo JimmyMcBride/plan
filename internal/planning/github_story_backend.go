@@ -12,10 +12,10 @@ import (
 )
 
 const (
-	planIssueBlockStart  = "<!-- plan:start -->"
-	planIssueBlockEnd    = "<!-- plan:end -->"
-	planIssueMetaPrefix  = "<!-- plan:meta"
-	planIssueReadyLabel  = "plan:ready"
+	planIssueBlockStart   = "<!-- plan:start -->"
+	planIssueBlockEnd     = "<!-- plan:end -->"
+	planIssueMetaPrefix   = "<!-- plan:meta"
+	planIssueReadyLabel   = "plan:ready"
 	planIssueBlockedLabel = "plan:blocked"
 )
 
@@ -109,11 +109,16 @@ func (m *Manager) createGitHubStory(info *workspace.Info, epicSlug, title, descr
 		record.DocRef = context.Repo.DefaultBranch
 	}
 
-	body := mergeManagedIssueBody("", renderGitHubStoryIssueBody(state, &context.Repo, epic, spec, record))
+	body := mergeManagedIssueBody("", renderGitHubStoryIssueBody(state, &context.Repo, spec, record))
+	milestoneNumber, err := m.resolveSpecInitiativeMilestone(info, state.Repo, spec)
+	if err != nil {
+		return nil, err
+	}
 	issue, err := m.github.CreateIssue(info.ProjectDir, state.Repo, GitHubIssueInput{
-		Title: title,
-		Body:  body,
-		State: "open",
+		Title:     title,
+		Body:      body,
+		State:     "open",
+		Milestone: milestoneNumber,
 	})
 	if err != nil {
 		return nil, err
@@ -160,10 +165,6 @@ func (m *Manager) updateGitHubStory(info *workspace.Info, storySlug string, chan
 	if err != nil {
 		return nil, err
 	}
-	epic, err := notes.Read(filepath.Join(info.EpicsDir, record.Epic+".md"))
-	if err != nil {
-		return nil, err
-	}
 	spec, err := notes.Read(filepath.Join(info.SpecsDir, record.Spec+".md"))
 	if err != nil {
 		return nil, err
@@ -173,18 +174,23 @@ func (m *Manager) updateGitHubStory(info *workspace.Info, storySlug string, chan
 		return nil, err
 	}
 	record.RemoteState = existingIssue.State
-	managedBody := renderGitHubStoryIssueBody(state, &context.Repo, epic, spec, record)
+	managedBody := renderGitHubStoryIssueBody(state, &context.Repo, spec, record)
 	body := mergeManagedIssueBody(existingIssue.Body, managedBody)
+	milestoneNumber, err := m.resolveSpecInitiativeMilestone(info, state.Repo, spec)
+	if err != nil {
+		return nil, err
+	}
 
 	issueState := "open"
 	if record.Status == "done" {
 		issueState = "closed"
 	}
 	updatedIssue, err := m.github.UpdateIssue(info.ProjectDir, state.Repo, record.IssueNumber, GitHubIssueInput{
-		Title:  record.Title,
-		Body:   body,
-		State:  issueState,
-		Labels: existingIssue.Labels,
+		Title:     record.Title,
+		Body:      body,
+		State:     issueState,
+		Labels:    existingIssue.Labels,
+		Milestone: milestoneNumber,
 	})
 	if err != nil {
 		return nil, err
@@ -277,14 +283,14 @@ func (m *Manager) readGitHubStoryFromState(info *workspace.Info, state *workspac
 		Title: record.Title,
 		Type:  "story",
 		Metadata: map[string]any{
-			"slug":     record.Slug,
-			"status":   status,
-			"epic":     record.Epic,
-			"spec":     record.Spec,
-			"backend":  string(workspace.StoryBackendGitHub),
-			"issue":    record.IssueNumber,
+			"slug":      record.Slug,
+			"status":    status,
+			"epic":      record.Epic,
+			"spec":      record.Spec,
+			"backend":   string(workspace.StoryBackendGitHub),
+			"issue":     record.IssueNumber,
 			"issue_url": record.IssueURL,
-			"blockers": append([]string(nil), record.Dependencies...),
+			"blockers":  append([]string(nil), record.Dependencies...),
 		},
 		Content: content,
 	}, nil
@@ -336,14 +342,18 @@ func deriveGitHubStoryState(record workspace.GitHubStoryRecord, state *workspace
 	return status, ready, blockedReasons, blockedByPlan, blockedByDeps
 }
 
-func renderGitHubStoryIssueBody(state *workspace.GitHubState, repo *GitHubRepoInfo, epic, spec *notes.Note, record workspace.GitHubStoryRecord) string {
+func renderGitHubStoryIssueBody(state *workspace.GitHubState, repo *GitHubRepoInfo, spec *notes.Note, record workspace.GitHubStoryRecord) string {
 	content := renderGitHubStoryNoteContent(state, record)
 	status, ready, blockedReasons, _, _ := deriveGitHubStoryState(record, state)
 
-	epicLink, specLink := gitHubPlanningLinks(repo, record)
+	specLink := gitHubPlanningLink(repo, record)
 	planningLines := []string{
-		fmt.Sprintf("- Epic: [%s](%s)", epic.Title, epicLink),
 		fmt.Sprintf("- Spec: [%s](%s)", spec.Title, specLink),
+	}
+	if initiativeTitle := strings.TrimSpace(stringValue(spec.Metadata["initiative_title"])); initiativeTitle != "" {
+		planningLines = append(planningLines, fmt.Sprintf("- Initiative: %s", initiativeTitle))
+	} else if initiative := strings.TrimSpace(stringValue(spec.Metadata["initiative"])); initiative != "" {
+		planningLines = append(planningLines, fmt.Sprintf("- Initiative: %s", initiative))
 	}
 	if record.PlanningPRURL != "" {
 		planningLines = append(planningLines, fmt.Sprintf("- Planning PR: [#%d](%s)", record.PlanningPRNumber, record.PlanningPRURL))
@@ -411,7 +421,7 @@ func renderGitHubStoryNoteContent(state *workspace.GitHubState, record workspace
 	return body.String()
 }
 
-func gitHubPlanningLinks(repo *GitHubRepoInfo, record workspace.GitHubStoryRecord) (string, string) {
+func gitHubPlanningLink(repo *GitHubRepoInfo, record workspace.GitHubStoryRecord) string {
 	ref := repo.DefaultBranch
 	if record.DocRefMode == "sha" && strings.TrimSpace(record.DocRef) != "" {
 		ref = record.DocRef
@@ -420,8 +430,7 @@ func gitHubPlanningLinks(repo *GitHubRepoInfo, record workspace.GitHubStoryRecor
 		ref = record.DocRef
 	}
 	base := strings.TrimSuffix(repo.RepoURL, "/")
-	return fmt.Sprintf("%s/blob/%s/.plan/epics/%s.md", base, ref, record.Epic),
-		fmt.Sprintf("%s/blob/%s/.plan/specs/%s.md", base, ref, record.Spec)
+	return fmt.Sprintf("%s/blob/%s/.plan/specs/%s.md", base, ref, record.Spec)
 }
 
 func renderGitHubDependenciesSection(state *workspace.GitHubState, record workspace.GitHubStoryRecord) string {
@@ -511,6 +520,24 @@ func mergeManagedIssueBody(existingBody, managedBody string) string {
 		return managedBody
 	}
 	return strings.TrimRight(existing, "\n") + "\n\n" + strings.TrimRight(managedBody, "\n") + "\n"
+}
+
+func (m *Manager) resolveSpecInitiativeMilestone(info *workspace.Info, repo string, spec *notes.Note) (*int, error) {
+	title := strings.TrimSpace(stringValue(spec.Metadata["initiative_title"]))
+	if title == "" {
+		title = strings.TrimSpace(stringValue(spec.Metadata["initiative"]))
+	}
+	if title == "" {
+		return nil, nil
+	}
+	milestone, err := m.github.FindMilestone(info.ProjectDir, repo, title)
+	if err != nil {
+		return nil, err
+	}
+	if milestone == nil {
+		return nil, nil
+	}
+	return &milestone.Number, nil
 }
 
 func applyDerivedReadyLabels(labels []string, status string, ready bool) []string {

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -194,7 +195,144 @@ func TestSpecChecklistCommandWritesChecklistAndFailsOnBlockingFindings(t *testin
 	}
 }
 
-func TestSpecHandoffAppliesStorySlicesAndAdvancesSessionToStories(t *testing.T) {
+func TestSpecInitiativeCommandUpdatesMetadata(t *testing.T) {
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := planning.New(ws)
+	if _, err := manager.CreateEpic("Billing", ""); err != nil {
+		t.Fatal(err)
+	}
+
+	var output bytes.Buffer
+	command := newRootCmd()
+	command.SetOut(&output)
+	command.SetErr(&output)
+	command.SetArgs([]string{
+		"--project", root,
+		"spec", "initiative", "billing",
+		"--set", "guide-packet-foundation",
+		"--title", "Guide Packet Foundation",
+		"--summary", "Ship the first guide-packet workflow slices.",
+	})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("expected spec initiative command to succeed: %v\n%s", err, output.String())
+	}
+
+	spec, err := notes.Read(filepath.Join(root, ".plan", "specs", "billing.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Metadata["initiative"] != "guide-packet-foundation" || spec.Metadata["initiative_title"] != "Guide Packet Foundation" {
+		t.Fatalf("expected initiative metadata on spec: %+v", spec.Metadata)
+	}
+}
+
+func TestSpecExecuteCommandStartsImplementingWithoutCreatingStories(t *testing.T) {
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := planning.New(ws)
+
+	if _, err := manager.CreateEpic("Billing", ""); err != nil {
+		t.Fatal(err)
+	}
+	body := strings.Join([]string{
+		"# Billing Spec",
+		"",
+		"Created: now",
+		"",
+		"## Why",
+		"",
+		"Billing execution needs a spec-driven workflow.",
+		"",
+		"## Problem",
+		"",
+		"Execution still depends on durable story files.",
+		"",
+		"## Goals",
+		"",
+		"- start execution from the spec",
+		"",
+		"## Non-Goals",
+		"",
+		"- rebuilding project management",
+		"",
+		"## Constraints",
+		"",
+		"- keep slices ephemeral",
+		"",
+		"## Solution Shape",
+		"",
+		"Drive execution directly from the approved spec.",
+		"",
+		"## Flows",
+		"",
+		"1. Start execution from the approved spec.",
+		"2. Work through slices in order.",
+		"",
+		"## Data / Interfaces",
+		"",
+		"- spec execution plan",
+		"",
+		"## Risks / Open Questions",
+		"",
+		"- branch naming consistency",
+		"",
+		"## Rollout",
+		"",
+		"- dogfood in the repo",
+		"",
+		"## Verification",
+		"",
+		"- go test ./...",
+		"",
+		"## Execution Plan",
+		"",
+		"- Prepare billing execution",
+		"  - description: validate the interfaces and rollout constraints before writing code",
+		"- Implement billing execution",
+		"  - description: build the main billing behavior from the spec",
+		"",
+	}, "\n")
+	if _, err := manager.UpdateSpec("billing", notes.UpdateInput{
+		Body: &body,
+		Metadata: map[string]any{
+			"status": "approved",
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var output bytes.Buffer
+	command := newRootCmd()
+	command.SetOut(&output)
+	command.SetErr(&output)
+	command.SetArgs([]string{"--project", root, "spec", "execute", "billing"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("expected spec execute to succeed: %v\n%s", err, output.String())
+	}
+
+	spec, err := notes.Read(filepath.Join(root, ".plan", "specs", "billing.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Metadata["status"] != "implementing" {
+		t.Fatalf("expected execute to mark spec implementing: %+v", spec.Metadata)
+	}
+	if _, err := notes.Read(filepath.Join(root, ".plan", "stories", "prepare-billing-execution.md")); !os.IsNotExist(err) {
+		t.Fatalf("expected execute to avoid creating story artifacts, got %v", err)
+	}
+	if !strings.Contains(output.String(), "spec_execution: .plan/specs/billing.md") || !strings.Contains(output.String(), "branch: feature/billing") {
+		t.Fatalf("expected execution output in command result:\n%s", output.String())
+	}
+}
+
+func TestSpecHandoffStartsExecutionAndAdvancesSessionToExecution(t *testing.T) {
 	root := t.TempDir()
 	ws := workspace.New(root)
 	if _, err := ws.Init(); err != nil {
@@ -234,15 +372,15 @@ func TestSpecHandoffAppliesStorySlicesAndAdvancesSessionToStories(t *testing.T) 
 		"",
 		"## Why",
 		"",
-		"Guided planning needs execution-ready stories.",
+		"Guided planning needs a spec-driven execution handoff.",
 		"",
 		"## Problem",
 		"",
-		"Story creation is still manual.",
+		"Execution still depends on persistent story creation.",
 		"",
 		"## Goals",
 		"",
-		"- derive a first story set",
+		"- derive a first execution pass",
 		"",
 		"## Non-Goals",
 		"",
@@ -254,12 +392,12 @@ func TestSpecHandoffAppliesStorySlicesAndAdvancesSessionToStories(t *testing.T) 
 		"",
 		"## Solution Shape",
 		"",
-		"Use the approved spec to drive story creation.",
+		"Use the approved spec to drive execution guidance.",
 		"",
 		"## Flows",
 		"",
 		"1. Review spec.",
-		"2. Create stories.",
+		"2. Start execution.",
 		"",
 		"## Data / Interfaces",
 		"",
@@ -275,12 +413,12 @@ func TestSpecHandoffAppliesStorySlicesAndAdvancesSessionToStories(t *testing.T) 
 		"",
 		"## Verification",
 		"",
-		"- run story slice coverage",
+		"- run spec execution coverage",
 		"",
-		"## Story Breakdown",
+		"## Execution Plan",
 		"",
 		"- Carry forward recap state",
-		"- Apply first story set",
+		"- Build the first guided execution pass",
 		"",
 	}, "\n")
 	if _, err := manager.UpdateSpec("guided-planning", notes.UpdateInput{
@@ -307,16 +445,23 @@ func TestSpecHandoffAppliesStorySlicesAndAdvancesSessionToStories(t *testing.T) 
 		t.Fatal(err)
 	}
 	session := state.Sessions["brainstorm/guided-planning"]
-	if session.CurrentStage != "stories" {
-		t.Fatalf("expected session to advance to stories stage: %+v", session)
+	if session.CurrentStage != "execution" {
+		t.Fatalf("expected session to advance to execution stage: %+v", session)
 	}
-	if session.StageStatuses["spec"] != "done" || session.StageStatuses["stories"] != "in_progress" {
-		t.Fatalf("expected story-stage handoff statuses: %+v", session)
+	if session.StageStatuses["spec"] != "done" || session.StageStatuses["execution"] != "in_progress" {
+		t.Fatalf("expected execution-stage handoff statuses: %+v", session)
 	}
-	if _, err := notes.Read(filepath.Join(root, ".plan", "stories", "carry-forward-recap-state.md")); err != nil {
-		t.Fatalf("expected first story to be created: %v", err)
+	spec, err := notes.Read(filepath.Join(root, ".plan", "specs", "guided-planning.md"))
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !strings.Contains(output.String(), "story_slice_apply: .plan/specs/guided-planning.md") {
-		t.Fatalf("expected story handoff output:\n%s", output.String())
+	if spec.Metadata["status"] != "implementing" {
+		t.Fatalf("expected handoff to mark spec implementing: %+v", spec.Metadata)
+	}
+	if _, err := notes.Read(filepath.Join(root, ".plan", "stories", "carry-forward-recap-state.md")); !os.IsNotExist(err) {
+		t.Fatalf("expected handoff to avoid creating stories, got %v", err)
+	}
+	if !strings.Contains(output.String(), "spec_execution: .plan/specs/guided-planning.md") || !strings.Contains(output.String(), "branch: feature/guided-planning") {
+		t.Fatalf("expected execution handoff output:\n%s", output.String())
 	}
 }

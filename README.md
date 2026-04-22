@@ -5,8 +5,9 @@
 It keeps planning material in `.plan/` and focuses on one job: turning rough
 ideas into shaped, execution-ready plans that agents can follow cleanly.
 
-If GitHub story mode is enabled, brainstorms, epics, and specs stay local in
-`.plan/`, while stories execute as GitHub Issues.
+If GitHub execution mode is enabled, active planning stays local in `.plan/`
+while GitHub Issues can still carry legacy execution stories during the
+transition.
 
 ## Philosophy
 
@@ -22,29 +23,36 @@ need that layer.
 
 ## Core Model
 
-Canonical hierarchy:
+Active planning model:
 
-1. Epic
-2. Spec
-3. Story
+1. Brainstorm session
+2. Idea doc (optional)
+3. Spec
+4. Execution slices at runtime
+
+`initiative` is optional lightweight grouping for multiple specs. In GitHub
+mode, an initiative can map to a milestone.
+
+Legacy `epic` and `story` commands still exist during the transition, but they
+are no longer the active model the workspace reports by default.
 
 Workflow entry:
 
 1. Brainstorm
 2. Refine
 3. Challenge
-4. Promote to epic
-5. Shape the epic
-6. Write and approve spec
-7. Analyze or checklist the spec
-8. Slice into stories
-9. Critique story readiness
+4. Promote or shape the work into a spec
+5. Write and approve spec
+6. Analyze or checklist the spec
+7. Assign initiative metadata when needed
+8. Start spec execution
+9. Work the execution slices one commit at a time
 
 Execution loop:
 
 1. Establish spec queue
 2. Take next approved spec
-3. Slice the spec into execution-ready stories
+3. Start execution from the approved spec
 4. Implement one slice
 5. Review and verify that slice before committing it
 6. Repeat until the spec is done
@@ -62,9 +70,9 @@ my-project/
     PROJECT.md
     ROADMAP.md
     brainstorms/
-    epics/
+    ideas/
+    archive/
     specs/
-    stories/
     .meta/
       workspace.json
       migrations.json
@@ -76,9 +84,9 @@ User-authored planning material lives in:
 - `.plan/PROJECT.md`
 - `.plan/ROADMAP.md`
 - `.plan/brainstorms/`
-- `.plan/epics/`
+- `.plan/ideas/`
+- `.plan/archive/` for preserved legacy material
 - `.plan/specs/`
-- `.plan/stories/` in local story mode
 
 Tool-owned state lives only in:
 
@@ -86,8 +94,9 @@ Tool-owned state lives only in:
 - `.plan/.meta/migrations.json`
 - `.plan/.meta/github.json` when GitHub story mode is enabled
 
-`plan update` may repair or normalize tool-owned state. It must not rewrite
-user-authored planning notes just to migrate product direction.
+`plan update` may repair or normalize tool-owned state. Use
+`plan update --archive-legacy` to move legacy `epics/` and `stories/` into
+`.plan/archive/` without mutating the active spec-first surfaces.
 
 ## Quick Start
 
@@ -97,14 +106,12 @@ plan brainstorm start --project . "Newsletter system"
 plan brainstorm refine --project . newsletter-system
 plan brainstorm challenge --project . newsletter-system
 plan epic promote --project . newsletter-system
-plan epic shape --project . newsletter-system
 plan spec show --project . newsletter-system
 plan spec analyze --project . newsletter-system
 plan spec checklist --project . newsletter-system --profile general
+plan spec initiative --project . newsletter-system --set guide-packet-foundation --title "Guide Packet Foundation"
 plan spec status --project . newsletter-system --set approved
-plan story slice --project . newsletter-system
-plan story slice --project . newsletter-system --apply
-plan story critique --project . build-template-editor
+plan spec execute --project . newsletter-system
 plan status --project .
 plan check --project .
 ```
@@ -121,9 +128,9 @@ Full guide:
 - `plan update`
 - `plan brainstorm start|idea|show|refine`
 - `plan brainstorm challenge`
-- `plan epic create|promote|list|show|shape`
-- `plan spec show|edit|status|analyze|checklist`
-- `plan story create|update|list|show|slice|critique`
+- `plan epic create|promote|list|show|shape` for legacy compatibility during migration
+- `plan spec show|edit|status|analyze|checklist|initiative|execute|handoff`
+- `plan story create|update|list|show|slice|critique` for legacy compatibility during migration
 - `plan github enable|reconcile`
 - `plan roadmap show|edit`
 - `plan check`
@@ -138,8 +145,7 @@ Use this loop when implementing planned work:
 plan status --project .
 
 # take next approved spec
-plan story slice --project . <epic-slug>
-plan story slice --project . <epic-slug> --apply
+plan spec execute --project . <spec-slug>
 
 # implement one slice
 # review + verify slice
@@ -155,7 +161,7 @@ Rules:
 
 - use `plan status --project .` as the queue view
 - queue work at the spec level, not the single-issue level
-- slice one approved spec into execution-ready stories before coding
+- start execution from one approved spec before coding
 - complete one slice at a time
 - review and verify each slice before committing that slice
 - once the current spec is done, move to the next queued spec

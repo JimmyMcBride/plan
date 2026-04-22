@@ -15,6 +15,7 @@ type GitHubClient interface {
 	CreateIssue(projectDir, repo string, input GitHubIssueInput) (*GitHubIssue, error)
 	UpdateIssue(projectDir, repo string, issueNumber int, input GitHubIssueInput) (*GitHubIssue, error)
 	GetIssue(projectDir, repo string, issueNumber int) (*GitHubIssue, error)
+	FindMilestone(projectDir, repo, title string) (*GitHubMilestone, error)
 }
 
 type GitHubRepoInfo struct {
@@ -44,19 +45,26 @@ type GitHubContext struct {
 }
 
 type GitHubIssueInput struct {
-	Title  string
-	Body   string
-	State  string
-	Labels []string
+	Title     string
+	Body      string
+	State     string
+	Labels    []string
+	Milestone *int
 }
 
 type GitHubIssue struct {
+	Number    int
+	URL       string
+	Title     string
+	Body      string
+	State     string
+	Labels    []string
+	Milestone *GitHubMilestone
+}
+
+type GitHubMilestone struct {
 	Number int
-	URL    string
 	Title  string
-	Body   string
-	State  string
-	Labels []string
 }
 
 var newGitHubClient = func() GitHubClient {
@@ -82,9 +90,9 @@ func (c *cliGitHubClient) Preflight(projectDir string) (*GitHubRepoInfo, error) 
 	}
 
 	type repoView struct {
-		NameWithOwner   string `json:"nameWithOwner"`
-		URL             string `json:"url"`
-		HasIssues       bool   `json:"hasIssuesEnabled"`
+		NameWithOwner    string `json:"nameWithOwner"`
+		URL              string `json:"url"`
+		HasIssues        bool   `json:"hasIssuesEnabled"`
 		DefaultBranchRef struct {
 			Name string `json:"name"`
 		} `json:"defaultBranchRef"`
@@ -190,6 +198,9 @@ func (c *cliGitHubClient) upsertIssue(projectDir, apiPath string, input GitHubIs
 	if input.Labels != nil {
 		payload["labels"] = input.Labels
 	}
+	if input.Milestone != nil {
+		payload["milestone"] = *input.Milestone
+	}
 	method := "POST"
 	if strings.Contains(apiPath, "/issues/") {
 		method = "PATCH"
@@ -207,6 +218,27 @@ func (c *cliGitHubClient) GetIssue(projectDir, repo string, issueNumber int) (*G
 		return nil, err
 	}
 	return parseGitHubIssue(out)
+}
+
+func (c *cliGitHubClient) FindMilestone(projectDir, repo, title string) (*GitHubMilestone, error) {
+	type milestonePayload struct {
+		Number int    `json:"number"`
+		Title  string `json:"title"`
+	}
+	out, err := c.api(projectDir, "GET", fmt.Sprintf("repos/%s/milestones?state=all&per_page=100", repo), nil)
+	if err != nil {
+		return nil, err
+	}
+	var milestones []milestonePayload
+	if err := json.Unmarshal(out, &milestones); err != nil {
+		return nil, fmt.Errorf("parse milestones: %w", err)
+	}
+	for _, milestone := range milestones {
+		if strings.EqualFold(strings.TrimSpace(milestone.Title), strings.TrimSpace(title)) {
+			return &GitHubMilestone{Number: milestone.Number, Title: milestone.Title}, nil
+		}
+	}
+	return nil, nil
 }
 
 func (c *cliGitHubClient) api(projectDir, method, apiPath string, payload any) ([]byte, error) {
@@ -249,12 +281,16 @@ func parseGitHubIssue(raw []byte) (*GitHubIssue, error) {
 		Name string `json:"name"`
 	}
 	type payload struct {
-		Number int     `json:"number"`
-		URL    string  `json:"html_url"`
-		Title  string  `json:"title"`
-		Body   string  `json:"body"`
-		State  string  `json:"state"`
-		Labels []label `json:"labels"`
+		Number    int     `json:"number"`
+		URL       string  `json:"html_url"`
+		Title     string  `json:"title"`
+		Body      string  `json:"body"`
+		State     string  `json:"state"`
+		Labels    []label `json:"labels"`
+		Milestone *struct {
+			Number int    `json:"number"`
+			Title  string `json:"title"`
+		} `json:"milestone"`
 	}
 	var item payload
 	if err := json.Unmarshal(raw, &item); err != nil {
@@ -272,6 +308,12 @@ func parseGitHubIssue(raw []byte) (*GitHubIssue, error) {
 			continue
 		}
 		issue.Labels = append(issue.Labels, current.Name)
+	}
+	if item.Milestone != nil {
+		issue.Milestone = &GitHubMilestone{
+			Number: item.Milestone.Number,
+			Title:  item.Milestone.Title,
+		}
 	}
 	return issue, nil
 }
