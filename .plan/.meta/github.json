@@ -3,8 +3,8 @@
   "repo_url": "https://github.com/JimmyMcBride/plan",
   "default_branch": "develop",
   "last_enabled_at": "2026-04-20T03:04:26Z",
-  "last_updated_at": "2026-04-20T06:12:21Z",
-  "last_reconciled_at": "2026-04-20T06:12:21Z",
+  "last_updated_at": "2026-04-22T19:49:22Z",
+  "last_reconciled_at": "2026-04-22T19:49:22Z",
   "stories": {
     "add-brainstorm-stage-recap-and-stop-flow": {
       "slug": "add-brainstorm-stage-recap-and-stop-flow",
@@ -87,12 +87,13 @@
       ],
       "issue_number": 34,
       "issue_url": "https://github.com/JimmyMcBride/plan/issues/34",
-      "remote_state": "open",
+      "remote_state": "closed",
       "planning_pr_number": 33,
       "planning_pr_url": "https://github.com/JimmyMcBride/plan/pull/33",
-      "doc_ref_mode": "sha",
-      "doc_ref": "d3edd3f752a39d558133ae979313ff7012cc9c10",
-      "updated_at": "2026-04-21T14:08:07Z"
+      "planning_pr_merged": true,
+      "doc_ref_mode": "main",
+      "doc_ref": "develop",
+      "updated_at": "2026-04-22T19:49:22Z"
     },
     "add-guided-session-state-model": {
       "slug": "add-guided-session-state-model",
@@ -171,12 +172,13 @@
       ],
       "issue_number": 35,
       "issue_url": "https://github.com/JimmyMcBride/plan/issues/35",
-      "remote_state": "open",
+      "remote_state": "closed",
       "planning_pr_number": 33,
       "planning_pr_url": "https://github.com/JimmyMcBride/plan/pull/33",
-      "doc_ref_mode": "sha",
-      "doc_ref": "d3edd3f752a39d558133ae979313ff7012cc9c10",
-      "updated_at": "2026-04-21T14:08:09Z"
+      "planning_pr_merged": true,
+      "doc_ref_mode": "main",
+      "doc_ref": "develop",
+      "updated_at": "2026-04-22T19:49:22Z"
     },
     "add-plan-guide-show-json-command": {
       "slug": "add-plan-guide-show-json-command",
@@ -200,12 +202,13 @@
       ],
       "issue_number": 36,
       "issue_url": "https://github.com/JimmyMcBride/plan/issues/36",
-      "remote_state": "open",
+      "remote_state": "closed",
       "planning_pr_number": 33,
       "planning_pr_url": "https://github.com/JimmyMcBride/plan/pull/33",
-      "doc_ref_mode": "sha",
-      "doc_ref": "d3edd3f752a39d558133ae979313ff7012cc9c10",
-      "updated_at": "2026-04-21T14:08:11Z"
+      "planning_pr_merged": true,
+      "doc_ref_mode": "main",
+      "doc_ref": "develop",
+      "updated_at": "2026-04-22T19:49:22Z"
     },
     "add-reopen-impact-summary-and-needs-review-markers": {
       "slug": "add-reopen-impact-summary-and-needs-review-markers",
