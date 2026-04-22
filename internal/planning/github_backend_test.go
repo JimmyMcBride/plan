@@ -12,13 +12,15 @@ import (
 )
 
 type stubGitHubClient struct {
-	preflight    *GitHubRepoInfo
-	preflightErr error
-	context      *GitHubContext
-	issues       map[int]*GitHubIssue
-	nextIssue    int
-	lastCreate   GitHubIssueInput
-	lastUpdate   GitHubIssueInput
+	preflight        *GitHubRepoInfo
+	preflightErr     error
+	context          *GitHubContext
+	issues           map[int]*GitHubIssue
+	milestones       map[string]*GitHubMilestone
+	milestoneLookups []string
+	nextIssue        int
+	lastCreate       GitHubIssueInput
+	lastUpdate       GitHubIssueInput
 }
 
 func (s *stubGitHubClient) Preflight(projectDir string) (*GitHubRepoInfo, error) {
@@ -54,6 +56,15 @@ func (s *stubGitHubClient) CreateIssue(projectDir, repo string, input GitHubIssu
 	if strings.TrimSpace(input.State) != "" {
 		issue.State = input.State
 	}
+	if input.Milestone != nil {
+		for _, milestone := range s.milestones {
+			if milestone.Number == *input.Milestone {
+				copy := *milestone
+				issue.Milestone = &copy
+				break
+			}
+		}
+	}
 	s.issues[issue.Number] = issue
 	s.nextIssue++
 	return issue, nil
@@ -73,6 +84,19 @@ func (s *stubGitHubClient) UpdateIssue(projectDir, repo string, issueNumber int,
 	if input.Labels != nil {
 		issue.Labels = append([]string(nil), input.Labels...)
 	}
+	if input.ClearMilestone {
+		issue.Milestone = nil
+	}
+	if input.Milestone != nil {
+		issue.Milestone = nil
+		for _, milestone := range s.milestones {
+			if milestone.Number == *input.Milestone {
+				copy := *milestone
+				issue.Milestone = &copy
+				break
+			}
+		}
+	}
 	return issue, nil
 }
 
@@ -83,6 +107,19 @@ func (s *stubGitHubClient) GetIssue(projectDir, repo string, issueNumber int) (*
 	}
 	copy := *issue
 	copy.Labels = append([]string(nil), issue.Labels...)
+	return &copy, nil
+}
+
+func (s *stubGitHubClient) FindMilestone(projectDir, repo, title string) (*GitHubMilestone, error) {
+	s.milestoneLookups = append(s.milestoneLookups, title)
+	if s.milestones == nil {
+		return nil, nil
+	}
+	milestone, ok := s.milestones[title]
+	if !ok {
+		return nil, nil
+	}
+	copy := *milestone
 	return &copy, nil
 }
 
@@ -148,6 +185,9 @@ func TestEnableGitHubBackendFailsWhenLocalStoriesAlreadyExist(t *testing.T) {
 	root := t.TempDir()
 	ws := workspace.New(root)
 	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, ".plan", "stories"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(root, ".plan", "stories", "existing.md"), []byte("# Existing\n"), 0o644); err != nil {
@@ -257,6 +297,195 @@ func TestCreateStoryUsesGitHubIssueStorageWhenBackendEnabled(t *testing.T) {
 	}
 	if len(items) != 1 || items[0].Backend != "github" || items[0].IssueNumber != 101 {
 		t.Fatalf("unexpected GitHub story list: %+v", items)
+	}
+}
+
+func TestCreateGitHubStoryMapsSpecInitiativeToMilestoneWhenPresent(t *testing.T) {
+	client := &stubGitHubClient{
+		preflight: &GitHubRepoInfo{
+			Repo:          "JimmyMcBride/plan",
+			RepoURL:       "https://github.com/JimmyMcBride/plan",
+			DefaultBranch: "main",
+		},
+		context: &GitHubContext{
+			Repo: GitHubRepoInfo{
+				Repo:          "JimmyMcBride/plan",
+				RepoURL:       "https://github.com/JimmyMcBride/plan",
+				DefaultBranch: "main",
+			},
+			CurrentBranch: "main",
+			CurrentSHA:    "abc123def456",
+		},
+		milestones: map[string]*GitHubMilestone{
+			"Guide Packet Foundation": {Number: 12, Title: "Guide Packet Foundation"},
+		},
+	}
+	reset := SetGitHubClientFactoryForTesting(func() GitHubClient { return client })
+	t.Cleanup(reset)
+
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := New(ws)
+	if _, err := manager.EnableGitHubBackend(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.CreateEpic("Billing", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.SetSpecStatus("billing", "approved"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.SetSpecInitiative("billing", InitiativeRef{
+		Slug:  "guide-packet-foundation",
+		Title: "Guide Packet Foundation",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := manager.CreateStory(
+		"billing",
+		"Implement invoices",
+		"Create invoice generation flow",
+		[]string{"Generate invoices from line items"},
+		[]string{"Run focused billing tests"},
+		nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if client.lastCreate.Milestone == nil || *client.lastCreate.Milestone != 12 {
+		t.Fatalf("expected GitHub issue create to include initiative milestone: %+v", client.lastCreate)
+	}
+}
+
+func TestReconcileGitHubStoriesUpdatesMilestoneWhenInitiativeChangesWithoutBodyDiff(t *testing.T) {
+	client := &stubGitHubClient{
+		preflight: &GitHubRepoInfo{
+			Repo:          "JimmyMcBride/plan",
+			RepoURL:       "https://github.com/JimmyMcBride/plan",
+			DefaultBranch: "main",
+		},
+		context: &GitHubContext{
+			Repo: GitHubRepoInfo{
+				Repo:          "JimmyMcBride/plan",
+				RepoURL:       "https://github.com/JimmyMcBride/plan",
+				DefaultBranch: "main",
+			},
+			CurrentBranch: "main",
+			CurrentSHA:    "abc123def456",
+		},
+		milestones: map[string]*GitHubMilestone{
+			"Guide Packet Foundation": {Number: 12, Title: "Guide Packet Foundation"},
+		},
+	}
+	reset := SetGitHubClientFactoryForTesting(func() GitHubClient { return client })
+	t.Cleanup(reset)
+
+	root := t.TempDir()
+	manager := newGitHubStoryManager(t, root)
+	if _, err := manager.EnableGitHubBackend(); err != nil {
+		t.Fatal(err)
+	}
+	seedApprovedGitHubEpic(t, manager)
+	if _, err := manager.CreateStory(
+		"billing",
+		"Implement invoices",
+		"Create invoice generation flow",
+		[]string{"Generate invoices from line items"},
+		[]string{"Run focused billing tests"},
+		nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.SetSpecInitiative("billing", InitiativeRef{
+		Slug:  "guide-packet-foundation",
+		Title: "Guide Packet Foundation",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	client.lastUpdate = GitHubIssueInput{}
+	client.milestoneLookups = nil
+	result, err := manager.ReconcileGitHubStories(GitHubReconcileOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.UpdatedIssues) != 1 {
+		t.Fatalf("expected reconcile to update issue milestone: %+v", result)
+	}
+	if client.lastUpdate.Milestone == nil || *client.lastUpdate.Milestone != 12 {
+		t.Fatalf("expected reconcile to set milestone when initiative metadata appears: %+v", client.lastUpdate)
+	}
+	if client.issues[101].Milestone == nil || client.issues[101].Milestone.Number != 12 {
+		t.Fatalf("expected issue milestone to update: %+v", client.issues[101])
+	}
+}
+
+func TestReconcileGitHubStoriesClearsMilestoneWhenInitiativeRemoved(t *testing.T) {
+	client := &stubGitHubClient{
+		preflight: &GitHubRepoInfo{
+			Repo:          "JimmyMcBride/plan",
+			RepoURL:       "https://github.com/JimmyMcBride/plan",
+			DefaultBranch: "main",
+		},
+		context: &GitHubContext{
+			Repo: GitHubRepoInfo{
+				Repo:          "JimmyMcBride/plan",
+				RepoURL:       "https://github.com/JimmyMcBride/plan",
+				DefaultBranch: "main",
+			},
+			CurrentBranch: "main",
+			CurrentSHA:    "abc123def456",
+		},
+		milestones: map[string]*GitHubMilestone{
+			"Guide Packet Foundation": {Number: 12, Title: "Guide Packet Foundation"},
+		},
+	}
+	reset := SetGitHubClientFactoryForTesting(func() GitHubClient { return client })
+	t.Cleanup(reset)
+
+	root := t.TempDir()
+	manager := newGitHubStoryManager(t, root)
+	if _, err := manager.EnableGitHubBackend(); err != nil {
+		t.Fatal(err)
+	}
+	seedApprovedGitHubEpic(t, manager)
+	if _, err := manager.SetSpecInitiative("billing", InitiativeRef{
+		Slug:  "guide-packet-foundation",
+		Title: "Guide Packet Foundation",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.CreateStory(
+		"billing",
+		"Implement invoices",
+		"Create invoice generation flow",
+		[]string{"Generate invoices from line items"},
+		[]string{"Run focused billing tests"},
+		nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.ClearSpecInitiative("billing"); err != nil {
+		t.Fatal(err)
+	}
+
+	client.lastUpdate = GitHubIssueInput{}
+	client.milestoneLookups = nil
+	result, err := manager.ReconcileGitHubStories(GitHubReconcileOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.UpdatedIssues) != 1 {
+		t.Fatalf("expected reconcile to clear stale milestone: %+v", result)
+	}
+	if !client.lastUpdate.ClearMilestone || client.lastUpdate.Milestone != nil {
+		t.Fatalf("expected reconcile to request milestone clearing: %+v", client.lastUpdate)
+	}
+	if client.issues[101].Milestone != nil {
+		t.Fatalf("expected issue milestone to clear after reconcile: %+v", client.issues[101])
 	}
 }
 
@@ -686,6 +915,57 @@ func TestReconcileGitHubStoriesRefreshesRepoDefaultBranchInState(t *testing.T) {
 	}
 	if !strings.Contains(client.issues[101].Body, "/blob/develop/.plan/specs/billing.md") {
 		t.Fatalf("expected issue body to point at develop after reconcile:\n%s", client.issues[101].Body)
+	}
+}
+
+func TestReconcileGitHubStoriesCachesMilestoneLookupPerInitiative(t *testing.T) {
+	client := &stubGitHubClient{
+		preflight: &GitHubRepoInfo{
+			Repo:          "JimmyMcBride/plan",
+			RepoURL:       "https://github.com/JimmyMcBride/plan",
+			DefaultBranch: "main",
+		},
+		context: &GitHubContext{
+			Repo: GitHubRepoInfo{
+				Repo:          "JimmyMcBride/plan",
+				RepoURL:       "https://github.com/JimmyMcBride/plan",
+				DefaultBranch: "main",
+			},
+			CurrentBranch: "main",
+			CurrentSHA:    "abc123def456",
+		},
+		milestones: map[string]*GitHubMilestone{
+			"Guide Packet Foundation": {Number: 12, Title: "Guide Packet Foundation"},
+		},
+	}
+	reset := SetGitHubClientFactoryForTesting(func() GitHubClient { return client })
+	t.Cleanup(reset)
+
+	root := t.TempDir()
+	manager := newGitHubStoryManager(t, root)
+	if _, err := manager.EnableGitHubBackend(); err != nil {
+		t.Fatal(err)
+	}
+	seedApprovedGitHubEpic(t, manager)
+	if _, err := manager.SetSpecInitiative("billing", InitiativeRef{
+		Slug:  "guide-packet-foundation",
+		Title: "Guide Packet Foundation",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.CreateStory("billing", "Seed billing data", "Seed data first", []string{"Seed data"}, []string{"Run seed checks"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.CreateStory("billing", "Implement invoices", "Create invoice generation flow", []string{"Generate invoices"}, []string{"Run billing tests"}, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	client.milestoneLookups = nil
+	if _, err := manager.ReconcileGitHubStories(GitHubReconcileOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if len(client.milestoneLookups) != 1 || client.milestoneLookups[0] != "Guide Packet Foundation" {
+		t.Fatalf("expected one cached milestone lookup during reconcile, got %+v", client.milestoneLookups)
 	}
 }
 

@@ -46,9 +46,10 @@ Use this file for agent operating workflow inside the repo.
 
 - Establish queue with `plan status --project .`.
 - Take the next approved spec, not the next individual issue.
-- Run `plan story slice --project . <epic-slug>` and then `--apply` to materialize the current spec's slices.
+- Run `plan spec execute --project . <spec-slug>` to start execution from the current approved spec.
 - Implement one slice at a time.
 - Review and verify each slice before committing that slice.
 - Repeat until the current spec is done, then move to the next queued spec.
 - Open one PR after the queued specs for the branch are complete.
+- If legacy epic/story material is still active, archive it with `plan update --project . --archive-legacy`.
 - If GitHub story mode is enabled, run `plan update --project .` and `plan github reconcile --project . --update-visible` after merge before taking more queue work.

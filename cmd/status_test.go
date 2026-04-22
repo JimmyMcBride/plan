@@ -9,7 +9,7 @@ import (
 	"plan/internal/workspace"
 )
 
-func TestStatusCommandPrintsSimpleEpicProgressCounts(t *testing.T) {
+func TestStatusCommandPrintsSpecQueueSummary(t *testing.T) {
 	root := t.TempDir()
 	ws := workspace.New(root)
 	if _, err := ws.Init(); err != nil {
@@ -47,14 +47,17 @@ func TestStatusCommandPrintsSimpleEpicProgressCounts(t *testing.T) {
 	}
 
 	output := buf.String()
-	if !strings.Contains(output, "stories: 1 total, 0 done, 0 in_progress, 1 blocked") {
-		t.Fatalf("expected story summary in output:\n%s", output)
+	if !strings.Contains(output, "specs: 1 total, 0 draft, 0 approved, 1 implementing, 0 done") {
+		t.Fatalf("expected spec summary in output:\n%s", output)
 	}
 	if strings.Contains(output, "ready_work:") || strings.Contains(output, "versions:") {
-		t.Fatalf("expected status output to drop old power summaries:\n%s", output)
+		t.Fatalf("expected status output to stay on the spec-first queue surface:\n%s", output)
 	}
-	if !strings.Contains(output, "Billing [implementing] (0/1 done, 0 in progress, 1 blocked)") {
-		t.Fatalf("expected epic progress counts in output:\n%s", output)
+	if !strings.Contains(output, "legacy_stories: 1 total, 0 done, 0 in_progress, 1 blocked") {
+		t.Fatalf("expected legacy story summary in output:\n%s", output)
+	}
+	if !strings.Contains(output, "legacy_epics:\n  - Billing [implementing] (0/1 done, 0 in progress, 1 blocked)") {
+		t.Fatalf("expected legacy epic summary in output:\n%s", output)
 	}
 }
 
@@ -110,10 +113,59 @@ func TestStatusCommandShowsMultipleReadyGitHubStories(t *testing.T) {
 	}
 
 	output := buf.String()
-	if !strings.Contains(output, "ready_work: 2") {
-		t.Fatalf("expected ready-work summary in output:\n%s", output)
+	if !strings.Contains(output, "ready_specs: 1") {
+		t.Fatalf("expected ready spec summary in output:\n%s", output)
 	}
-	if !strings.Contains(output, "Seed billing data issue=#101 epic=billing spec=billing") || !strings.Contains(output, "Ship exports issue=#102 epic=billing spec=billing") {
-		t.Fatalf("expected multiple ready GitHub stories in output:\n%s", output)
+	if !strings.Contains(output, "Billing Spec status=approved") {
+		t.Fatalf("expected approved spec in ready queue output:\n%s", output)
+	}
+	if !strings.Contains(output, "legacy_stories: 2 total, 0 done, 0 in_progress, 0 blocked") {
+		t.Fatalf("expected legacy story summary in output:\n%s", output)
+	}
+}
+
+func TestStatusCommandIgnoresArchivedLegacyHierarchy(t *testing.T) {
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := planning.New(ws)
+
+	if _, err := manager.CreateEpic("Billing", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.SetSpecStatus("billing", "approved"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.CreateStory(
+		"billing",
+		"Implement invoices",
+		"Create invoice generation flow",
+		[]string{"Generate invoices from line items"},
+		[]string{"Run focused billing tests"},
+		nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ws.UpdateWithOptions(workspace.UpdateOptions{ArchiveLegacy: true}); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	command := newRootCmd()
+	command.SetOut(&buf)
+	command.SetErr(&buf)
+	command.SetArgs([]string{"--project", root, "status"})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "ready_specs: 1") {
+		t.Fatalf("expected ready spec summary in output:\n%s", output)
+	}
+	if strings.Contains(output, "legacy_stories:") || strings.Contains(output, "legacy_epics:") {
+		t.Fatalf("expected archived legacy hierarchy to stay out of active status output:\n%s", output)
 	}
 }

@@ -802,11 +802,11 @@ func renderBrainstormStageRecap(state *planning.BrainstormRefinement, nextAction
 func guidedDownstreamStagesForOutput(stage string) []string {
 	switch strings.TrimSpace(stage) {
 	case "brainstorm":
-		return []string{"epic", "spec", "stories"}
+		return []string{"epic", "spec", "execution"}
 	case "epic":
-		return []string{"spec", "stories"}
+		return []string{"spec", "execution"}
 	case "spec":
-		return []string{"stories"}
+		return []string{"execution"}
 	default:
 		return []string{"none"}
 	}

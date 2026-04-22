@@ -130,7 +130,44 @@ func TestSwitchAndReopenGuidedSessionState(t *testing.T) {
 	if len(downstream) != 3 {
 		t.Fatalf("unexpected downstream stage count: %+v", downstream)
 	}
-	if updated.StageStatuses["epic"] != "needs_review" || updated.StageStatuses["spec"] != "needs_review" || updated.StageStatuses["stories"] != "needs_review" {
+	if updated.StageStatuses["epic"] != "needs_review" || updated.StageStatuses["spec"] != "needs_review" || updated.StageStatuses["execution"] != "needs_review" {
 		t.Fatalf("expected downstream stages to be marked needs_review: %+v", updated)
+	}
+}
+
+func TestReadGuidedSessionBySpecUsesStoredSpecSlug(t *testing.T) {
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := New(ws)
+	if _, err := manager.CreateBrainstorm("Guided Flow"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := manager.UpdateGuidedBrainstormIntake("guided-flow", GuidedBrainstormIntakeInput{
+		Vision:             "Guide the user from idea to implementation.",
+		SupportingMaterial: "docs/guided.md",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	state, err := ws.ReadGuidedSessionState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	record := state.Sessions["brainstorm/guided-flow"]
+	record.Spec = "guided-flow-spec"
+	state.Sessions[record.ChainID] = record
+	if err := ws.WriteGuidedSessionState(*state); err != nil {
+		t.Fatal(err)
+	}
+
+	session, err := manager.ReadGuidedSessionBySpec("guided-flow-spec")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if session.ChainID != "brainstorm/guided-flow" || session.Spec != "guided-flow-spec" {
+		t.Fatalf("expected guided session lookup by spec slug: %+v", session)
 	}
 }

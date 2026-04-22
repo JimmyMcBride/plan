@@ -24,7 +24,7 @@ Created: {{ .Now }}
 
 ## Verification
 
-## Story Breakdown
+## Execution Plan
 
 ## Analysis
 

@@ -12,10 +12,10 @@ import (
 )
 
 type stubGitHubStoryClient struct {
-	preflight  *planning.GitHubRepoInfo
-	context    *planning.GitHubContext
-	issues     map[int]*planning.GitHubIssue
-	nextIssue  int
+	preflight *planning.GitHubRepoInfo
+	context   *planning.GitHubContext
+	issues    map[int]*planning.GitHubIssue
+	nextIssue int
 }
 
 func (s *stubGitHubStoryClient) Preflight(projectDir string) (*planning.GitHubRepoInfo, error) {
@@ -58,6 +58,10 @@ func (s *stubGitHubStoryClient) UpdateIssue(projectDir, repo string, issueNumber
 func (s *stubGitHubStoryClient) GetIssue(projectDir, repo string, issueNumber int) (*planning.GitHubIssue, error) {
 	copy := *s.issues[issueNumber]
 	return &copy, nil
+}
+
+func (s *stubGitHubStoryClient) FindMilestone(projectDir, repo, title string) (*planning.GitHubMilestone, error) {
+	return nil, nil
 }
 
 func TestStoryCommandsSupportGitHubBackedStories(t *testing.T) {
@@ -141,7 +145,7 @@ func TestStoryCommandsSupportGitHubBackedStories(t *testing.T) {
 		"",
 	}, "\n")
 	if _, err := manager.UpdateSpec("billing", notes.UpdateInput{
-		Body: &specBody,
+		Body:     &specBody,
 		Metadata: map[string]any{"status": "approved"},
 	}); err != nil {
 		t.Fatal(err)

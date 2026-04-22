@@ -10,7 +10,10 @@ import (
 	"plan/internal/workspace"
 )
 
-const seededStoryBreakdownPlaceholder = "Split approved spec into execution-ready stories"
+const (
+	seededExecutionPlanPlaceholder  = "Define execution slices when implementation begins"
+	legacyStoryBreakdownPlaceholder = "Split approved spec into execution-ready stories"
+)
 
 type StorySliceCandidate struct {
 	Title              string
@@ -56,7 +59,7 @@ func (m *Manager) PreviewStorySlices(epicSlug string) (*StorySlicePreview, error
 		return nil, err
 	}
 	if len(candidates) == 0 {
-		return nil, fmt.Errorf("spec %s has no slice-ready Story Breakdown entries", rel(info.ProjectDir, spec.Path))
+		return nil, fmt.Errorf("spec %s has no slice-ready execution plan entries", rel(info.ProjectDir, spec.Path))
 	}
 	return &StorySlicePreview{
 		Project:    info.ProjectName,
@@ -99,7 +102,7 @@ func (m *Manager) ApplyStorySlices(epicSlug string) (*StorySliceApplyResult, err
 	}
 
 	breakdown := renderStoryBreakdownLinks(info.ProjectDir, spec.Path, result.Candidates)
-	body := notes.SetSection(spec.Content, "Story Breakdown", breakdown)
+	body := notes.SetSection(spec.Content, executionPlanHeading(spec.Content), breakdown)
 	updatedSpec, err := notes.Update(spec.Path, notes.UpdateInput{Body: &body})
 	if err != nil {
 		return nil, err
@@ -109,11 +112,11 @@ func (m *Manager) ApplyStorySlices(epicSlug string) (*StorySliceApplyResult, err
 }
 
 func deriveStorySliceCandidates(info *workspace.Info, epic, spec *notes.Note) ([]StorySliceCandidate, error) {
-	rawCandidates := parseStoryBreakdownCandidates(notes.ExtractSection(spec.Content, "Story Breakdown"))
+	rawCandidates := parseStoryBreakdownCandidates(extractExecutionPlanSection(spec.Content))
 	verificationDefaults := storySliceVerificationDefaults(spec)
 	var candidates []StorySliceCandidate
 	for _, raw := range rawCandidates {
-		if raw.Title == "" || strings.EqualFold(raw.Title, seededStoryBreakdownPlaceholder) {
+		if raw.Title == "" || isSeededExecutionPlaceholder(raw.Title) {
 			continue
 		}
 		candidate := StorySliceCandidate{
@@ -255,6 +258,28 @@ func storySliceVerificationDefaults(spec *notes.Note) []string {
 		return []string{"Validate the slice against the canonical spec."}
 	}
 	return out
+}
+
+func extractExecutionPlanSection(content string) string {
+	if section := notes.ExtractSection(content, "Execution Plan"); strings.TrimSpace(section) != "" {
+		return section
+	}
+	return notes.ExtractSection(content, "Story Breakdown")
+}
+
+func executionPlanHeading(content string) string {
+	if section := notes.ExtractSection(content, "Execution Plan"); strings.TrimSpace(section) != "" {
+		return "Execution Plan"
+	}
+	if section := notes.ExtractSection(content, "Story Breakdown"); strings.TrimSpace(section) != "" {
+		return "Story Breakdown"
+	}
+	return "Execution Plan"
+}
+
+func isSeededExecutionPlaceholder(title string) bool {
+	title = strings.TrimSpace(title)
+	return strings.EqualFold(title, seededExecutionPlanPlaceholder) || strings.EqualFold(title, legacyStoryBreakdownPlaceholder)
 }
 
 func renderStoryBreakdownLinks(projectDir, specPath string, candidates []StorySliceCandidate) string {

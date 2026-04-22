@@ -9,13 +9,15 @@ ideas.
 
 Right now:
 
-- the shipped CLI surface includes the `v4`, `v5`, and `v6` planning passes
-- `story slice` and `story critique` are part of the current workflow
-- `plan check` validates the spec-to-story handoff more aggressively than it
-  did in earlier versions
-- GitHub-backed story execution is available when you enable GitHub story mode
+- the active planning model is spec-first
+- brainstorms stay local and can bloom into idea docs or specs
+- `initiative` is lightweight optional grouping metadata
+- `plan spec execute` is the active execution entry point
+- legacy `epic` and `story` commands still exist during the transition
+- GitHub-backed issue execution remains available when you enable GitHub mode
 
-So this guide covers the current command surface as it exists today.
+The top of this guide reflects the active spec-first model. Some later sections
+still document legacy compatibility commands while the migration is in flight.
 
 ## What `plan` Is
 
@@ -25,30 +27,38 @@ It stores planning material in `.plan/` and focuses on one job:
 
 - turn rough ideas into shaped planning artifacts
 - make specs stronger before implementation starts
-- make stories execution-ready before coding begins
+- guide execution from approved specs without persisting tiny slice artifacts
 
 `plan` does not handle memory, retrieval, or context management.
 
 ## Core Model
 
-Canonical hierarchy:
+Active model:
 
-1. `Epic`
-2. `Spec`
-3. `Story`
+1. `Brainstorm`
+2. `Idea Doc` (optional)
+3. `Spec`
+4. runtime `Slice`
+
+Optional grouping:
+
+- `Initiative` for multi-spec outcomes
+- GitHub milestone mapping when GitHub integration is enabled
+
+Legacy `epic` and `story` objects remain available as compatibility surfaces,
+but they are not the default active model anymore.
 
 Workflow entry:
 
 1. `Brainstorm`
 2. `Refine`
 3. `Challenge`
-4. `Promote to epic`
-5. `Shape the epic`
-6. `Write and approve spec`
-7. `Analyze or checklist the spec`
-8. `Slice stories from the spec`
-9. `Critique stories before execution`
-10. `Create or execute stories`
+4. `Promote or shape into a spec`
+5. `Write and approve spec`
+6. `Analyze or checklist the spec`
+7. `Assign initiative metadata when needed`
+8. `Start spec execution`
+9. `Work slices one commit at a time`
 
 ## Workspace Layout
 
@@ -59,9 +69,9 @@ Workflow entry:
   PROJECT.md
   ROADMAP.md
   brainstorms/
-  epics/
+  ideas/
+  archive/
   specs/
-  stories/
   .meta/
     workspace.json
     migrations.json
@@ -73,9 +83,9 @@ Meaning:
 - `PROJECT.md`: product direction and project rules
 - `ROADMAP.md`: version/phase planning
 - `brainstorms/`: discovery notes
-- `epics/`: outcome boundaries
+- `ideas/`: optional durable idea docs
+- `archive/`: preserved legacy epic/story-era planning material
 - `specs/`: canonical execution contracts
-- `stories/`: execution-ready slices in local story mode
 - `.meta/`: tool-owned state only, including GitHub story metadata when enabled
 
 ## New Repo Setup
@@ -98,6 +108,12 @@ Repair or normalize tool-owned state:
 plan update --project .
 ```
 
+Archive legacy epic/story hierarchy without touching active specs:
+
+```bash
+plan update --project . --archive-legacy
+```
+
 ## Existing Repo Setup
 
 If the repo already exists and you want `plan` to manage it:
@@ -109,8 +125,8 @@ plan doctor --project .
 
 ## Optional: Enable GitHub Story Mode
 
-If you want brainstorms, epics, and specs local but stories stored as GitHub
-Issues:
+If you want local planning but GitHub-backed issue execution during the
+transition:
 
 ```bash
 plan update --project .
@@ -126,9 +142,10 @@ Preconditions:
 
 When GitHub story mode is enabled:
 
-- stories are created as GitHub Issues
+- execution stories are created as GitHub Issues
 - `.plan/.meta/github.json` becomes the local issue-state index
-- `plan status --project .` shows `ready_work` after reconcile
+- initiative metadata can map execution work to GitHub milestones when titles
+  match
 
 ## Step-By-Step Workflow
 

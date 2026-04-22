@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "planning_model": "epic_spec_story_v1",
+  "planning_model": "spec_first_v1",
   "story_backend": "github",
   "created_at": "2026-04-16T05:33:06Z",
-  "updated_at": "2026-04-20T03:04:26Z"
+  "updated_at": "2026-04-22T04:17:54Z"
 }
