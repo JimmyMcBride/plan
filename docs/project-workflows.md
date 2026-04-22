@@ -44,6 +44,8 @@ Use this file for agent operating workflow inside the repo.
 
 ### Project Override: Spec Queue Loop
 
+- Respect the configured source-of-truth backend. `.plan/` is the default local
+  store, but `github` or `hybrid` mode may own some persistent planning data.
 - Establish queue with `plan status --project .`.
 - Take the next approved spec, not the next individual issue.
 - Run `plan spec execute --project . <spec-slug>` to start execution from the current approved spec.

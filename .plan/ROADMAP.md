@@ -6,8 +6,8 @@ Created: 2026-04-17T00:00:00Z
 
 `plan` is resetting around planning refinement rather than older power-first
 local workflows. The next few product phases focus on shaping quality, better
-prompts and evals, and stronger execution-readiness before any external sync is
-considered.
+prompts and evals, stronger execution-readiness, and then explicit
+source-of-truth flexibility beyond the default local backend.
 
 ## v4: Planning Refinement Foundation
 
@@ -59,18 +59,21 @@ Summary:
 - add `plan story critique`
 - keep the default path small while making optional story quality passes stronger
 
-## v7: External Sync, Only If Still Needed
+## v7: Backend Flexibility and GitHub Integration
 
-Goal: Connect outward only after the local shaping loop is clearly excellent.
+Goal: Expand beyond local-only assumptions without losing the simple local
+default.
 
-- [ ] GitHub Story Backend and Preflight
-- [ ] Issue Contract and Planning Link Lifecycle
-- [ ] Dependency-Aware Issue Readiness
+- [ ] Source-of-Truth Backends and Ownership Model
+- [ ] GitHub Planning Surfaces and Workflow Modeling
+- [ ] GitHub-Backed Planning and Execution Loops
 
 Summary:
-- keep brainstorms, epics, and specs canonical in `.plan`
-- let GitHub Issues serve as the execution backend for stories when GitHub mode is enabled
-- derive blocked and ready work from planning-merge state plus issue dependencies
+- keep `local` as the default mode, not the only mode
+- support explicit `local`, `github`, and `hybrid` source-of-truth backends
+- make planning-layer ownership explicit instead of assuming `.plan/` always
+  owns every durable artifact
+- use GitHub as the first serious external planning backend
 
 ## v8: Guided Co-Planning System
 
@@ -93,7 +96,8 @@ Summary:
 - fix the product story before adding more product surface
 - benchmark quality improvements before stacking more passes
 - keep the default path simple even as optional shaping modes deepen
-- do not revive older power-first local workflow features without clear eval wins
+- backend flexibility should preserve simple local defaults and explicit
+  ownership boundaries
 
 ## Parking Lot
 

@@ -10,11 +10,13 @@ args:
 
 # Plan
 
-Use `plan` as the primary interface for repo-local planning.
+Use `plan` as the primary interface for project planning, while respecting the
+configured source-of-truth backend.
 
 ## Goals
 
-- keep planning local to the repo
+- keep local planning as the default while respecting `github` and `hybrid`
+  source-of-truth modes when configured
 - treat specs as the canonical execution contract
 - improve the quality of brainstorms and specs before implementation starts
 - use lightweight initiative metadata when multiple specs belong together
@@ -28,7 +30,8 @@ When a repo uses `plan`:
 1. Read `.plan/PROJECT.md`.
 2. Read `.plan/ROADMAP.md`.
 3. Read the brainstorm, idea, spec, and legacy compatibility notes relevant to the task.
-4. Use the `plan` CLI for durable planning changes.
+4. If the project is using `github` or `hybrid` ownership for durable planning data, inspect the linked GitHub issue, project, or milestone state too.
+5. Use the `plan` CLI for durable planning changes and keep backend ownership explicit.
 
 ## Commands
 
@@ -58,6 +61,8 @@ When a repo uses `plan`:
 
 - Brainstorms are discovery material, not the canonical hierarchy.
 - Active model is `Brainstorm -> Idea Doc (optional) -> Spec`, with runtime slices during execution.
+- Local is the default backend, not the only backend.
+- Do not assume every durable planning artifact lives in `.plan/`; respect explicit ownership by planning layer.
 - `brainstorm refine` should reduce ambiguity before promotion.
 - `brainstorm challenge` should pressure-test risk, no-gos, and overengineering before promotion.
 - `epic shape` is now a legacy compatibility pass, not the preferred active model.
@@ -105,9 +110,11 @@ Use the smallest pass that resolves the current planning gap:
 - optional rigor must not make the default path ceremonial
 - every recommendation should improve clarity, boundedness, verification, or executability
 - active execution should stay traceable from spec -> slices -> commits -> PR
+- when backend ownership is split, the agent should preserve that split instead of silently moving truth back into `.plan/`
 
 ## Ambiguity Handling
 
 - if the next shaping pass is obvious, run it
 - if two passes could apply, choose the lighter one first
+- if backend ownership is unclear, inspect project rules and current GitHub state before editing durable planning artifacts
 - do not turn `plan` into memory, context, or execution orchestration
