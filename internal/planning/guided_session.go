@@ -269,6 +269,21 @@ func (m *Manager) ReadGuidedSessionByEpic(epicSlug string) (*workspace.GuidedSes
 	return nil, fmt.Errorf("no guided session linked to epic %q", epicSlug)
 }
 
+func (m *Manager) ReadGuidedSessionBySpec(specSlug string) (*workspace.GuidedSessionRecord, error) {
+	state, err := m.workspace.ReadGuidedSessionState()
+	if err != nil {
+		return nil, err
+	}
+	needle := slugify(specSlug)
+	for _, record := range state.Sessions {
+		if record.Spec == needle {
+			copy := record
+			return &copy, nil
+		}
+	}
+	return nil, fmt.Errorf("no guided session linked to spec %q", specSlug)
+}
+
 func (m *Manager) AdvanceGuidedSessionToSpec(epicSlug string) (*workspace.GuidedSessionRecord, *notes.Note, error) {
 	session, err := m.ReadGuidedSessionByEpic(epicSlug)
 	if err != nil {
@@ -309,6 +324,18 @@ func (m *Manager) AdvanceGuidedSessionToExecution(epicSlug string) (*workspace.G
 	if err != nil {
 		return nil, err
 	}
+	return m.advanceGuidedSessionToExecutionRecord(session)
+}
+
+func (m *Manager) AdvanceGuidedSessionToExecutionBySpec(specSlug string) (*workspace.GuidedSessionRecord, error) {
+	session, err := m.ReadGuidedSessionBySpec(specSlug)
+	if err != nil {
+		return nil, err
+	}
+	return m.advanceGuidedSessionToExecutionRecord(session)
+}
+
+func (m *Manager) advanceGuidedSessionToExecutionRecord(session *workspace.GuidedSessionRecord) (*workspace.GuidedSessionRecord, error) {
 	updated, err := m.UpdateGuidedSession(session.ChainID, GuidedSessionUpdateInput{
 		CurrentStage: "execution",
 		Summary:      "Spec handoff complete. Continue the planning flow in the execution stage.",

@@ -853,10 +853,7 @@ func archivedSpecsForLegacyEpics(info *Info, legacyDir, destDir string) ([]Archi
 		if err != nil {
 			return nil, err
 		}
-		specSlug := stringValue(epic.Metadata["spec"])
-		if specSlug == "" {
-			specSlug = slugFromPath(epicPath)
-		}
+		specSlug := safeLegacySpecSlug(stringValue(epic.Metadata["spec"]), slugFromPath(epicPath))
 		specPath := filepath.Join(info.SpecsDir, specSlug+".md")
 		spec := ArchivedSpec{
 			Slug:             specSlug,
@@ -873,6 +870,21 @@ func archivedSpecsForLegacyEpics(info *Info, legacyDir, destDir string) ([]Archi
 		specs = append(specs, spec)
 	}
 	return specs, nil
+}
+
+func safeLegacySpecSlug(raw, fallback string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return slugFromPath(fallback)
+	}
+	if strings.ContainsAny(raw, `/\`) {
+		return slugFromPath(fallback)
+	}
+	base := filepath.Base(raw)
+	if base == "." || base == ".." {
+		return slugFromPath(fallback)
+	}
+	return slugFromPath(base)
 }
 
 func archiveBatchName(now string) string {

@@ -180,7 +180,7 @@ func newSpecCommand() *cobra.Command {
 		Short: "Continue a guided spec into the execution stage",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			session, err := planningManager().ReadGuidedSessionByEpic(args[0])
+			session, err := planningManager().ReadGuidedSessionBySpec(args[0])
 			if err != nil {
 				return err
 			}
@@ -210,7 +210,7 @@ func newSpecCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			updated, err := planningManager().AdvanceGuidedSessionToExecution(args[0])
+			updated, err := planningManager().AdvanceGuidedSessionToExecutionBySpec(args[0])
 			if err != nil {
 				return err
 			}

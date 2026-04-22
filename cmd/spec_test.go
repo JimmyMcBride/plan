@@ -365,8 +365,9 @@ func TestSpecHandoffStartsExecutionAndAdvancesSessionToExecution(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	const specSlug = "guided-planning-spec"
 	body := strings.Join([]string{
-		"# Guided Planning Spec",
+		"# Guided Planning Execution Spec",
 		"",
 		"Created: now",
 		"",
@@ -421,12 +422,21 @@ func TestSpecHandoffStartsExecutionAndAdvancesSessionToExecution(t *testing.T) {
 		"- Build the first guided execution pass",
 		"",
 	}, "\n")
-	if _, err := manager.UpdateSpec("guided-planning", notes.UpdateInput{
-		Body: &body,
-		Metadata: map[string]any{
-			"status": "approved",
-		},
+	if _, err := notes.Create(filepath.Join(root, ".plan", "specs", specSlug+".md"), "Guided Planning Execution Spec", "spec", body, map[string]any{
+		"slug":   specSlug,
+		"status": "approved",
+		"epic":   "guided-planning",
 	}); err != nil {
+		t.Fatal(err)
+	}
+	state, err := ws.ReadGuidedSessionState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	session := state.Sessions["brainstorm/guided-planning"]
+	session.Spec = specSlug
+	state.Sessions[session.ChainID] = session
+	if err := ws.WriteGuidedSessionState(*state); err != nil {
 		t.Fatal(err)
 	}
 
@@ -435,23 +445,23 @@ func TestSpecHandoffStartsExecutionAndAdvancesSessionToExecution(t *testing.T) {
 	command.SetOut(&output)
 	command.SetErr(&output)
 	command.SetIn(strings.NewReader("y\n"))
-	command.SetArgs([]string{"--project", root, "spec", "handoff", "guided-planning"})
+	command.SetArgs([]string{"--project", root, "spec", "handoff", specSlug})
 	if err := command.Execute(); err != nil {
 		t.Fatalf("expected spec handoff to succeed: %v\n%s", err, output.String())
 	}
 
-	state, err := ws.ReadGuidedSessionState()
+	state, err = ws.ReadGuidedSessionState()
 	if err != nil {
 		t.Fatal(err)
 	}
-	session := state.Sessions["brainstorm/guided-planning"]
+	session = state.Sessions["brainstorm/guided-planning"]
 	if session.CurrentStage != "execution" {
 		t.Fatalf("expected session to advance to execution stage: %+v", session)
 	}
 	if session.StageStatuses["spec"] != "done" || session.StageStatuses["execution"] != "in_progress" {
 		t.Fatalf("expected execution-stage handoff statuses: %+v", session)
 	}
-	spec, err := notes.Read(filepath.Join(root, ".plan", "specs", "guided-planning.md"))
+	spec, err := notes.Read(filepath.Join(root, ".plan", "specs", specSlug+".md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -461,7 +471,7 @@ func TestSpecHandoffStartsExecutionAndAdvancesSessionToExecution(t *testing.T) {
 	if _, err := notes.Read(filepath.Join(root, ".plan", "stories", "carry-forward-recap-state.md")); !os.IsNotExist(err) {
 		t.Fatalf("expected handoff to avoid creating stories, got %v", err)
 	}
-	if !strings.Contains(output.String(), "spec_execution: .plan/specs/guided-planning.md") || !strings.Contains(output.String(), "branch: feature/guided-planning") {
+	if !strings.Contains(output.String(), "spec_execution: .plan/specs/"+specSlug+".md") || !strings.Contains(output.String(), "branch: feature/"+specSlug) {
 		t.Fatalf("expected execution handoff output:\n%s", output.String())
 	}
 }

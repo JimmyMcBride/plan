@@ -45,11 +45,12 @@ type GitHubContext struct {
 }
 
 type GitHubIssueInput struct {
-	Title     string
-	Body      string
-	State     string
-	Labels    []string
-	Milestone *int
+	Title          string
+	Body           string
+	State          string
+	Labels         []string
+	Milestone      *int
+	ClearMilestone bool
 }
 
 type GitHubIssue struct {
@@ -188,6 +189,9 @@ func (c *cliGitHubClient) UpdateIssue(projectDir, repo string, issueNumber int, 
 }
 
 func (c *cliGitHubClient) upsertIssue(projectDir, apiPath string, input GitHubIssueInput) (*GitHubIssue, error) {
+	if input.Milestone != nil && input.ClearMilestone {
+		return nil, fmt.Errorf("cannot set and clear a milestone in the same issue request")
+	}
 	payload := map[string]any{
 		"title": input.Title,
 		"body":  input.Body,
@@ -198,7 +202,9 @@ func (c *cliGitHubClient) upsertIssue(projectDir, apiPath string, input GitHubIs
 	if input.Labels != nil {
 		payload["labels"] = input.Labels
 	}
-	if input.Milestone != nil {
+	if input.ClearMilestone {
+		payload["milestone"] = nil
+	} else if input.Milestone != nil {
 		payload["milestone"] = *input.Milestone
 	}
 	method := "POST"

@@ -180,17 +180,19 @@ func (m *Manager) updateGitHubStory(info *workspace.Info, storySlug string, chan
 	if err != nil {
 		return nil, err
 	}
+	_, desiredMilestone, clearMilestone := milestoneUpdate(existingIssue.Milestone, milestoneNumber)
 
 	issueState := "open"
 	if record.Status == "done" {
 		issueState = "closed"
 	}
 	updatedIssue, err := m.github.UpdateIssue(info.ProjectDir, state.Repo, record.IssueNumber, GitHubIssueInput{
-		Title:     record.Title,
-		Body:      body,
-		State:     issueState,
-		Labels:    existingIssue.Labels,
-		Milestone: milestoneNumber,
+		Title:          record.Title,
+		Body:           body,
+		State:          issueState,
+		Labels:         existingIssue.Labels,
+		Milestone:      desiredMilestone,
+		ClearMilestone: clearMilestone,
 	})
 	if err != nil {
 		return nil, err
@@ -523,10 +525,7 @@ func mergeManagedIssueBody(existingBody, managedBody string) string {
 }
 
 func (m *Manager) resolveSpecInitiativeMilestone(info *workspace.Info, repo string, spec *notes.Note) (*int, error) {
-	title := strings.TrimSpace(stringValue(spec.Metadata["initiative_title"]))
-	if title == "" {
-		title = strings.TrimSpace(stringValue(spec.Metadata["initiative"]))
-	}
+	title := specInitiativeMilestoneTitle(spec)
 	if title == "" {
 		return nil, nil
 	}
@@ -538,6 +537,52 @@ func (m *Manager) resolveSpecInitiativeMilestone(info *workspace.Info, repo stri
 		return nil, nil
 	}
 	return &milestone.Number, nil
+}
+
+func (m *Manager) resolveSpecInitiativeMilestoneCached(info *workspace.Info, repo string, spec *notes.Note, cache map[string]*int) (*int, error) {
+	title := specInitiativeMilestoneTitle(spec)
+	if title == "" {
+		return nil, nil
+	}
+	key := strings.ToLower(strings.TrimSpace(repo) + "::" + title)
+	if milestone, ok := cache[key]; ok {
+		return cloneIntPointer(milestone), nil
+	}
+	milestone, err := m.resolveSpecInitiativeMilestone(info, repo, spec)
+	if err != nil {
+		return nil, err
+	}
+	cache[key] = cloneIntPointer(milestone)
+	return cloneIntPointer(milestone), nil
+}
+
+func specInitiativeMilestoneTitle(spec *notes.Note) string {
+	title := strings.TrimSpace(stringValue(spec.Metadata["initiative_title"]))
+	if title == "" {
+		title = strings.TrimSpace(stringValue(spec.Metadata["initiative"]))
+	}
+	return title
+}
+
+func milestoneUpdate(existing *GitHubMilestone, desired *int) (changed bool, milestone *int, clear bool) {
+	switch {
+	case desired == nil && existing == nil:
+		return false, nil, false
+	case desired == nil && existing != nil:
+		return true, nil, true
+	case existing != nil && existing.Number == *desired:
+		return false, nil, false
+	default:
+		return true, cloneIntPointer(desired), false
+	}
+}
+
+func cloneIntPointer(value *int) *int {
+	if value == nil {
+		return nil
+	}
+	copy := *value
+	return &copy
 }
 
 func applyDerivedReadyLabels(labels []string, status string, ready bool) []string {

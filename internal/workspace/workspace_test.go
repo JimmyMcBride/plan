@@ -618,3 +618,63 @@ func TestEnsureInitializedRejectsInvalidWorkspaceMetadata(t *testing.T) {
 		t.Fatal("expected invalid workspace metadata to fail initialization check")
 	}
 }
+
+func TestArchiveLegacyFallsBackWhenEpicSpecMetadataHasPathTraversal(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+	if _, err := manager.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	epicsDir := filepath.Join(root, ".plan", "epics")
+	if err := os.MkdirAll(epicsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	specPath := filepath.Join(root, ".plan", "specs", "billing.md")
+	if _, err := notes.Create(specPath, "Billing Spec", "spec", "# Billing Spec\n", map[string]any{
+		"slug":   "billing",
+		"status": "approved",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := notes.Create(filepath.Join(epicsDir, "billing.md"), "Billing", "epic", "# Billing\n", map[string]any{
+		"slug": "billing",
+		"spec": "../escape",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := manager.UpdateWithOptions(UpdateOptions{ArchiveLegacy: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Archived) != 1 {
+		t.Fatalf("expected archived epics move: %+v", result)
+	}
+
+	var batchDir string
+	for _, move := range result.Archived {
+		if strings.HasSuffix(move.To, "/epics") {
+			batchDir = filepath.Dir(filepath.Join(root, filepath.FromSlash(move.To)))
+			break
+		}
+	}
+	if batchDir == "" {
+		t.Fatalf("expected archive batch dir: %+v", result)
+	}
+
+	raw, err := os.ReadFile(filepath.Join(batchDir, "migration.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest ArchiveManifest
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if len(manifest.ActiveSpecs) != 1 {
+		t.Fatalf("expected one archived active spec entry: %+v", manifest)
+	}
+	if manifest.ActiveSpecs[0].Slug != "billing" || manifest.ActiveSpecs[0].Path != ".plan/specs/billing.md" {
+		t.Fatalf("expected fallback spec slug/path to stay inside specs dir: %+v", manifest.ActiveSpecs[0])
+	}
+}
