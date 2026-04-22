@@ -1,17 +1,17 @@
 # plan
 
-`plan` is a local-first planning CLI for AI-assisted software work.
+`plan` is a local-first-by-default, backend-flexible planning CLI for
+AI-assisted software work.
 
-It keeps planning material in `.plan/` and focuses on one job: turning rough
-ideas into shaped, execution-ready plans that agents can follow cleanly.
-
-If GitHub execution mode is enabled, active planning stays local in `.plan/`
-while GitHub Issues can still carry legacy execution stories during the
-transition.
+It focuses on one job: turning rough ideas into shaped, execution-ready plans
+that agents can follow cleanly. `.plan/` is the default local workspace, but
+configured integrations can own persistent planning data in `github` or
+`hybrid` modes.
 
 ## Philosophy
 
 - local-first
+- backend-flexible
 - markdown-first
 - planning only
 - simple default workflow
@@ -62,7 +62,26 @@ Execution loop:
 The default path stays small. New shaping passes should improve the same
 artifacts rather than add new top-level planning objects.
 
-## Workspace
+## Source Of Truth Modes
+
+`plan` now treats source-of-truth choice as an explicit part of the product
+model.
+
+- `local`: durable planning data lives in `.plan/`
+- `github`: durable planning data can live in GitHub issues, projects, and
+  milestones
+- `hybrid`: ownership is split across `.plan/` and integrations
+
+Rules:
+
+- local remains the default
+- brainstorm is a session, not a durable hierarchy layer
+- persistent planning data may live locally or in integrations
+- ownership must be explicit by planning layer
+- today, local is the most complete backend and GitHub is the first external
+  backend being actively shaped
+
+## Default Local Workspace
 
 ```text
 my-project/
@@ -79,7 +98,7 @@ my-project/
       github.json
 ```
 
-User-authored planning material lives in:
+When local owns those planning layers, user-authored material lives in:
 
 - `.plan/PROJECT.md`
 - `.plan/ROADMAP.md`
@@ -88,15 +107,19 @@ User-authored planning material lives in:
 - `.plan/archive/` for preserved legacy material
 - `.plan/specs/`
 
-Tool-owned state lives only in:
+Tool-owned local integration state lives only in:
 
 - `.plan/.meta/workspace.json`
 - `.plan/.meta/migrations.json`
-- `.plan/.meta/github.json` when GitHub story mode is enabled
+- `.plan/.meta/github.json` when GitHub integration is enabled
 
 `plan update` may repair or normalize tool-owned state. Use
 `plan update --archive-legacy` to move legacy `epics/` and `stories/` into
 `.plan/archive/` without mutating the active spec-first surfaces.
+
+In `github` or `hybrid` modes, persistent planning data may also live outside
+the repo while `.plan/.meta/` keeps local integration state and migration
+metadata.
 
 ## Quick Start
 
@@ -168,7 +191,7 @@ Rules:
 - in this repo, normal work targets `develop`
 - work on a feature branch, not on `develop`, `release/*`, or `main`
 - open one PR after the queued specs for that branch are complete
-- if GitHub story mode is enabled, run
+- if GitHub integration is enabled, run
   `./scripts/refresh-plan-develop-context.sh` after merge before taking more
   queue work
 
@@ -248,8 +271,9 @@ That script:
 - installs the repo-local Brain skill for Codex at `.codex/skills/brain`
 - leaves Brain optional when the repo does not contain a `.brain/` workspace
 
-`plan` remains the planning source of truth. Brain is only for context,
-retrieval, and session hygiene when present.
+`plan` remains the planning control plane. Depending on the configured backend,
+durable planning truth may live in `.plan/`, GitHub, or both. Brain is only
+for context, retrieval, and session hygiene when present.
 
 ## Evaluating Prompt And Workflow Changes
 

@@ -10,24 +10,29 @@ ideas.
 Right now:
 
 - the active planning model is spec-first
+- source-of-truth backends can be `local`, `github`, or `hybrid`
 - brainstorms stay local and can bloom into idea docs or specs
 - `initiative` is lightweight optional grouping metadata
 - `plan spec execute` is the active execution entry point
 - legacy `epic` and `story` commands still exist during the transition
-- GitHub-backed issue execution remains available when you enable GitHub mode
+- GitHub integration is the first external backend being actively shaped
 
 The top of this guide reflects the active spec-first model. Some later sections
 still document legacy compatibility commands while the migration is in flight.
 
 ## What `plan` Is
 
-`plan` is a local-first planning CLI for software projects.
+`plan` is a local-first-by-default, backend-flexible planning CLI for software
+projects.
 
-It stores planning material in `.plan/` and focuses on one job:
+It focuses on one job:
 
 - turn rough ideas into shaped planning artifacts
 - make specs stronger before implementation starts
 - guide execution from approved specs without persisting tiny slice artifacts
+
+`.plan/` is the default local workspace, but configured integrations can own
+persistent planning data in `github` or `hybrid` modes.
 
 `plan` does not handle memory, retrieval, or context management.
 
@@ -60,9 +65,28 @@ Workflow entry:
 8. `Start spec execution`
 9. `Work slices one commit at a time`
 
-## Workspace Layout
+## Source Of Truth Modes
 
-`plan` keeps its durable planning material under `.plan/`:
+`plan` now supports three source-of-truth modes:
+
+- `local`: durable planning data lives in `.plan/`
+- `github`: durable planning data can live in GitHub issues, projects, and
+  milestones
+- `hybrid`: ownership is split across `.plan/` and integrations
+
+Rules:
+
+- local is still the default
+- brainstorm is a session, not a durable hierarchy layer
+- persistent planning data may live locally or in integrations
+- ownership must be explicit by planning layer
+- today, local is the most complete shipped backend and GitHub is the first
+  external backend being actively shaped
+
+## Default Local Workspace Layout
+
+When local owns those planning layers, `plan` keeps durable material under
+`.plan/`:
 
 ```text
 .plan/
@@ -87,6 +111,10 @@ Meaning:
 - `archive/`: preserved legacy epic/story-era planning material
 - `specs/`: canonical execution contracts
 - `.meta/`: tool-owned state only, including GitHub story metadata when enabled
+
+In `github` or `hybrid` modes, persistent planning data may also live outside
+the repo while `.plan/.meta/` keeps local integration state and migration
+metadata.
 
 ## New Repo Setup
 
@@ -123,10 +151,9 @@ plan adopt --project .
 plan doctor --project .
 ```
 
-## Optional: Enable GitHub Story Mode
+## Optional: Enable GitHub Integration
 
-If you want local planning but GitHub-backed issue execution during the
-transition:
+If you want to shape work with GitHub as part of the source-of-truth model:
 
 ```bash
 plan update --project .
@@ -140,7 +167,11 @@ Preconditions:
 - the repo has GitHub Issues enabled
 - local story notes are not still active in `.plan/stories/`
 
-When GitHub story mode is enabled:
+Current shipped GitHub support is still strongest around issue-backed execution
+stories and milestone mapping. Broader GitHub ownership is an active design
+direction, not a fully finished backend yet.
+
+When the current GitHub backend is enabled:
 
 - execution stories are created as GitHub Issues
 - `.plan/.meta/github.json` becomes the local issue-state index
