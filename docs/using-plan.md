@@ -14,6 +14,7 @@ Right now:
 - brainstorms stay local and can bloom into idea docs or specs
 - `initiative` is lightweight optional grouping metadata
 - `plan spec execute` is the active execution entry point
+- `plan guide current|show` emits live brainstorm-stage guide packets for agent runtimes
 - legacy `epic` and `story` commands still exist during the transition
 - GitHub integration is the first external backend being actively shaped
 
@@ -200,6 +201,13 @@ Show the brainstorm:
 
 ```bash
 plan brainstorm show --project . newsletter-system
+```
+
+If you are using an external agent during a guided brainstorm, ask `plan` for
+the live stage contract:
+
+```bash
+plan guide current --project . --format json
 ```
 
 ### 2. Refine the Brainstorm

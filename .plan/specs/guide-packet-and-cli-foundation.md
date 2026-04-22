@@ -1,6 +1,5 @@
 ---
 created_at: "2026-04-21T06:36:20Z"
-epic: guide-packet-and-cli-foundation
 project: plan
 slug: guide-packet-and-cli-foundation
 status: approved
@@ -39,7 +38,7 @@ planning state.
 
 - direct model API calls from `plan`
 - installed per-agent personas as the primary runtime interface
-- full guide coverage for epic, spec, or story stages
+- full guide coverage for initiative, spec, or execution stages
 - markdown or text guide rendering in the first slice
 - automatic consumption by Codex, Claude, or other runtimes in the same scope
 - schema export command in the first slice
@@ -55,6 +54,8 @@ planning state.
 - actionable error text should exist when there is no active guided session
 - the brainstorm note remains the durable artifact; guide packets are runtime
   contracts, not new planning documents
+- the brainstorm handoff checkpoint must allow either a single-spec next step or
+  a multi-spec initiative when the work is larger
 
 ## Solution Shape
 
@@ -83,7 +84,9 @@ planning state.
   - `clarify-problem-user-value`
   - `clarify-constraints-appetite`
   - `clarify-open-approaches`
-  - `handoff-epic`
+  - `handoff-epic` (legacy checkpoint id retained for compatibility while the
+    decision itself now chooses between a single-spec path and a larger
+    multi-spec initiative)
 
 ## Flows
 
@@ -92,9 +95,11 @@ planning state.
 3. `plan` reads the last-active guided session and linked brainstorm note.
 4. `plan` returns a JSON guide packet for the current brainstorm checkpoint.
 5. The agent uses the packet contract to guide the next user interaction.
-6. If the runtime needs an explicit preview instead of the active session, it
+6. At the brainstorm handoff checkpoint, the packet guidance makes the
+   single-spec vs multi-spec decision explicit based on the size of the work.
+7. If the runtime needs an explicit preview instead of the active session, it
    calls `plan guide show --chain ... --stage brainstorm --checkpoint ...`.
-7. `plan` returns the requested packet without mutating the session.
+8. `plan` returns the requested packet without mutating the session.
 
 ## Data / Interfaces
 
@@ -111,8 +116,8 @@ planning state.
   - `artifact`: type, slug, title, path, status
   - `mode`: stage, checkpoint, pass
   - `sources`: supporting local files used to shape the packet
-  - `contract`: role, goal, question strategy, artifact strategy, do, avoid,
-    quality bar, completion gate, command hints
+  - `contract`: role, stance, goal, question strategy, artifact strategy, do,
+    avoid, quality bar, completion gate, command hints
   - `rendered_prompt`: derived prompt string
 - initial supported format:
   - `json`
@@ -161,7 +166,7 @@ Reference design source:
 - brainstorm checkpoint ids in the packet match current guided brainstorm
   cluster labels
 
-## Story Breakdown
+## Implementation Slices
 
 - Add guide packet types and brainstorm-stage packet builder
 - Add `plan guide current` JSON command
@@ -204,7 +209,6 @@ guidance_findings: 0
 - [ok] No findings.
 ## Resources
 
-- [Epic](../epics/guide-packet-and-cli-foundation.md)
 - [Research: Guide Packet Schema and CLI Design](../research/guide-packet-schema-and-cli-design.md)
 - [Guided Session Engine and Resume Spec](../specs/guided-session-engine-and-resume.md)
 - [Vision Intake and Brainstorm Co-Planning Spec](../specs/vision-intake-and-brainstorm-co-planning.md)
@@ -216,3 +220,7 @@ guidance_findings: 0
 Recommendation locked during planning: use installed skills as bootstrap only,
 and make live guide packets the runtime source of truth for guided agent
 behavior.
+
+Current implementation choice: guide packet shipped as one bounded spec on one
+branch. If the feature grows later, a multi-spec initiative remains valid, but
+it is not required for the current slice.
