@@ -1,0 +1,42 @@
+version: 1
+project:
+    name: plan
+    slug: plan
+    runtime: go
+    memory:
+        accepted_note_globs:
+            - AGENTS.md
+            - docs/**
+            - .brain/context/**
+            - .brain/resources/**
+session:
+    require_task: true
+    single_active: true
+    active_file: .brain/session.json
+    ledger_dir: .brain/sessions
+preflight:
+    require_brain_doctor: true
+    required_docs:
+        - AGENTS.md
+        - .brain/context/overview.md
+        - .brain/context/workflows.md
+        - .brain/context/memory-policy.md
+    suggested_commands:
+        - brain find plan
+        - brain search "plan {task}"
+closeout:
+    acceptable_history_operations:
+        - create
+        - update
+        - move
+        - rename
+        - publish
+        - seed
+    require_memory_update_on_repo_change: true
+    verification_profiles:
+        - name: tests
+          commands:
+            - go test ./...
+        - name: build
+          commands:
+            - go build ./...
