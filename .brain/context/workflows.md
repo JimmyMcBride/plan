@@ -42,4 +42,13 @@ Use this file for agent operating workflow inside the repo.
 
 ## Local Notes
 
-Add repo-specific notes here. `brain context refresh` preserves content outside managed blocks.
+### Project Override: Spec Queue Loop
+
+- Establish queue with `plan status --project .`.
+- Take the next approved spec, not the next individual issue.
+- Run `plan story slice --project . <epic-slug>` and then `--apply` to materialize the current spec's slices.
+- Implement one slice at a time.
+- Review and verify each slice before committing that slice.
+- Repeat until the current spec is done, then move to the next queued spec.
+- Open one PR after the queued specs for the branch are complete.
+- If GitHub story mode is enabled, run `plan update --project .` and `plan github reconcile --project . --update-visible` after merge before taking more queue work.

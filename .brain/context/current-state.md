@@ -18,6 +18,9 @@ This file is a deterministic snapshot of the repository state at the last refres
 
 - `README.md`
 - `docs/gitflow.md`
+- `docs/project-architecture.md`
+- `docs/project-overview.md`
+- `docs/project-workflows.md`
 - `docs/using-plan.md`
 <!-- brain:end context-current-state -->
 

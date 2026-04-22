@@ -396,29 +396,48 @@ Important rules:
 - a story requires at least one verification step
 - story creation is blocked until the spec is `approved`
 
-### 11A. GitHub Queue Workflow
+### 11A. Spec Queue Workflow
 
-If stories are GitHub-backed, use this execution loop:
+Preferred execution loop is spec-first, not issue-first:
 
 1. Establish queue with `plan status --project .`
-2. Grab issue or issues from `ready_work`
-3. Do the work on a feature branch and open a PR
-4. Review and iterate until the PR is ready
-5. Squash-merge the PR
-6. Return to the integration branch
-7. Pull latest changes
-8. Run `plan update --project .`
-9. Run `plan github reconcile --project . --update-visible`
-10. Re-check `plan status --project .`
-11. Grab the next ready issue or issues and repeat
+2. Take the next approved spec from the queue
+3. Run `plan story slice --project . <epic-slug>` to preview the slices
+4. Run `plan story slice --project . <epic-slug> --apply` when the slice set is sound
+5. Implement one slice
+6. Review and verify that slice before committing it
+7. Repeat slice-by-slice until the spec is done
+8. Move to the next spec in queue if more queued specs remain
+9. Open one PR when the queued specs for the branch are complete
 
 Recommended commands:
 
 ```bash
 plan status --project .
 
-# do issue work on a branch and merge the PR into your integration branch
+# take next approved spec
+plan story slice --project . <epic-slug>
+plan story slice --project . <epic-slug> --apply
 
+# implement one slice
+# run review + verification
+# commit slice
+
+# repeat until the spec is done
+# then move to the next queued spec
+```
+
+Use this model:
+
+- `plan status` = queue view
+- approved spec = execution batch
+- story slices = execution units inside the current spec
+- review + verification happen before each slice commit
+- PR = review for the completed queued spec batch
+
+If GitHub story mode is enabled, reconcile after merge:
+
+```bash
 git switch <integration-branch>
 git pull --ff-only origin <integration-branch>
 plan update --project .
@@ -426,14 +445,14 @@ plan github reconcile --project . --update-visible
 plan status --project .
 ```
 
-Use this model:
+If GitHub story mode is not enabled, use the same refresh without reconcile:
 
-- `plan status` = queue view
-- GitHub Issue = execution unit
-- PR = implementation review loop
-- squash-merge = queue advancement
-- integration-branch refresh + `update` + `reconcile` = refresh local truth
-  before taking the next issue
+```bash
+git switch <integration-branch>
+git pull --ff-only origin <integration-branch>
+plan update --project .
+plan status --project .
+```
 
 Show a story:
 
@@ -571,13 +590,8 @@ plan spec analyze --project . billing-export
 plan spec checklist --project . billing-export --profile api-integration
 plan spec status --project . billing-export --set approved
 
-plan story create --project . billing-export "Trigger export job" \
-  --criteria "Export job can be triggered from billing UI" \
-  --verify "Run focused billing export tests"
-
-plan story create --project . billing-export "Deliver export payload" \
-  --criteria "Payload matches the external API contract" \
-  --verify "Validate payload against fixture contract"
+plan story slice --project . billing-export
+plan story slice --project . billing-export --apply
 
 plan status --project .
 plan check --project .

@@ -40,15 +40,16 @@ Workflow entry:
 8. Slice into stories
 9. Critique story readiness
 
-Execution loop in GitHub mode:
+Execution loop:
 
-1. Establish queue
-2. Grab next ready issue or issues
-3. Implement on a branch and open PR
-4. Review and iterate until ready
-5. Squash-merge
-6. Return to the integration branch, pull latest, update and reconcile
-7. Grab next ready issue and repeat
+1. Establish spec queue
+2. Take next approved spec
+3. Slice the spec into execution-ready stories
+4. Implement one slice
+5. Review and verify that slice before committing it
+6. Repeat until the spec is done
+7. Move to the next spec in queue
+8. Open one PR when the queued specs are complete
 
 The default path stays small. New shaping passes should improve the same
 artifacts rather than add new top-level planning objects.
@@ -129,28 +130,41 @@ Full guide:
 - `plan status`
 - `plan skills install|targets`
 
-## GitHub Queue Workflow
+## Spec Queue Workflow
 
-For GitHub-backed stories, use this loop:
+Use this loop when implementing planned work:
 
 ```bash
 plan status --project .
 
-# do issue work on a feature branch and merge the PR into the integration branch
+# take next approved spec
+plan story slice --project . <epic-slug>
+plan story slice --project . <epic-slug> --apply
 
-./scripts/refresh-plan-develop-context.sh
+# implement one slice
+# review + verify slice
+# commit slice
+
+# repeat until spec done
+# move to next queued spec
+
+# once queued specs are done, open one PR
 ```
 
 Rules:
 
 - use `plan status --project .` as the queue view
-- take only issues shown in `ready_work`
+- queue work at the spec level, not the single-issue level
+- slice one approved spec into execution-ready stories before coding
+- complete one slice at a time
+- review and verify each slice before committing that slice
+- once the current spec is done, move to the next queued spec
 - in this repo, normal work targets `develop`
 - work on a feature branch, not on `develop`, `release/*`, or `main`
-- squash-merge the PR when work is accepted unless release work needs a
-  different merge strategy
-- after merge into `develop`, run
-  `./scripts/refresh-plan-develop-context.sh` before grabbing the next issue
+- open one PR after the queued specs for that branch are complete
+- if GitHub story mode is enabled, run
+  `./scripts/refresh-plan-develop-context.sh` after merge before taking more
+  queue work
 
 ## Repo Gitflow
 

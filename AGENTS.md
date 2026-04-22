@@ -19,6 +19,9 @@ Read the linked context files before substantial work. Prefer the `brain` skill 
 
 - [README.md](./README.md)
 - [gitflow.md](./docs/gitflow.md)
+- [project-architecture.md](./docs/project-architecture.md)
+- [project-overview.md](./docs/project-overview.md)
+- [project-workflows.md](./docs/project-workflows.md)
 - [using-plan.md](./docs/using-plan.md)
 
 ## Required Workflow
@@ -70,3 +73,12 @@ go run . update --project .
 go run . check --project .
 ./scripts/refresh-plan-develop-context.sh
 ```
+
+### Project Workflow Override
+
+- Build from approved specs.
+- Slice the current spec into execution-ready stories before coding.
+- Finish one slice, review it, verify it, then commit that slice.
+- Repeat until the current spec is complete.
+- Move to the next queued spec only after the current spec is done.
+- Open one PR after the queued specs for the branch are complete.
