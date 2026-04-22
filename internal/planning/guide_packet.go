@@ -1,6 +1,7 @@
 package planning
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -112,8 +113,8 @@ type GuidePacketCommandHint struct {
 func (m *Manager) CurrentGuidePacket() (*GuidePacket, error) {
 	session, err := m.ReadLastActiveGuidedSession()
 	if err != nil {
-		if strings.Contains(err.Error(), "no active guided session") {
-			return nil, fmt.Errorf("no active guided session. Start one with `plan brainstorm start --project . \"<topic>\"`")
+		if errors.Is(err, ErrNoActiveGuidedSession) {
+			return nil, fmt.Errorf("no active guided session. Start one with `plan brainstorm start --project . \"<topic>\"`: %w", ErrNoActiveGuidedSession)
 		}
 		return nil, err
 	}
@@ -198,9 +199,9 @@ func (m *Manager) buildGuidePacket(command string, session *workspace.GuidedSess
 		},
 		Session: GuidePacketSession{
 			ChainID:             session.ChainID,
-			CurrentStage:        defaultString(session.CurrentStage, "brainstorm"),
-			CurrentCluster:      session.CurrentCluster,
-			CurrentClusterLabel: defaultString(session.CurrentClusterLabel, "vision-intake"),
+			CurrentStage:        effectiveStage,
+			CurrentCluster:      brainstormGuideCheckpointIndex(effectiveCheckpoint, session.CurrentCluster),
+			CurrentClusterLabel: effectiveCheckpoint,
 			StageStatuses:       copyStringMap(session.StageStatuses),
 			Summary:             strings.TrimSpace(session.Summary),
 			NextAction:          strings.TrimSpace(session.NextAction),
@@ -238,6 +239,26 @@ func brainstormGuidePass(checkpoint string) string {
 		return "brainstorm_handoff"
 	default:
 		return "brainstorm_refine"
+	}
+}
+
+func brainstormGuideCheckpointIndex(checkpoint string, fallback int) int {
+	switch checkpoint {
+	case "vision-intake":
+		return 1
+	case "clarify-problem-user-value":
+		return 2
+	case "clarify-constraints-appetite":
+		return 3
+	case "clarify-open-approaches":
+		return 4
+	case "handoff-epic":
+		return 5
+	default:
+		if fallback > 0 {
+			return fallback
+		}
+		return 1
 	}
 }
 

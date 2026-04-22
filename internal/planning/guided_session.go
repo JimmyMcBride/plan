@@ -1,6 +1,7 @@
 package planning
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,6 +12,8 @@ import (
 	"plan/internal/notes"
 	"plan/internal/workspace"
 )
+
+var ErrNoActiveGuidedSession = errors.New("no active guided session")
 
 type GuidedBrainstormIntakeInput struct {
 	Vision             string
@@ -95,7 +98,7 @@ func (m *Manager) ReadLastActiveGuidedSession() (*workspace.GuidedSessionRecord,
 		return nil, err
 	}
 	if strings.TrimSpace(state.LastActiveChain) == "" {
-		return nil, fmt.Errorf("no active guided session")
+		return nil, ErrNoActiveGuidedSession
 	}
 	return m.ReadGuidedSession(state.LastActiveChain)
 }

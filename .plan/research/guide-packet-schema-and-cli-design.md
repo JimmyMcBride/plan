@@ -499,7 +499,7 @@ Examples:
 - unknown chain:
   - `Guided session "brainstorm/foo" not found.`
 - unsupported stage:
-  - `Unsupported guide stage "release". Expected brainstorm, initiative, spec, or execution.`
+  - `Unsupported guide stage "release". Expected brainstorm.`
 
 ## Integration With Existing Skill
 

@@ -32,11 +32,17 @@ func TestGuideCurrentCommandEmitsJSONForActiveSession(t *testing.T) {
 	if packet["kind"] != "guide_packet" {
 		t.Fatalf("expected guide packet kind, got %#v", packet["kind"])
 	}
-	session := packet["session"].(map[string]any)
+	session, ok := packet["session"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected packet.session to be an object, got %#v", packet["session"])
+	}
 	if session["chain_id"] != "brainstorm/guide-packet-foundation" {
 		t.Fatalf("unexpected chain id in packet: %#v", session)
 	}
-	mode := packet["mode"].(map[string]any)
+	mode, ok := packet["mode"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected packet.mode to be an object, got %#v", packet["mode"])
+	}
 	if mode["stage"] != "brainstorm" {
 		t.Fatalf("expected brainstorm stage: %#v", mode)
 	}
@@ -87,9 +93,19 @@ func TestGuideShowCommandEmitsJSONForExplicitChainAndCheckpoint(t *testing.T) {
 	if err := json.Unmarshal(output.Bytes(), &packet); err != nil {
 		t.Fatalf("expected valid JSON output: %v\n%s", err, output.String())
 	}
-	mode := packet["mode"].(map[string]any)
+	mode, ok := packet["mode"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected packet.mode to be an object, got %#v", packet["mode"])
+	}
 	if mode["checkpoint"] != "clarify-open-approaches" {
 		t.Fatalf("expected explicit checkpoint override, got %#v", mode)
+	}
+	session, ok := packet["session"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected packet.session to be an object, got %#v", packet["session"])
+	}
+	if session["current_cluster_label"] != "clarify-open-approaches" {
+		t.Fatalf("expected session checkpoint to match preview override, got %#v", session)
 	}
 }
 

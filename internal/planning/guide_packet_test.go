@@ -1,6 +1,7 @@
 package planning
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -94,6 +95,9 @@ func TestCurrentGuidePacketFailsWithoutActiveSession(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "no active guided session") {
 		t.Fatalf("expected actionable missing-session error, got %v", err)
+	}
+	if !errors.Is(err, ErrNoActiveGuidedSession) {
+		t.Fatalf("expected missing-session error to wrap ErrNoActiveGuidedSession, got %v", err)
 	}
 }
 
