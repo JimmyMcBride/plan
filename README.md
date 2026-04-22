@@ -151,6 +151,7 @@ Full guide:
 - `plan update`
 - `plan brainstorm start|idea|show|refine`
 - `plan brainstorm challenge`
+- `plan guide current|show`
 - `plan epic create|promote|list|show|shape` for legacy compatibility during migration
 - `plan spec show|edit|status|analyze|checklist|initiative|execute|handoff`
 - `plan story create|update|list|show|slice|critique` for legacy compatibility during migration

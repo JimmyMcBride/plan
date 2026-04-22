@@ -43,7 +43,8 @@ The right split is:
 ## Terms
 
 - guide packet: machine-readable stage contract emitted by `plan`
-- stage: one of `brainstorm`, `epic`, `spec`, `stories`
+- stage: runtime planning step, with brainstorm shipped first and later stages
+  extending toward initiative/spec/execution guidance
 - checkpoint: stage-local step such as `vision-intake` or
   `clarify-constraints-appetite`
 - family overlay: optional style layer such as `gpt_style` or
@@ -78,15 +79,13 @@ Behavior:
 - reads `.plan/.meta/guided_sessions.json`
 - resolves `last_active_chain`
 - builds a packet from current stage, checkpoint, session summary, linked
-  artifact, workspace rules, and optional family overlay
+  artifact, and workspace rules
 - does not mutate session state
 
 Flags:
 
-- `--format json|md|text`
+- `--format json`
   - default: `json`
-- `--family base|gpt_style|reasoning_heavy`
-  - default: `base`
 
 Errors:
 
@@ -117,23 +116,20 @@ plan guide show \
 Behavior:
 
 - reads the requested chain
-- uses explicit stage/checkpoint if provided
-- otherwise falls back to session current stage/checkpoint
-- supports previewing a packet even when the caller wants a stage other than the
-  current active stage
+- uses explicit checkpoint if provided
+- falls back to session current stage/checkpoint when omitted
+- currently supports brainstorm-stage preview only
 
 Flags:
 
 - `--chain <chain-id>`
   - required
-- `--stage brainstorm|epic|spec|stories`
-  - optional if session already has a current stage
+- `--stage brainstorm`
+  - optional today; any non-brainstorm value is rejected in v1
 - `--checkpoint <label>`
   - optional
-- `--format json|md|text`
+- `--format json`
   - default: `json`
-- `--family base|gpt_style|reasoning_heavy`
-  - default: `base`
 
 Errors:
 
@@ -149,28 +145,11 @@ Exit codes:
 ### `plan guide schema`
 
 Purpose:
-- emit the JSON Schema for the guide packet
+- future follow-up for emitting the JSON Schema for the guide packet
 
-Command:
+Status:
 
-```bash
-plan guide schema --format json
-```
-
-Behavior:
-
-- emits the current packet schema definition
-- intended for tests, external integrations, and agent-runtime validation
-
-Flags:
-
-- `--format json`
-  - default and only supported value in v1
-
-Exit codes:
-
-- `0` success
-- `2` usage errors
+- intentionally deferred from the shipped v1 slice
 
 ## Packet Schema V1
 
@@ -183,7 +162,7 @@ Canonical packet shape:
   "generated_at": "2026-04-21T12:00:00Z",
   "builder": {
     "command": "plan guide current",
-    "family": "gpt_style"
+    "format": "json"
   },
   "workspace": {
     "project_root": "/home/jimmy/Projects/plan",
@@ -200,7 +179,7 @@ Canonical packet shape:
       "brainstorm": "in_progress",
       "epic": "todo",
       "spec": "todo",
-      "stories": "todo"
+      "execution": "todo"
     },
     "summary": "Vision captured. Supporting material recorded.",
     "next_action": "Continue with open questions and candidate approaches."
@@ -255,7 +234,7 @@ Canonical packet shape:
       ],
       "preserve_rules": [
         "User input first",
-        "Do not draft epic/spec/story content during brainstorm stage"
+        "Do not draft spec content or execution slices during brainstorm stage"
       ]
     },
     "do": [
@@ -274,7 +253,7 @@ Canonical packet shape:
       "Open questions are blocker-shaped, not vague brainstorming sprawl."
     ],
     "completion_gate": [
-      "The brainstorm can promote into an epic without hidden assumptions.",
+      "The brainstorm can move into the next durable planning step without hidden assumptions.",
       "The recommended next stage is clear."
     ],
     "command_hints": [
@@ -331,8 +310,8 @@ Canonical packet shape:
 
 - `command`
   - source command such as `plan guide current`
-- `family`
-  - `base`, `gpt_style`, or `reasoning_heavy`
+- `format`
+  - currently `json`
 
 ### `workspace`
 
@@ -373,7 +352,8 @@ This should map cleanly onto current fields in
 ### `mode`
 
 - `stage`
-  - `brainstorm`, `epic`, `spec`, `stories`
+  - `brainstorm` today; later follow-up work may add initiative/spec/execution
+    stages
 - `checkpoint`
   - stage-local checkpoint label
 - `pass`
@@ -381,12 +361,9 @@ This should map cleanly onto current fields in
     - `brainstorm_start`
     - `brainstorm_refine`
     - `brainstorm_challenge`
-    - `epic_shape`
-    - `spec_analyze`
-    - `spec_checklist`
-    - `story_slice`
-    - `story_critique`
-    - `handoff`
+    - `brainstorm_intake`
+    - `brainstorm_refine`
+    - `brainstorm_handoff`
 
 ### `contract`
 
@@ -433,6 +410,9 @@ For brainstorm v1:
 - `clarify-constraints-appetite`
 - `clarify-open-approaches`
 - `handoff-epic`
+  - legacy checkpoint id retained for compatibility; semantically this is the
+    handoff where guide packet guidance decides whether the work should stay one
+    bounded spec or split into multiple specs under one initiative
 
 For later stages:
 
@@ -441,6 +421,8 @@ For later stages:
 - prefer descriptive ids over display text
 
 ## Markdown Rendering Contract
+
+Deferred follow-up, not part of the shipped v1 slice.
 
 `--format md` should render:
 
@@ -457,6 +439,8 @@ For later stages:
 This keeps one human-debug view without inventing a second schema.
 
 ## Text Rendering Contract
+
+Deferred follow-up, not part of the shipped v1 slice.
 
 `--format text` should be concise and terminal-friendly:
 
@@ -491,11 +475,10 @@ plan guide show \
   --chain brainstorm/billing-export \
   --stage brainstorm \
   --checkpoint clarify-open-approaches \
-  --family reasoning_heavy \
-  --format md
+  --format json
 ```
 
-Schema export:
+Deferred schema export:
 
 ```bash
 plan guide schema --format json
@@ -509,11 +492,6 @@ JSON mode:
 - emit no partial JSON to stdout
 - return exit code `2`
 
-Markdown and text mode:
-
-- print concise error
-- print one next-best-action hint when possible
-
 Examples:
 
 - no active session:
@@ -521,7 +499,7 @@ Examples:
 - unknown chain:
   - `Guided session "brainstorm/foo" not found.`
 - unsupported stage:
-  - `Unsupported guide stage "release". Expected brainstorm, epic, spec, or stories.`
+  - `Unsupported guide stage "release". Expected brainstorm, initiative, spec, or execution.`
 
 ## Integration With Existing Skill
 
@@ -559,5 +537,5 @@ If this direction holds:
 
 1. add `plan guide current|show|schema`
 2. build brainstorm-stage packet first
-3. convert `skills/plan/agents/*.yaml` into family overlays for packet building
+3. decide whether model-family overlays are worth adding later
 4. update installed `plan` skill to use guide packets instead of static stage prose

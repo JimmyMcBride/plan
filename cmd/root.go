@@ -22,6 +22,7 @@ func newRootCmd() *cobra.Command {
 		newDoctorCommand(),
 		newUpdateCommand(),
 		newBrainstormCommand(),
+		newGuideCommand(),
 		newEpicCommand(),
 		newSpecCommand(),
 		newStoryCommand(),

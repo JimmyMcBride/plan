@@ -45,6 +45,8 @@ When a repo uses `plan`:
 - `plan brainstorm idea --project . <brainstorm-slug> --body "<idea>"`
 - `plan brainstorm refine --project . <brainstorm-slug>`
 - `plan brainstorm challenge --project . <brainstorm-slug>`
+- `plan guide current --project . --format json` when a guided brainstorm session is active
+- `plan guide show --project . --chain <chain-id> --stage brainstorm --checkpoint <checkpoint> --format json` for explicit preview/debug use
 - `plan epic create|promote|shape ...` only when a repo still depends on the legacy transition path
 - `plan spec show --project . <spec-slug>`
 - `plan spec analyze --project . <spec-slug>`
@@ -65,6 +67,7 @@ When a repo uses `plan`:
 - Do not assume every durable planning artifact lives in `.plan/`; respect explicit ownership by planning layer.
 - `brainstorm refine` should reduce ambiguity before promotion.
 - `brainstorm challenge` should pressure-test risk, no-gos, and overengineering before promotion.
+- When a guided brainstorm session is active, prefer live guide packets over static stage prose.
 - `epic shape` is now a legacy compatibility pass, not the preferred active model.
 - `spec analyze` should pressure-test a spec without rewriting its canonical sections.
 - `spec checklist` should add profile-driven rigor without mutating the canonical sections.
