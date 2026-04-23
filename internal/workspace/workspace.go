@@ -405,6 +405,12 @@ func readWorkspaceMetaFile(path string) (*WorkspaceMeta, error) {
 	if err := json.Unmarshal(raw, &meta); err != nil {
 		return nil, fmt.Errorf("parse workspace metadata: %w", err)
 	}
+	if meta.SourceMode == "" {
+		meta.SourceMode = SourceOfTruthLocal
+	}
+	if meta.StoryBackend == "" {
+		meta.StoryBackend = StoryBackendLocal
+	}
 	return &meta, nil
 }
 
@@ -444,6 +450,12 @@ func readGitHubStateFile(path string) (*GitHubState, error) {
 	var state GitHubState
 	if err := json.Unmarshal(raw, &state); err != nil {
 		return nil, fmt.Errorf("parse github state: %w", err)
+	}
+	if state.Stories == nil {
+		state.Stories = map[string]GitHubStoryRecord{}
+	}
+	if state.Planning == nil {
+		state.Planning = map[string]GitHubPlanningRecord{}
 	}
 	return &state, nil
 }
@@ -974,14 +986,6 @@ func normalizeWorkspaceMeta(meta WorkspaceMeta, now string) (WorkspaceMeta, bool
 		normalized.PlanningModel = PlanningModel
 		changed = true
 	}
-	if normalized.SourceMode == "" {
-		normalized.SourceMode = SourceOfTruthLocal
-		changed = true
-	}
-	if normalized.StoryBackend == "" {
-		normalized.StoryBackend = StoryBackendLocal
-		changed = true
-	}
 	if normalized.CreatedAt == "" {
 		normalized.CreatedAt = now
 		changed = true
@@ -1028,14 +1032,6 @@ func normalizeMigrationState(state MigrationState, now string) (MigrationState, 
 func normalizeGitHubState(state GitHubState, now string) (GitHubState, bool, error) {
 	normalized := state
 	changed := false
-	if normalized.Stories == nil {
-		normalized.Stories = map[string]GitHubStoryRecord{}
-		changed = true
-	}
-	if normalized.Planning == nil {
-		normalized.Planning = map[string]GitHubPlanningRecord{}
-		changed = true
-	}
 	if normalized.LastUpdatedAt == "" {
 		normalized.LastUpdatedAt = now
 		changed = true
