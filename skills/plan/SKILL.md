@@ -41,10 +41,16 @@ When a repo uses `plan`:
 - `plan update --project .`
 - `plan update --project . --archive-legacy`
 - `plan check --project .`
+- `plan source show --project .`
+- `plan source set --project . <local|github|hybrid>`
 - `plan brainstorm start --project . "<topic>"`
 - `plan brainstorm idea --project . <brainstorm-slug> --body "<idea>"`
 - `plan brainstorm refine --project . <brainstorm-slug>`
 - `plan brainstorm challenge --project . <brainstorm-slug>`
+- `plan discuss assess --project . --brainstorm <brainstorm-slug> --format json`
+- `plan discuss assess --project . --discussion <number-or-url> --format json`
+- `plan discuss promote --project . --brainstorm <brainstorm-slug> --format json`
+- `plan discuss promote --project . --discussion <number-or-url> --format json`
 - `plan guide current --project . --format json` when a guided brainstorm session is active
 - `plan guide show --project . --chain <chain-id> --stage brainstorm --checkpoint <checkpoint> --format json` for explicit preview/debug use
 - `plan epic create|promote|shape ...` only when a repo still depends on the legacy transition path
@@ -62,11 +68,15 @@ When a repo uses `plan`:
 ## Rules
 
 - Brainstorms are discovery material, not the canonical hierarchy.
+- Collaborative brainstorming may start in GitHub Discussions when the repo is using GitHub as the shaping surface.
 - Active model is `Brainstorm -> Idea Doc (optional) -> Spec`, with runtime slices during execution.
 - Local is the default backend, not the only backend.
 - Do not assume every durable planning artifact lives in `.plan/`; respect explicit ownership by planning layer.
 - `brainstorm refine` should reduce ambiguity before promotion.
 - `brainstorm challenge` should pressure-test risk, no-gos, and overengineering before promotion.
+- `discuss assess` should produce an explicit maturity decision before a GitHub-backed promotion happens.
+- `discuss promote` should stay draft-first unless the task explicitly calls for `--apply --confirm`.
+- today, `discuss promote --apply` is implemented for `github` and `hybrid`; repo-backed local promotion still uses the legacy compatibility path
 - When a guided brainstorm session is active, prefer live guide packets over static stage prose.
 - `epic shape` is now a legacy compatibility pass, not the preferred active model.
 - `spec analyze` should pressure-test a spec without rewriting its canonical sections.
@@ -83,11 +93,13 @@ Use the smallest pass that resolves the current planning gap:
 
 1. `brainstorm refine` for ambiguity reduction
 2. `brainstorm challenge` for rabbit holes, no-gos, and simplification pressure
-3. `epic shape` only when the repo is still using the legacy transition path
-4. `spec analyze` for general refinement gaps
-5. `spec checklist` for domain-specific review
-6. `spec execute` for starting branch-per-spec execution from an approved spec
-7. `story critique` only for legacy story flows that still need execution-readiness pressure
+3. `discuss assess` for explicit promotion readiness from a brainstorm or GitHub Discussion
+4. `discuss promote` for drafting a single-spec or multi-spec GitHub promotion plan
+5. `epic shape` only when the repo is still using the legacy transition path
+6. `spec analyze` for general refinement gaps
+7. `spec checklist` for domain-specific review
+8. `spec execute` for starting branch-per-spec execution from an approved spec
+9. `story critique` only for legacy story flows that still need execution-readiness pressure
 
 ## Model Guidance
 
@@ -119,5 +131,6 @@ Use the smallest pass that resolves the current planning gap:
 
 - if the next shaping pass is obvious, run it
 - if two passes could apply, choose the lighter one first
+- if the repo is in `github` or `hybrid` mode, prefer `discuss assess` and `discuss promote` before inventing new issue text manually
 - if backend ownership is unclear, inspect project rules and current GitHub state before editing durable planning artifacts
 - do not turn `plan` into memory, context, or execution orchestration

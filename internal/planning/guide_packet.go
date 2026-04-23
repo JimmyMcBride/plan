@@ -32,6 +32,7 @@ type GuidePacket struct {
 	GeneratedAt    string                 `json:"generated_at"`
 	Builder        GuidePacketBuilderMeta `json:"builder"`
 	Workspace      GuidePacketWorkspace   `json:"workspace"`
+	Ownership      CollaborationOwnership `json:"ownership"`
 	Session        GuidePacketSession     `json:"session"`
 	Artifact       GuidePacketArtifact    `json:"artifact"`
 	Mode           GuidePacketMode        `json:"mode"`
@@ -49,6 +50,7 @@ type GuidePacketWorkspace struct {
 	ProjectRoot       string `json:"project_root"`
 	PlanningMode      string `json:"planning_mode"`
 	PlanningModel     string `json:"planning_model"`
+	SourceMode        string `json:"source_mode"`
 	StoryBackend      string `json:"story_backend"`
 	IntegrationBranch string `json:"integration_branch,omitempty"`
 }
@@ -179,6 +181,10 @@ func (m *Manager) buildGuidePacket(command string, session *workspace.GuidedSess
 	if brainstorm.Type != "brainstorm" {
 		return nil, fmt.Errorf("%s is not a brainstorm artifact", rel(info.ProjectDir, brainstorm.Path))
 	}
+	sourceMode, err := m.SourceMode()
+	if err != nil {
+		return nil, err
+	}
 
 	artifactPath := rel(info.ProjectDir, brainstorm.Path)
 	contract := brainstormGuideContract(session, effectiveCheckpoint, artifactPath)
@@ -194,9 +200,11 @@ func (m *Manager) buildGuidePacket(command string, session *workspace.GuidedSess
 			ProjectRoot:       info.ProjectDir,
 			PlanningMode:      guidePlanningMode,
 			PlanningModel:     meta.PlanningModel,
+			SourceMode:        string(sourceMode),
 			StoryBackend:      string(meta.StoryBackend),
 			IntegrationBranch: branch,
 		},
+		Ownership: buildOwnership(sourceMode, EntryModeLocalPromotion),
 		Session: GuidePacketSession{
 			ChainID:             session.ChainID,
 			CurrentStage:        effectiveStage,

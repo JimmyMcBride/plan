@@ -16,6 +16,10 @@ type GitHubClient interface {
 	UpdateIssue(projectDir, repo string, issueNumber int, input GitHubIssueInput) (*GitHubIssue, error)
 	GetIssue(projectDir, repo string, issueNumber int) (*GitHubIssue, error)
 	FindMilestone(projectDir, repo, title string) (*GitHubMilestone, error)
+	CreateMilestone(projectDir, repo string, input GitHubMilestoneInput) (*GitHubMilestone, error)
+	GetDiscussion(projectDir, repo string, number int) (*GitHubDiscussion, error)
+	AddSubIssue(projectDir, repo string, issueNumber, subIssueNumber int) error
+	AddBlockedBy(projectDir, repo string, issueNumber, blockingIssueNumber int) error
 }
 
 type GitHubRepoInfo struct {
@@ -66,6 +70,23 @@ type GitHubIssue struct {
 type GitHubMilestone struct {
 	Number int
 	Title  string
+}
+
+type GitHubMilestoneInput struct {
+	Title       string
+	Description string
+}
+
+type GitHubDiscussion struct {
+	Number   int
+	URL      string
+	Title    string
+	Body     string
+	Comments []GitHubDiscussionComment
+}
+
+type GitHubDiscussionComment struct {
+	Body string
 }
 
 var newGitHubClient = func() GitHubClient {
@@ -247,6 +268,154 @@ func (c *cliGitHubClient) FindMilestone(projectDir, repo, title string) (*GitHub
 	return nil, nil
 }
 
+func (c *cliGitHubClient) CreateMilestone(projectDir, repo string, input GitHubMilestoneInput) (*GitHubMilestone, error) {
+	payload := map[string]any{
+		"title": input.Title,
+	}
+	if strings.TrimSpace(input.Description) != "" {
+		payload["description"] = strings.TrimSpace(input.Description)
+	}
+	out, err := c.api(projectDir, "POST", fmt.Sprintf("repos/%s/milestones", repo), payload)
+	if err != nil {
+		return nil, err
+	}
+	var milestone struct {
+		Number int    `json:"number"`
+		Title  string `json:"title"`
+	}
+	if err := json.Unmarshal(out, &milestone); err != nil {
+		return nil, fmt.Errorf("parse created milestone: %w", err)
+	}
+	return &GitHubMilestone{Number: milestone.Number, Title: milestone.Title}, nil
+}
+
+func (c *cliGitHubClient) GetDiscussion(projectDir, repo string, number int) (*GitHubDiscussion, error) {
+	query := `query($owner:String!, $name:String!, $number:Int!, $after:String) {
+  repository(owner:$owner, name:$name) {
+    discussion(number:$number) {
+      number
+      url
+      title
+      body
+      comments(first:100, after:$after) {
+        nodes {
+          body
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+      }
+    }
+  }
+}`
+	owner, name, err := splitRepo(repo)
+	if err != nil {
+		return nil, err
+	}
+	var (
+		after    any
+		item     *GitHubDiscussion
+		comments []GitHubDiscussionComment
+	)
+	for {
+		payload := map[string]any{
+			"query": query,
+			"variables": map[string]any{
+				"owner":  owner,
+				"name":   name,
+				"number": number,
+				"after":  after,
+			},
+		}
+		var response struct {
+			Data struct {
+				Repository struct {
+					Discussion *struct {
+						Number   int    `json:"number"`
+						URL      string `json:"url"`
+						Title    string `json:"title"`
+						Body     string `json:"body"`
+						Comments struct {
+							Nodes []struct {
+								Body string `json:"body"`
+							} `json:"nodes"`
+							PageInfo struct {
+								HasNextPage bool   `json:"hasNextPage"`
+								EndCursor   string `json:"endCursor"`
+							} `json:"pageInfo"`
+						} `json:"comments"`
+					} `json:"discussion"`
+				} `json:"repository"`
+			} `json:"data"`
+		}
+		if err := c.graphql(projectDir, payload, &response); err != nil {
+			return nil, err
+		}
+		if response.Data.Repository.Discussion == nil {
+			return nil, fmt.Errorf("discussion #%d not found in %s", number, repo)
+		}
+		current := response.Data.Repository.Discussion
+		if item == nil {
+			item = &GitHubDiscussion{
+				Number: current.Number,
+				URL:    current.URL,
+				Title:  current.Title,
+				Body:   current.Body,
+			}
+		}
+		for _, comment := range current.Comments.Nodes {
+			comments = append(comments, GitHubDiscussionComment{Body: comment.Body})
+		}
+		if !current.Comments.PageInfo.HasNextPage {
+			break
+		}
+		after = current.Comments.PageInfo.EndCursor
+	}
+	item.Comments = comments
+	return item, nil
+}
+
+func (c *cliGitHubClient) AddSubIssue(projectDir, repo string, issueNumber, subIssueNumber int) error {
+	issueID, subIssueID, err := c.issueIDs(projectDir, repo, issueNumber, subIssueNumber)
+	if err != nil {
+		return err
+	}
+	payload := map[string]any{
+		"query": `mutation($issueId:ID!, $subIssueId:ID!) {
+  addSubIssue(input:{issueId:$issueId, subIssueId:$subIssueId}) {
+    issue { number }
+    subIssue { number }
+  }
+}`,
+		"variables": map[string]any{
+			"issueId":    issueID,
+			"subIssueId": subIssueID,
+		},
+	}
+	return c.graphql(projectDir, payload, nil)
+}
+
+func (c *cliGitHubClient) AddBlockedBy(projectDir, repo string, issueNumber, blockingIssueNumber int) error {
+	issueID, blockingID, err := c.issueIDs(projectDir, repo, issueNumber, blockingIssueNumber)
+	if err != nil {
+		return err
+	}
+	payload := map[string]any{
+		"query": `mutation($issueId:ID!, $blockingIssueId:ID!) {
+  addBlockedBy(input:{issueId:$issueId, blockingIssueId:$blockingIssueId}) {
+    issue { number }
+    blockingIssue { number }
+  }
+}`,
+		"variables": map[string]any{
+			"issueId":         issueID,
+			"blockingIssueId": blockingID,
+		},
+	}
+	return c.graphql(projectDir, payload, nil)
+}
+
 func (c *cliGitHubClient) api(projectDir, method, apiPath string, payload any) ([]byte, error) {
 	args := []string{"api", "--method", method, apiPath}
 	var stdin []byte
@@ -263,6 +432,96 @@ func (c *cliGitHubClient) api(projectDir, method, apiPath string, payload any) (
 		return nil, fmt.Errorf("gh api %s %s: %w", method, apiPath, err)
 	}
 	return out, nil
+}
+
+func (c *cliGitHubClient) graphql(projectDir string, payload any, target any) error {
+	out, err := c.api(projectDir, "POST", "graphql", payload)
+	if err != nil {
+		return err
+	}
+	if err := decodeGraphQLResponse(out, target); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *cliGitHubClient) issueIDs(projectDir, repo string, issueNumber, otherIssueNumber int) (string, string, error) {
+	owner, name, err := splitRepo(repo)
+	if err != nil {
+		return "", "", err
+	}
+	payload := map[string]any{
+		"query": `query($owner:String!, $name:String!, $issueNumber:Int!, $otherIssueNumber:Int!) {
+  repository(owner:$owner, name:$name) {
+    issue(number:$issueNumber) { id }
+    otherIssue: issue(number:$otherIssueNumber) { id }
+  }
+}`,
+		"variables": map[string]any{
+			"owner":            owner,
+			"name":             name,
+			"issueNumber":      issueNumber,
+			"otherIssueNumber": otherIssueNumber,
+		},
+	}
+	var response struct {
+		Data struct {
+			Repository struct {
+				Issue struct {
+					ID string `json:"id"`
+				} `json:"issue"`
+				OtherIssue struct {
+					ID string `json:"id"`
+				} `json:"otherIssue"`
+			} `json:"repository"`
+		} `json:"data"`
+	}
+	if err := c.graphql(projectDir, payload, &response); err != nil {
+		return "", "", err
+	}
+	if strings.TrimSpace(response.Data.Repository.Issue.ID) == "" || strings.TrimSpace(response.Data.Repository.OtherIssue.ID) == "" {
+		return "", "", fmt.Errorf("could not resolve issue node ids for #%d and #%d", issueNumber, otherIssueNumber)
+	}
+	return response.Data.Repository.Issue.ID, response.Data.Repository.OtherIssue.ID, nil
+}
+
+func decodeGraphQLResponse(raw []byte, target any) error {
+	var envelope struct {
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return fmt.Errorf("parse graphql response envelope: %w", err)
+	}
+	if len(envelope.Errors) > 0 {
+		messages := make([]string, 0, len(envelope.Errors))
+		for _, item := range envelope.Errors {
+			if strings.TrimSpace(item.Message) == "" {
+				continue
+			}
+			messages = append(messages, strings.TrimSpace(item.Message))
+		}
+		if len(messages) == 0 {
+			return fmt.Errorf("graphql request failed")
+		}
+		return fmt.Errorf("graphql request failed: %s", strings.Join(messages, "; "))
+	}
+	if target == nil {
+		return nil
+	}
+	if err := json.Unmarshal(raw, target); err != nil {
+		return fmt.Errorf("parse graphql response: %w", err)
+	}
+	return nil
+}
+
+func splitRepo(repo string) (string, string, error) {
+	parts := strings.Split(strings.TrimSpace(repo), "/")
+	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
+		return "", "", fmt.Errorf("invalid GitHub repo %q", repo)
+	}
+	return parts[0], parts[1], nil
 }
 
 func (c *cliGitHubClient) run(projectDir string, stdin []byte, name string, args ...string) ([]byte, error) {

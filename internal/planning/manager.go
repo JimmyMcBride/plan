@@ -110,6 +110,7 @@ type VersionStatus struct {
 type ProjectStatus struct {
 	Project           string
 	PlanningModel     string
+	SourceMode        string
 	Specs             []SpecInfo
 	TotalSpecs        int
 	DraftSpecs        int
@@ -688,6 +689,10 @@ func (m *Manager) Status() (*ProjectStatus, error) {
 	if err != nil {
 		return nil, err
 	}
+	sourceMode, err := m.SourceMode()
+	if err != nil {
+		return nil, err
+	}
 	specs, err := m.ListSpecs()
 	if err != nil {
 		return nil, err
@@ -703,6 +708,7 @@ func (m *Manager) Status() (*ProjectStatus, error) {
 	status := &ProjectStatus{
 		Project:       info.ProjectName,
 		PlanningModel: workspace.PlanningModel,
+		SourceMode:    string(sourceMode),
 		Specs:         specs,
 		TotalSpecs:    len(specs),
 		Epics:         epics,

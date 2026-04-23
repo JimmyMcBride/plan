@@ -27,6 +27,7 @@ func newStatusCommand() *cobra.Command {
 func printStatus(out io.Writer, status *planning.ProjectStatus) {
 	fmt.Fprintf(out, "project: %s\n", status.Project)
 	fmt.Fprintf(out, "planning_model: %s\n", status.PlanningModel)
+	fmt.Fprintf(out, "source_mode: %s\n", status.SourceMode)
 	fmt.Fprintf(out, "specs: %d total, %d draft, %d approved, %d implementing, %d done\n",
 		status.TotalSpecs,
 		status.DraftSpecs,

@@ -25,22 +25,52 @@ const (
 	StoryBackendGitHub StoryBackend = "github"
 )
 
+type SourceOfTruthMode string
+
+const (
+	SourceOfTruthLocal  SourceOfTruthMode = "local"
+	SourceOfTruthGitHub SourceOfTruthMode = "github"
+	SourceOfTruthHybrid SourceOfTruthMode = "hybrid"
+)
+
 type WorkspaceMeta struct {
-	SchemaVersion int          `json:"schema_version"`
-	PlanningModel string       `json:"planning_model"`
-	StoryBackend  StoryBackend `json:"story_backend"`
-	CreatedAt     string       `json:"created_at"`
-	UpdatedAt     string       `json:"updated_at"`
+	SchemaVersion int               `json:"schema_version"`
+	PlanningModel string            `json:"planning_model"`
+	SourceMode    SourceOfTruthMode `json:"source_mode,omitempty"`
+	StoryBackend  StoryBackend      `json:"story_backend"`
+	CreatedAt     string            `json:"created_at"`
+	UpdatedAt     string            `json:"updated_at"`
 }
 
 type GitHubState struct {
-	Repo           string                       `json:"repo,omitempty"`
-	RepoURL        string                       `json:"repo_url,omitempty"`
-	DefaultBranch  string                       `json:"default_branch,omitempty"`
-	LastEnabledAt  string                       `json:"last_enabled_at,omitempty"`
-	LastUpdatedAt  string                       `json:"last_updated_at,omitempty"`
-	LastReconciled string                       `json:"last_reconciled_at,omitempty"`
-	Stories        map[string]GitHubStoryRecord `json:"stories"`
+	Repo           string                          `json:"repo,omitempty"`
+	RepoURL        string                          `json:"repo_url,omitempty"`
+	DefaultBranch  string                          `json:"default_branch,omitempty"`
+	LastEnabledAt  string                          `json:"last_enabled_at,omitempty"`
+	LastUpdatedAt  string                          `json:"last_updated_at,omitempty"`
+	LastReconciled string                          `json:"last_reconciled_at,omitempty"`
+	Stories        map[string]GitHubStoryRecord    `json:"stories"`
+	Planning       map[string]GitHubPlanningRecord `json:"planning"`
+}
+
+type GitHubPlanningRecord struct {
+	Slug              string   `json:"slug"`
+	Kind              string   `json:"kind"`
+	Title             string   `json:"title"`
+	IssueNumber       int      `json:"issue_number,omitempty"`
+	IssueURL          string   `json:"issue_url,omitempty"`
+	RemoteState       string   `json:"remote_state,omitempty"`
+	Readiness         string   `json:"readiness,omitempty"`
+	OwnershipMode     string   `json:"ownership_mode,omitempty"`
+	EntryMode         string   `json:"entry_mode,omitempty"`
+	SourceMode        string   `json:"source_mode,omitempty"`
+	DiscussionNumber  int      `json:"discussion_number,omitempty"`
+	DiscussionURL     string   `json:"discussion_url,omitempty"`
+	ParentIssueNumber int      `json:"parent_issue_number,omitempty"`
+	MilestoneNumber   int      `json:"milestone_number,omitempty"`
+	MilestoneTitle    string   `json:"milestone_title,omitempty"`
+	BlockedBy         []string `json:"blocked_by,omitempty"`
+	UpdatedAt         string   `json:"updated_at,omitempty"`
 }
 
 type GitHubStoryRecord struct {
@@ -899,6 +929,7 @@ func defaultWorkspaceMeta(now string) WorkspaceMeta {
 	return WorkspaceMeta{
 		SchemaVersion: CurrentSchemaVersion,
 		PlanningModel: PlanningModel,
+		SourceMode:    SourceOfTruthLocal,
 		StoryBackend:  StoryBackendLocal,
 		CreatedAt:     now,
 		UpdatedAt:     now,
@@ -918,6 +949,7 @@ func defaultGitHubState(now string) GitHubState {
 	return GitHubState{
 		LastUpdatedAt: now,
 		Stories:       map[string]GitHubStoryRecord{},
+		Planning:      map[string]GitHubPlanningRecord{},
 	}
 }
 
@@ -940,6 +972,10 @@ func normalizeWorkspaceMeta(meta WorkspaceMeta, now string) (WorkspaceMeta, bool
 		changed = true
 	} else if normalized.PlanningModel == LegacyPlanningModel {
 		normalized.PlanningModel = PlanningModel
+		changed = true
+	}
+	if normalized.SourceMode == "" {
+		normalized.SourceMode = SourceOfTruthLocal
 		changed = true
 	}
 	if normalized.StoryBackend == "" {
@@ -996,6 +1032,10 @@ func normalizeGitHubState(state GitHubState, now string) (GitHubState, bool, err
 		normalized.Stories = map[string]GitHubStoryRecord{}
 		changed = true
 	}
+	if normalized.Planning == nil {
+		normalized.Planning = map[string]GitHubPlanningRecord{}
+		changed = true
+	}
 	if normalized.LastUpdatedAt == "" {
 		normalized.LastUpdatedAt = now
 		changed = true
@@ -1016,6 +1056,8 @@ func validateWorkspaceMeta(meta *WorkspaceMeta) error {
 		return fmt.Errorf("planning_model is required")
 	case meta.PlanningModel != PlanningModel:
 		return fmt.Errorf("planning_model %q is not supported", meta.PlanningModel)
+	case meta.SourceMode != "" && meta.SourceMode != SourceOfTruthLocal && meta.SourceMode != SourceOfTruthGitHub && meta.SourceMode != SourceOfTruthHybrid:
+		return fmt.Errorf("source_mode %q is not supported", meta.SourceMode)
 	case meta.StoryBackend != "" && meta.StoryBackend != StoryBackendLocal && meta.StoryBackend != StoryBackendGitHub:
 		return fmt.Errorf("story_backend %q is not supported", meta.StoryBackend)
 	case meta.CreatedAt == "":

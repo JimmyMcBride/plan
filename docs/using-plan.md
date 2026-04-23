@@ -11,10 +11,12 @@ Right now:
 
 - the active planning model is spec-first
 - source-of-truth backends can be `local`, `github`, or `hybrid`
-- brainstorms stay local and can bloom into idea docs or specs
+- brainstorms can start locally or in GitHub Discussions
 - `initiative` is lightweight optional grouping metadata
 - `plan spec execute` is the active execution entry point
 - `plan guide current|show` emits live brainstorm-stage guide packets for agent runtimes
+- `plan discuss assess|promote` ships the GitHub collaboration foundation
+- `plan source show|set` makes backend ownership explicit
 - legacy `epic` and `story` commands still exist during the transition
 - GitHub integration is the first external backend being actively shaped
 
@@ -42,7 +44,7 @@ persistent planning data in `github` or `hybrid` modes.
 Active model:
 
 1. `Brainstorm`
-2. `Idea Doc` (optional)
+2. distilled issue body or `Idea Doc` (optional)
 3. `Spec`
 4. runtime `Slice`
 
@@ -59,12 +61,13 @@ Workflow entry:
 1. `Brainstorm`
 2. `Refine`
 3. `Challenge`
-4. `Promote or shape into a spec`
-5. `Write and approve spec`
-6. `Analyze or checklist the spec`
-7. `Assign initiative metadata when needed`
-8. `Start spec execution`
-9. `Work slices one commit at a time`
+4. `Assess maturity and draft promotion`
+5. `Promote or shape into a spec`
+6. `Write and approve spec`
+7. `Analyze or checklist the spec`
+8. `Assign initiative metadata when needed`
+9. `Start spec execution`
+10. `Work slices one commit at a time`
 
 ## Source Of Truth Modes
 
@@ -79,6 +82,7 @@ Rules:
 
 - local is still the default
 - brainstorm is a session, not a durable hierarchy layer
+- collaborative shaping can also start in GitHub Discussions
 - persistent planning data may live locally or in integrations
 - ownership must be explicit by planning layer
 - today, local is the most complete shipped backend and GitHub is the first
@@ -166,18 +170,26 @@ Preconditions:
 - `gh` is installed
 - `gh auth status` passes
 - the repo has GitHub Issues enabled
-- local story notes are not still active in `.plan/stories/`
+- GitHub Discussions should be enabled if you want `GitHub collaborative mode`
 
-Current shipped GitHub support is still strongest around issue-backed execution
-stories and milestone mapping. Broader GitHub ownership is an active design
-direction, not a fully finished backend yet.
+Current shipped GitHub support includes:
+
+- GitHub Discussion assessment
+- promotion drafting from a brainstorm or Discussion
+- initiative/spec issue creation for `github` and `hybrid` targets
+- milestone creation for multi-spec promotion
+- parent/sub-issue and `blocked by` relationship wiring
+- local mirror metadata in `.plan/.meta/github.json`
+
+Full end-to-end GitHub-native spec execution is not finished yet. Repo-backed
+`plan spec ...` execution remains the strongest shipped execution path.
 
 When the current GitHub backend is enabled:
 
-- execution stories are created as GitHub Issues
-- `.plan/.meta/github.json` becomes the local issue-state index
-- initiative metadata can map execution work to GitHub milestones when titles
-  match
+- promoted initiative and spec issues can become canonical planning artifacts
+- GitHub Discussions can act as the collaborative brainstorm surface
+- `.plan/.meta/github.json` becomes the local integration-state index
+- initiative metadata can map multi-spec work to GitHub milestones
 
 ## Step-By-Step Workflow
 
@@ -251,57 +263,145 @@ This writes the `## Challenge` section:
 
 Use this when you want to force scope discipline before promotion.
 
-### 4. Promote to an Epic
+### 4. Pick An Entry Mode
 
-If the brainstorm is ready, promote it:
+`plan` now supports two collaboration entry modes:
 
-```bash
-plan epic promote --project . newsletter-system
-```
+- `local promotion mode`: brainstorm locally, then assess and promote later
+- `GitHub collaborative mode`: shape the idea in a GitHub Discussion, then
+  promote that Discussion into issue-backed planning artifacts
 
-This creates:
-
-- `.plan/epics/newsletter-system.md`
-- `.plan/specs/newsletter-system.md`
-
-You can also create an epic directly without a brainstorm:
+Inspect the current backend mode:
 
 ```bash
-plan epic create --project . "Newsletter system"
+plan source show --project .
 ```
 
-List epics:
+Switch to GitHub ownership when you want GitHub to own the promoted planning
+artifacts:
 
 ```bash
-plan epic list --project .
+plan source set --project . github
 ```
 
-Show an epic:
+Current modes:
+
+- `local`
+- `github`
+- `hybrid`
+
+### 5. Assess Maturity Before Promotion
+
+Assess a local brainstorm:
 
 ```bash
-plan epic show --project . newsletter-system
+plan discuss assess --project . --brainstorm newsletter-system --format json
 ```
 
-### 5. Shape the Epic
-
-Run the epic shaping pass:
+Assess a GitHub Discussion:
 
 ```bash
-plan epic shape --project . newsletter-system
+plan discuss assess --project . --discussion 49 --format json
 ```
 
-This writes the `## Shape` section:
+The assessment decides whether the source is:
 
-- `Appetite`
-- `Outcome`
-- `Scope Boundary`
-- `Out of Scope`
-- `Success Signal`
+- `not_ready`
+- `ready_single_spec`
+- `ready_multi_spec`
 
-It also mirrors key shape output back into the epic summary sections where it
-helps readability.
+The JSON output includes:
 
-### 6. Work the Spec
+- source mode and entry mode
+- maturity strengths and gaps
+- recommended path
+- suggested issue titles
+- an initial dependency guess
+
+### 6. Review The Promotion Draft
+
+Preview the promotion plan for a local brainstorm:
+
+```bash
+plan discuss promote --project . --brainstorm newsletter-system --format json
+```
+
+Preview the promotion plan for a GitHub Discussion:
+
+```bash
+plan discuss promote --project . --discussion 49 --format json
+```
+
+The draft tells you:
+
+- whether the work should stay `single_spec` or fan out to `multi_spec`
+- the proposed initiative issue, if needed
+- the proposed spec issues
+- parent/sub-issue grouping
+- `blocked by` dependency suggestions
+- whether a milestone should be created
+- whether a project should be recommended
+- whether any spec should start with `needs-refinement`
+
+Rules:
+
+- single-spec promotion creates one spec issue and no initiative issue
+- multi-spec promotion creates an initiative issue plus spec issues
+- multi-spec promotion always creates a milestone
+- the project prompt appears at `5+` specs or earlier when coordination is
+  clearly messy
+
+### 7. Apply Promotion To GitHub Or Hybrid Ownership
+
+Once the draft looks right, apply it:
+
+```bash
+plan discuss promote --project . --discussion 49 --apply --confirm --target github --format json
+```
+
+You can also promote a local brainstorm into GitHub or hybrid ownership:
+
+```bash
+plan discuss promote --project . --brainstorm newsletter-system --apply --confirm --target hybrid --format json
+```
+
+Current shipped boundary:
+
+- `--apply` is implemented for `github` and `hybrid`
+- local promotion apply is not implemented yet
+- repo-backed local promotion still uses the legacy `plan epic promote`
+  compatibility path to create the local spec file today
+- the promoted issue body becomes the canonical distilled planning artifact
+- the original GitHub Discussion stays linked as collaboration history
+
+When a multi-spec promotion is applied, `plan` will:
+
+- create the initiative issue
+- create the spec issues immediately
+- create the milestone
+- wire the initiative as parent of the spec issues
+- add `blocked by` relationships only where the dependency plan says they are
+  real
+- mirror the created issue/milestone metadata into `.plan/.meta/github.json`
+
+By default, new spec issues are `ready`. A spec starts as `needs-refinement`
+only when the draft identified a concrete execution gap.
+
+### 8. Work The Spec
+
+After promotion, the canonical execution contract may live in different places
+depending on ownership:
+
+- `local`: the repo-backed spec file under `.plan/specs/`
+- `github`: the promoted GitHub spec issue body during shaping
+- `hybrid`: the configured split between issue-backed planning and repo-backed
+  spec material
+
+Current shipped execution loop is still strongest on repo-backed specs. The new
+GitHub collaboration foundation shapes and promotes work cleanly, but it does
+not yet replace the local `plan spec ...` execution commands end-to-end.
+
+For repo-backed specs, show the canonical spec:
 
 Show the canonical spec:
 
@@ -334,9 +434,9 @@ The spec is the canonical execution contract. It should contain:
 - `Risks / Open Questions`
 - `Rollout`
 - `Verification`
-- `Story Breakdown`
+- optional execution notes or planned slices
 
-### 7. Analyze the Spec
+### 9. Analyze The Spec
 
 Run the general analysis pass:
 
@@ -358,7 +458,7 @@ Behavior:
 - non-destructive to the canonical spec sections
 - returns non-zero when blocking findings exist
 
-### 8. Run a Spec Checklist
+### 10. Run A Spec Checklist
 
 Run a profile-specific pass:
 
@@ -382,9 +482,9 @@ Behavior:
 - deterministic for the same input
 - returns non-zero when the selected profile reports blocking issues
 
-### 9. Approve the Spec
+### 11. Approve The Spec
 
-Stories can only be created from an approved spec.
+Execution should only start from an approved spec.
 
 Approve it:
 
@@ -399,72 +499,18 @@ Current spec statuses:
 - `implementing`
 - `done`
 
-### 10. Slice Stories From The Spec
-
-If the approved spec already has a strong `Story Breakdown`, preview the first
-pass slice set:
-
-```bash
-plan story slice --project . newsletter-system
-```
-
-This reads the canonical spec and produces a deterministic preview of the
-candidate stories it can derive from `## Story Breakdown`.
-
-Behavior:
-
-- preview-first by default
-- uses the story breakdown as the source of truth
-- derives acceptance criteria and verification from the spec when needed
-- protects against duplicate story creation on reruns
-
-Apply the slice set:
-
-```bash
-plan story slice --project . newsletter-system --apply
-```
-
-This creates any missing story notes and rewrites `## Story Breakdown` with
-linked checklist entries.
-
-Manual `story create` still works. Slicing is an optional accelerator, not a
-mandatory ceremony.
-
-### 11. Create Stories Manually
-
-Create a story from an approved spec:
-
-```bash
-plan story create --project . newsletter-system "Build template editor" \
-  --body "Create the template editing flow." \
-  --criteria "Templates can be created and edited" \
-  --criteria "Template validation errors are visible" \
-  --verify "go test ./..." \
-  --verify "Manually verify the editor flow"
-```
-
-If GitHub story mode is enabled, the same command creates a GitHub Issue-backed
-story instead of a local markdown story note.
-
-Important rules:
-
-- a story requires at least one acceptance criterion
-- a story requires at least one verification step
-- story creation is blocked until the spec is `approved`
-
-### 11A. Spec Queue Workflow
+### 12. Spec Queue Workflow
 
 Preferred execution loop is spec-first, not issue-first:
 
 1. Establish queue with `plan status --project .`
 2. Take the next approved spec from the queue
-3. Run `plan story slice --project . <epic-slug>` to preview the slices
-4. Run `plan story slice --project . <epic-slug> --apply` when the slice set is sound
-5. Implement one slice
-6. Review and verify that slice before committing it
-7. Repeat slice-by-slice until the spec is done
-8. Move to the next spec in queue if more queued specs remain
-9. Open one PR when the queued specs for the branch are complete
+3. Run `plan spec execute --project . <spec-slug>` to start execution
+4. Implement one slice
+5. Review and verify that slice before committing it
+6. Repeat slice-by-slice until the spec is done
+7. Move to the next spec in queue if more queued specs remain
+8. Open one PR when the queued specs for the branch are complete
 
 Recommended commands:
 
@@ -472,8 +518,7 @@ Recommended commands:
 plan status --project .
 
 # take next approved spec
-plan story slice --project . <epic-slug>
-plan story slice --project . <epic-slug> --apply
+plan spec execute --project . <spec-slug>
 
 # implement one slice
 # run review + verification
@@ -487,11 +532,11 @@ Use this model:
 
 - `plan status` = queue view
 - approved spec = execution batch
-- story slices = execution units inside the current spec
+- runtime slices = execution units inside the current spec
 - review + verification happen before each slice commit
 - PR = review for the completed queued spec batch
 
-If GitHub story mode is enabled, reconcile after merge:
+If GitHub integration is enabled, reconcile after merge:
 
 ```bash
 git switch <integration-branch>
@@ -501,7 +546,7 @@ plan github reconcile --project . --update-visible
 plan status --project .
 ```
 
-If GitHub story mode is not enabled, use the same refresh without reconcile:
+If GitHub integration is not enabled, use the same refresh without reconcile:
 
 ```bash
 git switch <integration-branch>
@@ -509,66 +554,6 @@ git pull --ff-only origin <integration-branch>
 plan update --project .
 plan status --project .
 ```
-
-Show a story:
-
-```bash
-plan story show --project . build-template-editor
-```
-
-List stories:
-
-```bash
-plan story list --project .
-plan story list --project . --epic newsletter-system
-plan story list --project . --status blocked
-```
-
-### 12. Critique Story Readiness
-
-Pressure-test a story before implementation:
-
-```bash
-plan story critique --project . build-template-editor
-```
-
-This writes the `## Critique` section in the story note:
-
-- `Scope Fit`
-- `Vertical Slice Check`
-- `Hidden Prerequisites`
-- `Verification Gaps`
-- `Rewrite Recommendation`
-
-Behavior:
-
-- interactive, TTY-first
-- additive to the story note
-- returns non-zero when the recommendation is `rewrite` or `reslice`
-
-### 13. Update Story Status
-
-Update story progress:
-
-```bash
-plan story update --project . build-template-editor --status in_progress
-plan story update --project . build-template-editor --status done
-```
-
-Append more detail later:
-
-```bash
-plan story update --project . build-template-editor \
-  --criteria "Editor preserves template formatting" \
-  --verify "Run template editor tests"
-```
-
-Current story statuses:
-
-- `todo`
-- `in_progress`
-- `blocked`
-- `done`
 
 ## Quality Commands
 
@@ -628,29 +613,39 @@ plan skills targets --scope both --agent codex --project .
 
 You can repeat `--agent` for multiple targets.
 
-## End-To-End Example
+## End-To-End Examples
 
 ```bash
 plan init --project .
+plan source set --project . local
 
 plan brainstorm start --project . "Billing export"
 plan brainstorm idea --project . billing-export --body "Export billing data to an external API"
 plan brainstorm refine --project . billing-export
 plan brainstorm challenge --project . billing-export
 
+plan discuss assess --project . --brainstorm billing-export --format json
+plan discuss promote --project . --brainstorm billing-export --format json
 plan epic promote --project . billing-export
-plan epic shape --project . billing-export
 
 plan spec show --project . billing-export
 plan spec analyze --project . billing-export
 plan spec checklist --project . billing-export --profile api-integration
 plan spec status --project . billing-export --set approved
 
-plan story slice --project . billing-export
-plan story slice --project . billing-export --apply
+plan spec execute --project . billing-export
 
 plan status --project .
 plan check --project .
+```
+
+GitHub collaborative example:
+
+```bash
+plan source set --project . github
+plan discuss assess --project . --discussion 49 --format json
+plan discuss promote --project . --discussion 49 --format json
+plan discuss promote --project . --discussion 49 --apply --confirm --target github --format json
 ```
 
 ## What `plan` Does Not Do Right Now
@@ -658,43 +653,22 @@ plan check --project .
 Current state means:
 
 - no memory or context-management features
-- no external tracker sync
-- no cloud-first workflow
+- no fully finished cloud backend beyond the current GitHub foundation
+- no end-to-end GitHub-native spec execution loop yet
 
 Those are roadmap questions, not current usage.
-
-## `v6` Execution-Readiness Workflow
-
-The main `v6` additions are about making the spec-to-story handoff stronger.
-
-Recommended flow:
-
-1. Approve the spec.
-2. Make sure `## Story Breakdown` contains meaningful slice candidates.
-3. Run `plan story slice --project . <epic-slug>` to preview the first pass.
-4. Run `plan story slice --project . <epic-slug> --apply` when the preview is sound.
-5. Run `plan story critique --project . <story-slug>` on the stories that need pressure-testing.
-6. Run `plan check --project .` to validate the spec-to-story handoff.
-
-`plan check` now looks for readiness problems such as:
-
-- implementing specs with no story breakdown
-- implementing specs with no child stories
-- linked story breakdown entries that point to missing files
-- story sets that exist but are not reflected in the canonical breakdown
-- implementing specs whose stories are all still `todo`
 
 ## Practical Rules
 
 - Start with the smallest useful pass.
 - Use `refine` when the idea is fuzzy.
 - Use `challenge` when the idea is too comfortable or too broad.
-- Use `shape` when the epic boundary is weak.
+- Use `discuss assess` when you need an explicit maturity decision.
+- Use `discuss promote` when you need a concrete promotion draft before writing to GitHub.
 - Use `analyze` for general spec pressure-testing.
 - Use `checklist` when the spec has domain-specific risk.
-- Approve the spec before creating or slicing stories.
-- Use `story critique` when a slice feels too broad or verification-thin.
-- Keep stories small, concrete, and verification-aware.
+- Approve the spec before starting execution.
+- Keep runtime slices small, concrete, and verification-aware.
 
 ## Current Command Surface
 
@@ -704,7 +678,9 @@ Top-level commands available today:
 - `plan adopt`
 - `plan doctor`
 - `plan update`
+- `plan source`
 - `plan brainstorm`
+- `plan discuss`
 - `plan epic`
 - `plan spec`
 - `plan story`
@@ -718,7 +694,9 @@ If you need the exact current help text, run:
 
 ```bash
 plan --help
+plan source --help
 plan brainstorm --help
+plan discuss --help
 plan epic --help
 plan spec --help
 plan story --help
