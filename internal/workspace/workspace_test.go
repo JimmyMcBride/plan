@@ -506,6 +506,162 @@ func TestUpdateMigratesLegacyWorkspaceMetadataToSpecFirstModel(t *testing.T) {
 	}
 }
 
+func TestReadWorkspaceMetaDefaultsOptionalCompatibilityFieldsInMemory(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+	if _, err := manager.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	workspacePath := filepath.Join(root, ".plan", ".meta", "workspace.json")
+	raw, err := os.ReadFile(workspacePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		t.Fatal(err)
+	}
+	delete(payload, "source_mode")
+	delete(payload, "story_backend")
+	updated, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(workspacePath, updated, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	meta, err := manager.ReadWorkspaceMeta()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.SourceMode != SourceOfTruthLocal {
+		t.Fatalf("expected source mode fallback: %+v", meta)
+	}
+	if meta.StoryBackend != StoryBackendLocal {
+		t.Fatalf("expected story backend fallback: %+v", meta)
+	}
+}
+
+func TestReadGitHubStateDefaultsPlanningMapInMemory(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+	if _, err := manager.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	githubPath := filepath.Join(root, ".plan", ".meta", "github.json")
+	raw, err := os.ReadFile(githubPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		t.Fatal(err)
+	}
+	delete(payload, "planning")
+	updated, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(githubPath, updated, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	state, err := manager.ReadGitHubState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.Planning == nil {
+		t.Fatalf("expected planning map fallback: %+v", state)
+	}
+	if len(state.Planning) != 0 {
+		t.Fatalf("expected empty planning map fallback: %+v", state.Planning)
+	}
+}
+
+func TestUpdateDoesNotRewriteOptionalCompatibilityDefaults(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+	if _, err := manager.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	migrationsBefore, err := manager.ReadMigrationState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	initialHistory := len(migrationsBefore.History)
+
+	workspacePath := filepath.Join(root, ".plan", ".meta", "workspace.json")
+	workspaceRaw, err := os.ReadFile(workspacePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var workspacePayload map[string]any
+	if err := json.Unmarshal(workspaceRaw, &workspacePayload); err != nil {
+		t.Fatal(err)
+	}
+	delete(workspacePayload, "source_mode")
+	workspaceEdited, err := json.MarshalIndent(workspacePayload, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(workspacePath, workspaceEdited, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	githubPath := filepath.Join(root, ".plan", ".meta", "github.json")
+	githubRaw, err := os.ReadFile(githubPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var githubPayload map[string]any
+	if err := json.Unmarshal(githubRaw, &githubPayload); err != nil {
+		t.Fatal(err)
+	}
+	delete(githubPayload, "planning")
+	githubEdited, err := json.MarshalIndent(githubPayload, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(githubPath, githubEdited, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := manager.Update()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Created) != 0 || len(result.Updated) != 0 || len(result.Archived) != 0 {
+		t.Fatalf("expected optional compatibility defaults to avoid update churn: %+v", result)
+	}
+
+	workspaceAfter, err := os.ReadFile(workspacePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(workspaceAfter) != string(workspaceEdited) {
+		t.Fatalf("expected workspace metadata to remain unchanged on no-op update\nbefore:\n%s\nafter:\n%s", string(workspaceEdited), string(workspaceAfter))
+	}
+	githubAfter, err := os.ReadFile(githubPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(githubAfter) != string(githubEdited) {
+		t.Fatalf("expected github metadata to remain unchanged on no-op update\nbefore:\n%s\nafter:\n%s", string(githubEdited), string(githubAfter))
+	}
+
+	migrationsAfter, err := manager.ReadMigrationState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(migrationsAfter.History) != initialHistory {
+		t.Fatalf("expected no migration history churn on no-op update: %+v", migrationsAfter)
+	}
+}
+
 func TestUpdateWithArchiveLegacyMovesLegacyHierarchyAndPreservesActiveSpecs(t *testing.T) {
 	root := t.TempDir()
 	manager := New(root)
