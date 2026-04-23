@@ -32,3 +32,4 @@ This file is a deterministic snapshot of the repository state at the last refres
 Add repo-specific notes here. `brain context refresh` preserves content outside managed blocks.
 
 - On April 22, 2026, `./scripts/refresh-plan-develop-context.sh` reconciled checked-in GitHub planning metadata on `develop` and updated `.plan/.meta/github.json` so guide packet issues `#34`-`#36` are recorded as closed/merged with doc refs normalized to `develop`.
+- On April 22, 2026, the GitHub collaboration foundation landed on `codex/github-collaboration-foundation`: `plan source show|set`, `plan discuss assess|promote`, GitHub Discussion assessment, draft-first promotion, initiative/spec issue orchestration, milestone creation, dependency wiring, and local planning mirrors in `.plan/.meta/github.json`.

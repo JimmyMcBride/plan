@@ -26,27 +26,28 @@ need that layer.
 Active planning model:
 
 1. Brainstorm session
-2. Idea doc (optional)
+2. Distilled issue body or idea doc (optional)
 3. Spec
 4. Execution slices at runtime
 
 `initiative` is optional lightweight grouping for multiple specs. In GitHub
-mode, an initiative can map to a milestone.
+mode, an initiative can map to a milestone and an initiative issue.
 
 Legacy `epic` and `story` commands still exist during the transition, but they
 are no longer the active model the workspace reports by default.
 
 Workflow entry:
 
-1. Brainstorm
+1. Brainstorm locally or in GitHub Discussion
 2. Refine
 3. Challenge
-4. Promote or shape the work into a spec
-5. Write and approve spec
-6. Analyze or checklist the spec
-7. Assign initiative metadata when needed
-8. Start spec execution
-9. Work the execution slices one commit at a time
+4. Assess maturity and draft promotion
+5. Promote or shape the work into a spec or initiative
+6. Write and approve spec
+7. Analyze or checklist the spec
+8. Assign initiative metadata when needed
+9. Start spec execution
+10. Work the execution slices one commit at a time
 
 Execution loop:
 
@@ -76,6 +77,7 @@ Rules:
 
 - local remains the default
 - brainstorm is a session, not a durable hierarchy layer
+- collaborative brainstorming can start in GitHub Discussions
 - persistent planning data may live locally or in integrations
 - ownership must be explicit by planning layer
 - today, local is the most complete backend and GitHub is the first external
@@ -125,9 +127,13 @@ metadata.
 
 ```bash
 plan init --project .
+plan source show --project .
 plan brainstorm start --project . "Newsletter system"
 plan brainstorm refine --project . newsletter-system
 plan brainstorm challenge --project . newsletter-system
+plan discuss assess --project . --brainstorm newsletter-system --format json
+plan discuss promote --project . --brainstorm newsletter-system --format json
+# local repo-backed promotion still uses the legacy compatibility path today
 plan epic promote --project . newsletter-system
 plan spec show --project . newsletter-system
 plan spec analyze --project . newsletter-system
@@ -137,6 +143,15 @@ plan spec status --project . newsletter-system --set approved
 plan spec execute --project . newsletter-system
 plan status --project .
 plan check --project .
+```
+
+GitHub collaborative path:
+
+```bash
+plan source set --project . github
+plan discuss assess --project . --discussion 49 --format json
+plan discuss promote --project . --discussion 49 --format json
+plan discuss promote --project . --discussion 49 --apply --confirm --target github --format json
 ```
 
 Full guide:
@@ -149,8 +164,10 @@ Full guide:
 - `plan adopt`
 - `plan doctor`
 - `plan update`
+- `plan source show|set`
 - `plan brainstorm start|idea|show|refine`
 - `plan brainstorm challenge`
+- `plan discuss assess|promote`
 - `plan guide current|show`
 - `plan epic create|promote|list|show|shape` for legacy compatibility during migration
 - `plan spec show|edit|status|analyze|checklist|initiative|execute|handoff`

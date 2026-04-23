@@ -40,6 +40,22 @@ func (s *stubGitHubEnableClient) FindMilestone(projectDir, repo, title string) (
 	panic("unexpected FindMilestone call")
 }
 
+func (s *stubGitHubEnableClient) CreateMilestone(projectDir, repo string, input planning.GitHubMilestoneInput) (*planning.GitHubMilestone, error) {
+	panic("unexpected CreateMilestone call")
+}
+
+func (s *stubGitHubEnableClient) GetDiscussion(projectDir, repo string, number int) (*planning.GitHubDiscussion, error) {
+	panic("unexpected GetDiscussion call")
+}
+
+func (s *stubGitHubEnableClient) AddSubIssue(projectDir, repo string, issueNumber, subIssueNumber int) error {
+	panic("unexpected AddSubIssue call")
+}
+
+func (s *stubGitHubEnableClient) AddBlockedBy(projectDir, repo string, issueNumber, blockingIssueNumber int) error {
+	panic("unexpected AddBlockedBy call")
+}
+
 func TestGitHubEnableCommandPrintsBackendSummary(t *testing.T) {
 	reset := planning.SetGitHubClientFactoryForTesting(func() planning.GitHubClient {
 		return &stubGitHubEnableClient{

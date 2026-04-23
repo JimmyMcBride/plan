@@ -18,6 +18,7 @@ type stubGitHubClient struct {
 	issues           map[int]*GitHubIssue
 	milestones       map[string]*GitHubMilestone
 	milestoneLookups []string
+	discussions      map[int]*GitHubDiscussion
 	nextIssue        int
 	lastCreate       GitHubIssueInput
 	lastUpdate       GitHubIssueInput
@@ -121,6 +122,38 @@ func (s *stubGitHubClient) FindMilestone(projectDir, repo, title string) (*GitHu
 	}
 	copy := *milestone
 	return &copy, nil
+}
+
+func (s *stubGitHubClient) CreateMilestone(projectDir, repo string, input GitHubMilestoneInput) (*GitHubMilestone, error) {
+	if s.milestones == nil {
+		s.milestones = map[string]*GitHubMilestone{}
+	}
+	number := len(s.milestones) + 1
+	item := &GitHubMilestone{Number: number, Title: input.Title}
+	s.milestones[input.Title] = item
+	copy := *item
+	return &copy, nil
+}
+
+func (s *stubGitHubClient) GetDiscussion(projectDir, repo string, number int) (*GitHubDiscussion, error) {
+	if s.discussions == nil {
+		return nil, fmt.Errorf("unexpected GetDiscussion call")
+	}
+	item, ok := s.discussions[number]
+	if !ok {
+		return nil, fmt.Errorf("discussion %d not found", number)
+	}
+	copy := *item
+	copy.Comments = append([]GitHubDiscussionComment(nil), item.Comments...)
+	return &copy, nil
+}
+
+func (s *stubGitHubClient) AddSubIssue(projectDir, repo string, issueNumber, subIssueNumber int) error {
+	return nil
+}
+
+func (s *stubGitHubClient) AddBlockedBy(projectDir, repo string, issueNumber, blockingIssueNumber int) error {
+	return nil
 }
 
 func TestEnableGitHubBackendPersistsRepoConfigAfterPreflight(t *testing.T) {

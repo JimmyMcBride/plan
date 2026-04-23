@@ -1,0 +1,193 @@
+package planning
+
+import (
+	"strings"
+	"testing"
+
+	"plan/internal/workspace"
+)
+
+func TestAssessCollaborationSourceForLocalBrainstorm(t *testing.T) {
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := New(ws)
+
+	if _, err := manager.CreateBrainstorm("Local Promotion"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := manager.UpdateGuidedBrainstormIntake("local-promotion", GuidedBrainstormIntakeInput{
+		Vision: "Promote a refined local brainstorm into a single spec when the work stays bounded.",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.UpdateBrainstormRefinement("local-promotion", BrainstormRefinementInput{
+		Problem:                "The planner needs a consistent maturity gate before promotion.",
+		UserValue:              "The user gets one clean spec instead of guessing the next artifact.",
+		Constraints:            "Keep the first slice read-only.\nDo not create GitHub issues during assessment.",
+		Appetite:               "One bounded planning pass.",
+		RemainingOpenQuestions: "Should the promote command default to json?",
+		CandidateApproaches:    "Assess brainstorm maturity.\nGenerate a promotion draft.",
+		DecisionSnapshot:       "Start with one spec because the work is still tightly bounded.",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.UpdateBrainstormChallenge("local-promotion", BrainstormChallengeInput{
+		RabbitHoles:           "Do not build automatic writes yet.",
+		NoGos:                 "No custom collaboration UI.",
+		Assumptions:           "The user can review a JSON draft before promotion.",
+		LikelyOverengineering: "Building project automation in the first slice.",
+		SimplerAlternative:    "Assess first, then draft promotion.",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	assessment, err := manager.AssessCollaborationSource(CollaborationAssessInput{
+		BrainstormSlug: "local-promotion",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if assessment.Kind != maturityAssessmentKind {
+		t.Fatalf("unexpected assessment kind: %+v", assessment)
+	}
+	if assessment.Source.Mode != CollaborationSourceLocal || assessment.Source.EntryMode != EntryModeLocalPromotion {
+		t.Fatalf("unexpected source: %+v", assessment.Source)
+	}
+	if assessment.Ownership.Mode != SourceOfTruthLocal {
+		t.Fatalf("expected local ownership by default: %+v", assessment.Ownership)
+	}
+	if assessment.Decision.State != MaturityReadySingleSpec {
+		t.Fatalf("expected single-spec readiness: %+v", assessment.Decision)
+	}
+	if assessment.Decision.RecommendedPath != PromotionSingleSpec {
+		t.Fatalf("expected single-spec path: %+v", assessment.Decision)
+	}
+	if len(assessment.Decision.SuggestedTitles.Specs) != 1 || assessment.Decision.SuggestedTitles.Specs[0] != "Local Promotion" {
+		t.Fatalf("unexpected suggested titles: %+v", assessment.Decision.SuggestedTitles)
+	}
+}
+
+func TestAssessAndPromoteGitHubDiscussion(t *testing.T) {
+	client := &stubGitHubClient{
+		preflight: &GitHubRepoInfo{
+			Repo:          "JimmyMcBride/plan",
+			RepoURL:       "https://github.com/JimmyMcBride/plan",
+			DefaultBranch: "develop",
+		},
+		context: &GitHubContext{
+			Repo: GitHubRepoInfo{
+				Repo:          "JimmyMcBride/plan",
+				RepoURL:       "https://github.com/JimmyMcBride/plan",
+				DefaultBranch: "develop",
+			},
+			CurrentBranch: "develop",
+			CurrentSHA:    "abc123",
+		},
+		discussions: map[int]*GitHubDiscussion{
+			49: {
+				Number: 49,
+				URL:    "https://github.com/JimmyMcBride/plan/discussions/49",
+				Title:  "GitHub collaboration foundation",
+				Body: strings.Join([]string{
+					"## Problem",
+					"GitHub-native collaboration needs a disciplined promotion flow.",
+					"",
+					"## Goals",
+					"Create initiative/spec issues from mature discussions.",
+					"",
+					"## Non-Goals",
+					"Do not build a custom UI.",
+					"",
+					"## Constraints",
+					"Keep issue bodies canonical after promotion.",
+					"",
+					"## Proposed Shape",
+					"Use discussions for brainstorming and issues for distilled planning artifacts.",
+					"",
+					"## Spec Split",
+					"- Collaboration entry modes and maturity assessment",
+					"- Promotion draft review and issue-body distillation",
+					"",
+					"Promotion draft review and issue-body distillation depends on Collaboration entry modes and maturity assessment.",
+				}, "\n"),
+			},
+		},
+	}
+	reset := SetGitHubClientFactoryForTesting(func() GitHubClient { return client })
+	t.Cleanup(reset)
+
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := New(ws)
+
+	assessment, err := manager.AssessCollaborationSource(CollaborationAssessInput{DiscussionRef: "49"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if assessment.Decision.State != MaturityReadyMultiSpec {
+		t.Fatalf("expected multi-spec readiness: %+v", assessment.Decision)
+	}
+	if len(assessment.Decision.SuggestedTitles.Specs) != 2 {
+		t.Fatalf("expected two suggested specs: %+v", assessment.Decision.SuggestedTitles)
+	}
+
+	draft, err := manager.BuildPromotionDraft(PromotionDraftInput{DiscussionRef: "49"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if draft.ProposedInitiativeIssue == nil {
+		t.Fatalf("expected initiative draft: %+v", draft)
+	}
+	if len(draft.ProposedSpecIssues) != 2 {
+		t.Fatalf("expected two spec drafts: %+v", draft)
+	}
+	if draft.MilestonePlan == nil || !draft.MilestonePlan.Create {
+		t.Fatalf("expected milestone plan: %+v", draft)
+	}
+	if !draft.ConfirmationRequired {
+		t.Fatalf("expected explicit confirmation requirement: %+v", draft)
+	}
+	if draft.ProposedSpecIssues[1].Readiness != ReadinessBlocked {
+		t.Fatalf("expected second spec to be blocked by dependency chain: %+v", draft.ProposedSpecIssues[1])
+	}
+
+	result, err := manager.ApplyPromotionDraft(PromotionApplyInput{
+		DiscussionRef: "49",
+		Confirm:       true,
+		TargetMode:    SourceOfTruthGitHub,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Initiative == nil || len(result.Specs) != 2 || result.Milestone == nil {
+		t.Fatalf("expected promoted GitHub issue set: %+v", result)
+	}
+
+	meta, err := ws.ReadWorkspaceMeta()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.SourceMode != workspace.SourceOfTruthGitHub {
+		t.Fatalf("expected source mode to switch to github: %+v", meta)
+	}
+	state, err := ws.ReadGitHubState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(state.Planning) != 3 {
+		t.Fatalf("expected initiative plus two specs in GitHub mirror: %+v", state.Planning)
+	}
+	second := state.Planning["promotion-draft-review-and-issue-body-distillation"]
+	if second.ParentIssueNumber == 0 || second.MilestoneNumber == 0 {
+		t.Fatalf("expected parent and milestone metadata on spec mirror: %+v", second)
+	}
+	if len(second.BlockedBy) != 1 || second.BlockedBy[0] != "collaboration-entry-modes-and-maturity-assessment" {
+		t.Fatalf("expected blocked-by metadata in mirror: %+v", second)
+	}
+}

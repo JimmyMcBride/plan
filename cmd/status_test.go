@@ -47,6 +47,9 @@ func TestStatusCommandPrintsSpecQueueSummary(t *testing.T) {
 	}
 
 	output := buf.String()
+	if !strings.Contains(output, "source_mode: local") {
+		t.Fatalf("expected source mode in output:\n%s", output)
+	}
 	if !strings.Contains(output, "specs: 1 total, 0 draft, 0 approved, 1 implementing, 0 done") {
 		t.Fatalf("expected spec summary in output:\n%s", output)
 	}

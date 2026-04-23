@@ -12,10 +12,11 @@ import (
 )
 
 type stubGitHubStoryClient struct {
-	preflight *planning.GitHubRepoInfo
-	context   *planning.GitHubContext
-	issues    map[int]*planning.GitHubIssue
-	nextIssue int
+	preflight   *planning.GitHubRepoInfo
+	context     *planning.GitHubContext
+	issues      map[int]*planning.GitHubIssue
+	discussions map[int]*planning.GitHubDiscussion
+	nextIssue   int
 }
 
 func (s *stubGitHubStoryClient) Preflight(projectDir string) (*planning.GitHubRepoInfo, error) {
@@ -62,6 +63,31 @@ func (s *stubGitHubStoryClient) GetIssue(projectDir, repo string, issueNumber in
 
 func (s *stubGitHubStoryClient) FindMilestone(projectDir, repo, title string) (*planning.GitHubMilestone, error) {
 	return nil, nil
+}
+
+func (s *stubGitHubStoryClient) CreateMilestone(projectDir, repo string, input planning.GitHubMilestoneInput) (*planning.GitHubMilestone, error) {
+	return &planning.GitHubMilestone{Number: 1, Title: input.Title}, nil
+}
+
+func (s *stubGitHubStoryClient) GetDiscussion(projectDir, repo string, number int) (*planning.GitHubDiscussion, error) {
+	if s.discussions == nil {
+		return nil, fmt.Errorf("discussion %d not found", number)
+	}
+	item, ok := s.discussions[number]
+	if !ok {
+		return nil, fmt.Errorf("discussion %d not found", number)
+	}
+	copy := *item
+	copy.Comments = append([]planning.GitHubDiscussionComment(nil), item.Comments...)
+	return &copy, nil
+}
+
+func (s *stubGitHubStoryClient) AddSubIssue(projectDir, repo string, issueNumber, subIssueNumber int) error {
+	return nil
+}
+
+func (s *stubGitHubStoryClient) AddBlockedBy(projectDir, repo string, issueNumber, blockingIssueNumber int) error {
+	return nil
 }
 
 func TestStoryCommandsSupportGitHubBackedStories(t *testing.T) {
