@@ -1,6 +1,7 @@
 package planning
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -189,5 +190,129 @@ func TestAssessAndPromoteGitHubDiscussion(t *testing.T) {
 	}
 	if len(second.BlockedBy) != 1 || second.BlockedBy[0] != "collaboration-entry-modes-and-maturity-assessment" {
 		t.Fatalf("expected blocked-by metadata in mirror: %+v", second)
+	}
+	if len(client.blockedByEdges) != 1 {
+		t.Fatalf("expected one blocked-by edge to be created: %+v", client.blockedByEdges)
+	}
+}
+
+func TestBuildPromotionDraftNotReadyUsesEmptySpecSliceInJSON(t *testing.T) {
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := New(ws)
+	if _, err := manager.CreateBrainstorm("Not Ready"); err != nil {
+		t.Fatal(err)
+	}
+
+	draft, err := manager.BuildPromotionDraft(PromotionDraftInput{BrainstormSlug: "not-ready"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if draft.Assessment.State != MaturityNotReady {
+		t.Fatalf("expected not-ready draft: %+v", draft)
+	}
+	if draft.ProposedSpecIssues == nil || len(draft.ProposedSpecIssues) != 0 {
+		t.Fatalf("expected empty proposed spec slice: %+v", draft.ProposedSpecIssues)
+	}
+	raw, err := json.Marshal(draft)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"proposed_spec_issues":[]`) {
+		t.Fatalf("expected stable empty array in json output: %s", string(raw))
+	}
+}
+
+func TestApplyPromotionDraftWiresBlockedByAfterAllIssuesExist(t *testing.T) {
+	client := &stubGitHubClient{
+		preflight: &GitHubRepoInfo{
+			Repo:          "JimmyMcBride/plan",
+			RepoURL:       "https://github.com/JimmyMcBride/plan",
+			DefaultBranch: "develop",
+		},
+		context: &GitHubContext{
+			Repo: GitHubRepoInfo{
+				Repo:          "JimmyMcBride/plan",
+				RepoURL:       "https://github.com/JimmyMcBride/plan",
+				DefaultBranch: "develop",
+			},
+			CurrentBranch: "develop",
+			CurrentSHA:    "abc123",
+		},
+		discussions: map[int]*GitHubDiscussion{
+			77: {
+				Number: 77,
+				URL:    "https://github.com/JimmyMcBride/plan/discussions/77",
+				Title:  "Out of order dependency wiring",
+				Body: strings.Join([]string{
+					"## Problem",
+					"Promotion dependency edges should work even when the dependent spec is listed first.",
+					"",
+					"## Goals",
+					"Create correct blocked-by edges for later-created spec issues.",
+					"",
+					"## Non-Goals",
+					"Do not require the spec list order to match the dependency order.",
+					"",
+					"## Constraints",
+					"Use GitHub issue dependencies.",
+					"",
+					"## Proposed Shape",
+					"Create all spec issues first, then add dependency edges.",
+					"",
+					"## Spec Split",
+					"- Promotion draft review and issue-body distillation",
+					"- Collaboration entry modes and maturity assessment",
+					"",
+					"Promotion draft review and issue-body distillation depends on Collaboration entry modes and maturity assessment.",
+				}, "\n"),
+			},
+		},
+	}
+	reset := SetGitHubClientFactoryForTesting(func() GitHubClient { return client })
+	t.Cleanup(reset)
+
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := New(ws)
+
+	result, err := manager.ApplyPromotionDraft(PromotionApplyInput{
+		DiscussionRef: "77",
+		Confirm:       true,
+		TargetMode:    SourceOfTruthGitHub,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Specs) != 2 {
+		t.Fatalf("expected two promoted specs: %+v", result)
+	}
+	if len(client.blockedByEdges) != 1 {
+		t.Fatalf("expected one blocked-by edge: %+v", client.blockedByEdges)
+	}
+	firstSpecNumber := result.Specs[0].Number
+	secondSpecNumber := result.Specs[1].Number
+	if client.blockedByEdges[0] != [2]int{firstSpecNumber, secondSpecNumber} {
+		t.Fatalf("expected first created spec to be blocked by second created spec: %+v", client.blockedByEdges)
+	}
+}
+
+func TestBulletItemsStripsGitHubTaskMarkers(t *testing.T) {
+	items := bulletItems(strings.Join([]string{
+		"- [ ] First spec",
+		"- [x] Second spec",
+		"* Third spec",
+	}, "\n"))
+	if len(items) != 3 {
+		t.Fatalf("expected three items: %+v", items)
+	}
+	if items[0] != "First spec" || items[1] != "Second spec" || items[2] != "Third spec" {
+		t.Fatalf("expected task markers to be stripped: %+v", items)
 	}
 }

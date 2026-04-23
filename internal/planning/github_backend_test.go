@@ -19,6 +19,8 @@ type stubGitHubClient struct {
 	milestones       map[string]*GitHubMilestone
 	milestoneLookups []string
 	discussions      map[int]*GitHubDiscussion
+	subIssues        [][2]int
+	blockedByEdges   [][2]int
 	nextIssue        int
 	lastCreate       GitHubIssueInput
 	lastUpdate       GitHubIssueInput
@@ -149,10 +151,12 @@ func (s *stubGitHubClient) GetDiscussion(projectDir, repo string, number int) (*
 }
 
 func (s *stubGitHubClient) AddSubIssue(projectDir, repo string, issueNumber, subIssueNumber int) error {
+	s.subIssues = append(s.subIssues, [2]int{issueNumber, subIssueNumber})
 	return nil
 }
 
 func (s *stubGitHubClient) AddBlockedBy(projectDir, repo string, issueNumber, blockingIssueNumber int) error {
+	s.blockedByEdges = append(s.blockedByEdges, [2]int{issueNumber, blockingIssueNumber})
 	return nil
 }
 

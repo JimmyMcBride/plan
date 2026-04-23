@@ -1,6 +1,7 @@
 package planning
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -128,5 +129,54 @@ func TestGuidePacketForChainFailsWhenArtifactIsMissing(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "read brainstorm artifact") {
 		t.Fatalf("expected missing-artifact error, got %v", err)
+	}
+}
+
+func TestCurrentGuidePacketDefaultsBlankSourceModeToLocal(t *testing.T) {
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	info, err := ws.Resolve()
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(info.WorkspaceFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		t.Fatal(err)
+	}
+	payload["source_mode"] = ""
+	updated, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(info.WorkspaceFile, updated, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	manager := New(ws)
+	if _, err := manager.CreateBrainstorm("Guide Packet Source Mode"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := manager.UpdateGuidedBrainstormIntake("guide-packet-source-mode", GuidedBrainstormIntakeInput{
+		Vision: "Guide packets should emit a normalized source mode.",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	packet, err := manager.CurrentGuidePacket()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if packet.Workspace.SourceMode != "local" {
+		t.Fatalf("expected local source mode fallback: %+v", packet.Workspace)
+	}
+	if packet.Ownership.Mode != SourceOfTruthLocal {
+		t.Fatalf("expected local ownership fallback: %+v", packet.Ownership)
 	}
 }

@@ -253,6 +253,7 @@ func (m *Manager) BuildPromotionDraft(input PromotionDraftInput) (*PromotionDraf
 		Source:               data.source,
 		Ownership:            ownership,
 		Assessment:           decision,
+		ProposedSpecIssues:   []PromotionIssueDraft{},
 		ConfirmationRequired: true,
 	}
 	if decision.State == MaturityNotReady {
@@ -412,6 +413,8 @@ func (m *Manager) ApplyPromotionDraft(input PromotionApplyInput) (*PromotionAppl
 		record.DiscussionURL = discussionURL(draft.Source.Discussion)
 		state.Planning[record.Slug] = record
 	}
+	specIssuesBySlug := make(map[string]*GitHubIssue, len(draft.ProposedSpecIssues))
+	specDraftsBySlug := make(map[string]PromotionIssueDraft, len(draft.ProposedSpecIssues))
 	for _, specDraft := range draft.ProposedSpecIssues {
 		specInput := GitHubIssueInput{
 			Title:  specDraft.Title,
@@ -431,15 +434,24 @@ func (m *Manager) ApplyPromotionDraft(input PromotionApplyInput) (*PromotionAppl
 				return nil, err
 			}
 		}
+		specIssuesBySlug[specDraft.Slug] = specIssue
+		specDraftsBySlug[specDraft.Slug] = specDraft
+		result.Specs = append(result.Specs, *specIssue)
+	}
+	for slug, specIssue := range specIssuesBySlug {
+		specDraft := specDraftsBySlug[slug]
 		for _, dep := range specDraft.BlockedBy {
-			depRecord, ok := state.Planning[slugify(dep)]
+			depIssue, ok := specIssuesBySlug[slugify(dep)]
 			if !ok {
-				continue
+				return nil, fmt.Errorf("promotion dependency %q for %q was not created in this promotion set", dep, specDraft.Title)
 			}
-			if err := m.github.AddBlockedBy(info.ProjectDir, state.Repo, specIssue.Number, depRecord.IssueNumber); err != nil {
+			if err := m.github.AddBlockedBy(info.ProjectDir, state.Repo, specIssue.Number, depIssue.Number); err != nil {
 				return nil, err
 			}
 		}
+	}
+	for slug, specIssue := range specIssuesBySlug {
+		specDraft := specDraftsBySlug[slug]
 		readiness := string(specDraft.Readiness)
 		record := workspace.GitHubPlanningRecord{
 			Slug:              specDraft.Slug,
@@ -461,7 +473,6 @@ func (m *Manager) ApplyPromotionDraft(input PromotionApplyInput) (*PromotionAppl
 		record.DiscussionNumber = discussionNumber(draft.Source.Discussion)
 		record.DiscussionURL = discussionURL(draft.Source.Discussion)
 		state.Planning[record.Slug] = record
-		result.Specs = append(result.Specs, *specIssue)
 	}
 	state.LastUpdatedAt = time.Now().UTC().Format(time.RFC3339)
 	if err := m.workspace.WriteGitHubState(*state); err != nil {
@@ -947,6 +958,13 @@ func bulletItems(section string) []string {
 		}
 		trimmed = strings.TrimPrefix(trimmed, "- ")
 		trimmed = strings.TrimPrefix(trimmed, "* ")
+		switch {
+		case strings.HasPrefix(trimmed, "[ ] "):
+			trimmed = strings.TrimPrefix(trimmed, "[ ] ")
+		case strings.HasPrefix(strings.ToLower(trimmed), "[x] "):
+			trimmed = trimmed[4:]
+		}
+		trimmed = strings.TrimSpace(trimmed)
 		if trimmed == "" {
 			continue
 		}

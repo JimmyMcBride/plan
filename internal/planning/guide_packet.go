@@ -181,6 +181,10 @@ func (m *Manager) buildGuidePacket(command string, session *workspace.GuidedSess
 	if brainstorm.Type != "brainstorm" {
 		return nil, fmt.Errorf("%s is not a brainstorm artifact", rel(info.ProjectDir, brainstorm.Path))
 	}
+	sourceMode, err := m.SourceMode()
+	if err != nil {
+		return nil, err
+	}
 
 	artifactPath := rel(info.ProjectDir, brainstorm.Path)
 	contract := brainstormGuideContract(session, effectiveCheckpoint, artifactPath)
@@ -196,11 +200,11 @@ func (m *Manager) buildGuidePacket(command string, session *workspace.GuidedSess
 			ProjectRoot:       info.ProjectDir,
 			PlanningMode:      guidePlanningMode,
 			PlanningModel:     meta.PlanningModel,
-			SourceMode:        string(meta.SourceMode),
+			SourceMode:        string(sourceMode),
 			StoryBackend:      string(meta.StoryBackend),
 			IntegrationBranch: branch,
 		},
-		Ownership: buildOwnership(meta.SourceMode, EntryModeLocalPromotion),
+		Ownership: buildOwnership(sourceMode, EntryModeLocalPromotion),
 		Session: GuidePacketSession{
 			ChainID:             session.ChainID,
 			CurrentStage:        effectiveStage,

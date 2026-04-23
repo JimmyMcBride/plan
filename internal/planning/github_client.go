@@ -290,16 +290,20 @@ func (c *cliGitHubClient) CreateMilestone(projectDir, repo string, input GitHubM
 }
 
 func (c *cliGitHubClient) GetDiscussion(projectDir, repo string, number int) (*GitHubDiscussion, error) {
-	query := `query($owner:String!, $name:String!, $number:Int!) {
+	query := `query($owner:String!, $name:String!, $number:Int!, $after:String) {
   repository(owner:$owner, name:$name) {
     discussion(number:$number) {
       number
       url
       title
       body
-      comments(first:100) {
+      comments(first:100, after:$after) {
         nodes {
           body
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
         }
       }
     }
@@ -309,53 +313,67 @@ func (c *cliGitHubClient) GetDiscussion(projectDir, repo string, number int) (*G
 	if err != nil {
 		return nil, err
 	}
-	payload := map[string]any{
-		"query": query,
-		"variables": map[string]any{
-			"owner":  owner,
-			"name":   name,
-			"number": number,
-		},
+	var (
+		after    any
+		item     *GitHubDiscussion
+		comments []GitHubDiscussionComment
+	)
+	for {
+		payload := map[string]any{
+			"query": query,
+			"variables": map[string]any{
+				"owner":  owner,
+				"name":   name,
+				"number": number,
+				"after":  after,
+			},
+		}
+		var response struct {
+			Data struct {
+				Repository struct {
+					Discussion *struct {
+						Number   int    `json:"number"`
+						URL      string `json:"url"`
+						Title    string `json:"title"`
+						Body     string `json:"body"`
+						Comments struct {
+							Nodes []struct {
+								Body string `json:"body"`
+							} `json:"nodes"`
+							PageInfo struct {
+								HasNextPage bool   `json:"hasNextPage"`
+								EndCursor   string `json:"endCursor"`
+							} `json:"pageInfo"`
+						} `json:"comments"`
+					} `json:"discussion"`
+				} `json:"repository"`
+			} `json:"data"`
+		}
+		if err := c.graphql(projectDir, payload, &response); err != nil {
+			return nil, err
+		}
+		if response.Data.Repository.Discussion == nil {
+			return nil, fmt.Errorf("discussion #%d not found in %s", number, repo)
+		}
+		current := response.Data.Repository.Discussion
+		if item == nil {
+			item = &GitHubDiscussion{
+				Number: current.Number,
+				URL:    current.URL,
+				Title:  current.Title,
+				Body:   current.Body,
+			}
+		}
+		for _, comment := range current.Comments.Nodes {
+			comments = append(comments, GitHubDiscussionComment{Body: comment.Body})
+		}
+		if !current.Comments.PageInfo.HasNextPage {
+			break
+		}
+		after = current.Comments.PageInfo.EndCursor
 	}
-	out, err := c.api(projectDir, "POST", "graphql", payload)
-	if err != nil {
-		return nil, err
-	}
-	var response struct {
-		Data struct {
-			Repository struct {
-				Discussion *struct {
-					Number   int    `json:"number"`
-					URL      string `json:"url"`
-					Title    string `json:"title"`
-					Body     string `json:"body"`
-					Comments struct {
-						Nodes []struct {
-							Body string `json:"body"`
-						} `json:"nodes"`
-					} `json:"comments"`
-				} `json:"discussion"`
-			} `json:"repository"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(out, &response); err != nil {
-		return nil, fmt.Errorf("parse discussion: %w", err)
-	}
-	if response.Data.Repository.Discussion == nil {
-		return nil, fmt.Errorf("discussion #%d not found in %s", number, repo)
-	}
-	item := response.Data.Repository.Discussion
-	comments := make([]GitHubDiscussionComment, 0, len(item.Comments.Nodes))
-	for _, comment := range item.Comments.Nodes {
-		comments = append(comments, GitHubDiscussionComment{Body: comment.Body})
-	}
-	return &GitHubDiscussion{
-		Number:   item.Number,
-		URL:      item.URL,
-		Title:    item.Title,
-		Body:     item.Body,
-		Comments: comments,
-	}, nil
+	item.Comments = comments
+	return item, nil
 }
 
 func (c *cliGitHubClient) AddSubIssue(projectDir, repo string, issueNumber, subIssueNumber int) error {
@@ -375,8 +393,7 @@ func (c *cliGitHubClient) AddSubIssue(projectDir, repo string, issueNumber, subI
 			"subIssueId": subIssueID,
 		},
 	}
-	_, err = c.api(projectDir, "POST", "graphql", payload)
-	return err
+	return c.graphql(projectDir, payload, nil)
 }
 
 func (c *cliGitHubClient) AddBlockedBy(projectDir, repo string, issueNumber, blockingIssueNumber int) error {
@@ -396,8 +413,7 @@ func (c *cliGitHubClient) AddBlockedBy(projectDir, repo string, issueNumber, blo
 			"blockingIssueId": blockingID,
 		},
 	}
-	_, err = c.api(projectDir, "POST", "graphql", payload)
-	return err
+	return c.graphql(projectDir, payload, nil)
 }
 
 func (c *cliGitHubClient) api(projectDir, method, apiPath string, payload any) ([]byte, error) {
@@ -416,6 +432,17 @@ func (c *cliGitHubClient) api(projectDir, method, apiPath string, payload any) (
 		return nil, fmt.Errorf("gh api %s %s: %w", method, apiPath, err)
 	}
 	return out, nil
+}
+
+func (c *cliGitHubClient) graphql(projectDir string, payload any, target any) error {
+	out, err := c.api(projectDir, "POST", "graphql", payload)
+	if err != nil {
+		return err
+	}
+	if err := decodeGraphQLResponse(out, target); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (c *cliGitHubClient) issueIDs(projectDir, repo string, issueNumber, otherIssueNumber int) (string, string, error) {
@@ -437,10 +464,6 @@ func (c *cliGitHubClient) issueIDs(projectDir, repo string, issueNumber, otherIs
 			"otherIssueNumber": otherIssueNumber,
 		},
 	}
-	out, err := c.api(projectDir, "POST", "graphql", payload)
-	if err != nil {
-		return "", "", err
-	}
 	var response struct {
 		Data struct {
 			Repository struct {
@@ -453,13 +476,44 @@ func (c *cliGitHubClient) issueIDs(projectDir, repo string, issueNumber, otherIs
 			} `json:"repository"`
 		} `json:"data"`
 	}
-	if err := json.Unmarshal(out, &response); err != nil {
-		return "", "", fmt.Errorf("parse issue node ids: %w", err)
+	if err := c.graphql(projectDir, payload, &response); err != nil {
+		return "", "", err
 	}
 	if strings.TrimSpace(response.Data.Repository.Issue.ID) == "" || strings.TrimSpace(response.Data.Repository.OtherIssue.ID) == "" {
 		return "", "", fmt.Errorf("could not resolve issue node ids for #%d and #%d", issueNumber, otherIssueNumber)
 	}
 	return response.Data.Repository.Issue.ID, response.Data.Repository.OtherIssue.ID, nil
+}
+
+func decodeGraphQLResponse(raw []byte, target any) error {
+	var envelope struct {
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return fmt.Errorf("parse graphql response envelope: %w", err)
+	}
+	if len(envelope.Errors) > 0 {
+		messages := make([]string, 0, len(envelope.Errors))
+		for _, item := range envelope.Errors {
+			if strings.TrimSpace(item.Message) == "" {
+				continue
+			}
+			messages = append(messages, strings.TrimSpace(item.Message))
+		}
+		if len(messages) == 0 {
+			return fmt.Errorf("graphql request failed")
+		}
+		return fmt.Errorf("graphql request failed: %s", strings.Join(messages, "; "))
+	}
+	if target == nil {
+		return nil
+	}
+	if err := json.Unmarshal(raw, target); err != nil {
+		return fmt.Errorf("parse graphql response: %w", err)
+	}
+	return nil
 }
 
 func splitRepo(repo string) (string, string, error) {
