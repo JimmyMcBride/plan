@@ -286,6 +286,8 @@ func (m *Manager) buildCollaborationGuidePacket(command, brainstormSlug, discuss
 	if err != nil {
 		return nil, err
 	}
+	brainstormSlug = strings.TrimSpace(brainstormSlug)
+	discussionRef = strings.TrimSpace(discussionRef)
 	meta, err := m.workspace.ReadWorkspaceMeta()
 	if err != nil {
 		return nil, err
@@ -786,7 +788,9 @@ func collaborationApplyActions(mode SourceOfTruthMode, sourceArg string, draft *
 }
 
 func collaborationSourceCommand(brainstormSlug, discussionRef string) (string, string) {
-	if strings.TrimSpace(brainstormSlug) != "" {
+	brainstormSlug = strings.TrimSpace(brainstormSlug)
+	discussionRef = strings.TrimSpace(discussionRef)
+	if brainstormSlug != "" {
 		return "--brainstorm " + brainstormSlug, "local brainstorm " + brainstormSlug
 	}
 	return "--discussion " + discussionRef, "GitHub Discussion " + discussionRef

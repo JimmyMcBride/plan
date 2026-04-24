@@ -53,6 +53,9 @@ func newGuideCommand() *cobra.Command {
 				}
 				return writeGuidePacket(cmd, showFormat, packet)
 			case strings.TrimSpace(showBrainstorm) != "" || strings.TrimSpace(showDiscussion) != "":
+				if strings.TrimSpace(showCheckpoint) != "" {
+					return fmt.Errorf("--checkpoint only applies to --chain guide previews")
+				}
 				packet, err := planningManager().GuidePacketForCollaborationSource(showBrainstorm, showDiscussion, showStage)
 				if err != nil {
 					return err
@@ -67,7 +70,7 @@ func newGuideCommand() *cobra.Command {
 	show.Flags().StringVar(&showBrainstorm, "brainstorm", "", "local brainstorm slug for collaboration-stage guide packets")
 	show.Flags().StringVar(&showDiscussion, "discussion", "", "GitHub Discussion number or URL for collaboration-stage guide packets")
 	show.Flags().StringVar(&showStage, "stage", "", "explicit stage override")
-	show.Flags().StringVar(&showCheckpoint, "checkpoint", "", "explicit checkpoint override")
+	show.Flags().StringVar(&showCheckpoint, "checkpoint", "", "explicit checkpoint override for --chain previews")
 	show.Flags().StringVar(&showFormat, "format", "json", "output format: json")
 
 	cmd.AddCommand(current, show)

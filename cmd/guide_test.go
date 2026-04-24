@@ -281,6 +281,28 @@ func TestGuideShowCommandRejectsMixedChainAndCollaborationSourceFlags(t *testing
 	}
 }
 
+func TestGuideShowCommandRejectsCheckpointForCollaborationSource(t *testing.T) {
+	root := t.TempDir()
+	setupCollaborationGuideBrainstormFixture(t, root)
+
+	command := newRootCmd()
+	command.SetArgs([]string{
+		"--project", root,
+		"guide", "show",
+		"--brainstorm", "guide-packet-collaboration",
+		"--stage", "promotion_review",
+		"--checkpoint", "clarify-open-approaches",
+		"--format", "json",
+	})
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("expected guide show to reject --checkpoint for collaboration sources")
+	}
+	if !strings.Contains(err.Error(), "--checkpoint only applies to --chain guide previews") {
+		t.Fatalf("expected collaboration checkpoint error, got %v", err)
+	}
+}
+
 func setupGuidePacketFixture(t *testing.T, root string) {
 	t.Helper()
 	ws := workspace.New(root)

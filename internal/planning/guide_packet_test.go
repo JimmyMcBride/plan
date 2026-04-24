@@ -212,8 +212,18 @@ func TestGuidePacketForLocalCollaborationSourceEmbedsCanonicalDraftsAndActions(t
 	if len(packet.Actions) < 3 {
 		t.Fatalf("expected structured review/apply actions: %+v", packet.Actions)
 	}
-	if !packet.Actions[1].Available || packet.Actions[1].Command == "" {
-		t.Fatalf("expected refresh draft action with command: %+v", packet.Actions[1])
+	var refreshAction *GuidePacketAction
+	for i := range packet.Actions {
+		if packet.Actions[i].ID == "refresh_promotion_draft" {
+			refreshAction = &packet.Actions[i]
+			break
+		}
+	}
+	if refreshAction == nil {
+		t.Fatalf("expected refresh draft action in packet: %+v", packet.Actions)
+	}
+	if !refreshAction.Available || refreshAction.Command == "" {
+		t.Fatalf("expected refresh draft action with command: %+v", *refreshAction)
 	}
 	foundConfirm := false
 	for _, action := range packet.Actions {
@@ -224,6 +234,18 @@ func TestGuidePacketForLocalCollaborationSourceEmbedsCanonicalDraftsAndActions(t
 	}
 	if !foundConfirm {
 		t.Fatalf("expected explicit confirm action in packet: %+v", packet.Actions)
+	}
+}
+
+func TestCollaborationSourceCommandTrimsSelectorValues(t *testing.T) {
+	command, display := collaborationSourceCommand("  demo-brainstorm  ", "")
+	if command != "--brainstorm demo-brainstorm" || display != "local brainstorm demo-brainstorm" {
+		t.Fatalf("expected trimmed brainstorm selector, got command=%q display=%q", command, display)
+	}
+
+	command, display = collaborationSourceCommand("", "  49  ")
+	if command != "--discussion 49" || display != "GitHub Discussion 49" {
+		t.Fatalf("expected trimmed discussion selector, got command=%q display=%q", command, display)
 	}
 }
 
