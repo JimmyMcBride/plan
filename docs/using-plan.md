@@ -14,7 +14,7 @@ Right now:
 - brainstorms can start locally or in GitHub Discussions
 - `initiative` is lightweight optional grouping metadata
 - `plan spec execute` is the active execution entry point
-- `plan guide current|show` emits live brainstorm-stage guide packets for agent runtimes
+- `plan guide current|show` emits live brainstorm and collaboration guide packets for agent runtimes
 - `plan discuss assess|promote` ships the GitHub collaboration foundation
 - `plan source show|set` makes backend ownership explicit
 - legacy `epic` and `story` commands still exist during the transition
@@ -387,7 +387,56 @@ When a multi-spec promotion is applied, `plan` will:
 By default, new spec issues are `ready`. A spec starts as `needs-refinement`
 only when the draft identified a concrete execution gap.
 
-### 8. Work The Spec
+### 8. Preview Collaboration Guide Packets
+
+`plan guide current` remains the guided brainstorm packet entry point:
+
+```bash
+plan guide current --project . --format json
+```
+
+Use `plan guide show` when you want an explicit preview of either:
+
+- a brainstorm checkpoint from a guided session chain
+- a collaboration stage driven by a brainstorm or GitHub Discussion source
+
+Examples:
+
+```bash
+plan guide show --project . \
+  --chain brainstorm/newsletter-system \
+  --stage brainstorm \
+  --checkpoint clarify-open-approaches \
+  --format json
+
+plan guide show --project . \
+  --brainstorm newsletter-system \
+  --stage promotion_review \
+  --format json
+
+plan guide show --project . \
+  --discussion 49 \
+  --stage initiative_draft \
+  --format json
+```
+
+Current collaboration packet stages:
+
+- `discussion_assess`
+- `promotion_review`
+- `initiative_draft`
+- `spec_draft`
+- `needs_refinement`
+
+Current collaboration packet behavior:
+
+- embeds the canonical `maturity_assessment` and `promotion_draft` payloads
+- includes rendered initiative/spec draft markdown when the stage needs it
+- emits explicit review and confirmation action objects for agent runtimes
+- keeps JSON as the canonical output format
+- does not mutate the source material while rendering the packet
+
+### 9. Work The Spec
 
 After promotion, the canonical execution contract may live in different places
 depending on ownership:

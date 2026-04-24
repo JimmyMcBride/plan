@@ -32,26 +32,43 @@ func newGuideCommand() *cobra.Command {
 	var (
 		showFormat     string
 		showChain      string
+		showBrainstorm string
+		showDiscussion string
 		showStage      string
 		showCheckpoint string
 	)
 	show := &cobra.Command{
 		Use:   "show",
-		Short: "Render the guide packet for an explicit guided session chain",
+		Short: "Render a guide packet for a guided brainstorm chain or collaboration source",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			packet, err := planningManager().GuidePacketForChain(showChain, showStage, showCheckpoint)
-			if err != nil {
-				return err
+			switch {
+			case strings.TrimSpace(showChain) != "":
+				if strings.TrimSpace(showBrainstorm) != "" || strings.TrimSpace(showDiscussion) != "" {
+					return fmt.Errorf("choose either --chain or one collaboration source flag")
+				}
+				packet, err := planningManager().GuidePacketForChain(showChain, showStage, showCheckpoint)
+				if err != nil {
+					return err
+				}
+				return writeGuidePacket(cmd, showFormat, packet)
+			case strings.TrimSpace(showBrainstorm) != "" || strings.TrimSpace(showDiscussion) != "":
+				packet, err := planningManager().GuidePacketForCollaborationSource(showBrainstorm, showDiscussion, showStage)
+				if err != nil {
+					return err
+				}
+				return writeGuidePacket(cmd, showFormat, packet)
+			default:
+				return fmt.Errorf("guide show requires --chain, --brainstorm, or --discussion")
 			}
-			return writeGuidePacket(cmd, showFormat, packet)
 		},
 	}
 	show.Flags().StringVar(&showChain, "chain", "", "guided session chain id, such as brainstorm/my-topic")
+	show.Flags().StringVar(&showBrainstorm, "brainstorm", "", "local brainstorm slug for collaboration-stage guide packets")
+	show.Flags().StringVar(&showDiscussion, "discussion", "", "GitHub Discussion number or URL for collaboration-stage guide packets")
 	show.Flags().StringVar(&showStage, "stage", "", "explicit stage override")
 	show.Flags().StringVar(&showCheckpoint, "checkpoint", "", "explicit checkpoint override")
 	show.Flags().StringVar(&showFormat, "format", "json", "output format: json")
-	_ = show.MarkFlagRequired("chain")
 
 	cmd.AddCommand(current, show)
 	return cmd
@@ -59,7 +76,7 @@ func newGuideCommand() *cobra.Command {
 
 func writeGuidePacket(cmd *cobra.Command, format string, packet any) error {
 	if strings.TrimSpace(format) != "json" {
-		return fmt.Errorf("unsupported guide output format %q; only json is supported in v1", format)
+		return fmt.Errorf("unsupported guide output format %q; only json is supported", format)
 	}
 	encoder := json.NewEncoder(cmd.OutOrStdout())
 	encoder.SetIndent("", "  ")
