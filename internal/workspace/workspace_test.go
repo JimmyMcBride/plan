@@ -1,10 +1,13 @@
 package workspace
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"plan/internal/notes"
 )
 
 func TestInitCreatesPlanWorkspace(t *testing.T) {
@@ -21,9 +24,9 @@ func TestInitCreatesPlanWorkspace(t *testing.T) {
 
 	for _, path := range []string{
 		filepath.Join(root, ".plan", "brainstorms"),
-		filepath.Join(root, ".plan", "epics"),
+		filepath.Join(root, ".plan", "ideas"),
+		filepath.Join(root, ".plan", "archive"),
 		filepath.Join(root, ".plan", "specs"),
-		filepath.Join(root, ".plan", "stories"),
 		filepath.Join(root, ".plan", ".meta"),
 		filepath.Join(root, ".plan", "PROJECT.md"),
 		filepath.Join(root, ".plan", "ROADMAP.md"),
@@ -426,9 +429,6 @@ func TestUpdateRecreatesMissingScaffoldingWithoutOverwritingExistingNotes(t *tes
 	if err := os.Remove(filepath.Join(root, ".plan", "ROADMAP.md")); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.RemoveAll(filepath.Join(root, ".plan", "stories")); err != nil {
-		t.Fatal(err)
-	}
 
 	result, err := manager.Update()
 	if err != nil {
@@ -436,9 +436,6 @@ func TestUpdateRecreatesMissingScaffoldingWithoutOverwritingExistingNotes(t *tes
 	}
 	if !contains(result.Created, ".plan/ROADMAP.md") {
 		t.Fatalf("expected roadmap recreation: %+v", result)
-	}
-	if !contains(result.Created, ".plan/stories") {
-		t.Fatalf("expected stories directory recreation: %+v", result)
 	}
 
 	raw, err := os.ReadFile(projectPath)
@@ -474,6 +471,295 @@ func TestUpdateIsIdempotentWhenWorkspaceIsCurrent(t *testing.T) {
 	}
 }
 
+func TestUpdateMigratesLegacyWorkspaceMetadataToSpecFirstModel(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+	if _, err := manager.Init(); err != nil {
+		t.Fatal(err)
+	}
+	legacy := `{
+  "schema_version": 1,
+  "planning_model": "epic_spec_story_v1",
+  "story_backend": "local",
+  "created_at": "2026-04-01T00:00:00Z",
+  "updated_at": "2026-04-01T00:00:00Z"
+}
+`
+	if err := os.WriteFile(filepath.Join(root, ".plan", ".meta", "workspace.json"), []byte(legacy), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := manager.Update()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !contains(result.Updated, ".plan/.meta/workspace.json") {
+		t.Fatalf("expected workspace metadata migration: %+v", result)
+	}
+
+	meta, err := manager.ReadWorkspaceMeta()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.PlanningModel != PlanningModel || meta.SchemaVersion != 1 {
+		t.Fatalf("expected legacy workspace metadata to normalize to spec-first model: %+v", meta)
+	}
+}
+
+func TestReadWorkspaceMetaDefaultsOptionalCompatibilityFieldsInMemory(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+	if _, err := manager.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	workspacePath := filepath.Join(root, ".plan", ".meta", "workspace.json")
+	raw, err := os.ReadFile(workspacePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		t.Fatal(err)
+	}
+	delete(payload, "source_mode")
+	delete(payload, "story_backend")
+	updated, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(workspacePath, updated, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	meta, err := manager.ReadWorkspaceMeta()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.SourceMode != SourceOfTruthLocal {
+		t.Fatalf("expected source mode fallback: %+v", meta)
+	}
+	if meta.StoryBackend != StoryBackendLocal {
+		t.Fatalf("expected story backend fallback: %+v", meta)
+	}
+}
+
+func TestReadGitHubStateDefaultsPlanningMapInMemory(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+	if _, err := manager.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	githubPath := filepath.Join(root, ".plan", ".meta", "github.json")
+	raw, err := os.ReadFile(githubPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		t.Fatal(err)
+	}
+	delete(payload, "planning")
+	updated, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(githubPath, updated, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	state, err := manager.ReadGitHubState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.Planning == nil {
+		t.Fatalf("expected planning map fallback: %+v", state)
+	}
+	if len(state.Planning) != 0 {
+		t.Fatalf("expected empty planning map fallback: %+v", state.Planning)
+	}
+}
+
+func TestUpdateDoesNotRewriteOptionalCompatibilityDefaults(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+	if _, err := manager.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	migrationsBefore, err := manager.ReadMigrationState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	initialHistory := len(migrationsBefore.History)
+
+	workspacePath := filepath.Join(root, ".plan", ".meta", "workspace.json")
+	workspaceRaw, err := os.ReadFile(workspacePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var workspacePayload map[string]any
+	if err := json.Unmarshal(workspaceRaw, &workspacePayload); err != nil {
+		t.Fatal(err)
+	}
+	delete(workspacePayload, "source_mode")
+	workspaceEdited, err := json.MarshalIndent(workspacePayload, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(workspacePath, workspaceEdited, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	githubPath := filepath.Join(root, ".plan", ".meta", "github.json")
+	githubRaw, err := os.ReadFile(githubPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var githubPayload map[string]any
+	if err := json.Unmarshal(githubRaw, &githubPayload); err != nil {
+		t.Fatal(err)
+	}
+	delete(githubPayload, "planning")
+	githubEdited, err := json.MarshalIndent(githubPayload, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(githubPath, githubEdited, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := manager.Update()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Created) != 0 || len(result.Updated) != 0 || len(result.Archived) != 0 {
+		t.Fatalf("expected optional compatibility defaults to avoid update churn: %+v", result)
+	}
+
+	workspaceAfter, err := os.ReadFile(workspacePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(workspaceAfter) != string(workspaceEdited) {
+		t.Fatalf("expected workspace metadata to remain unchanged on no-op update\nbefore:\n%s\nafter:\n%s", string(workspaceEdited), string(workspaceAfter))
+	}
+	githubAfter, err := os.ReadFile(githubPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(githubAfter) != string(githubEdited) {
+		t.Fatalf("expected github metadata to remain unchanged on no-op update\nbefore:\n%s\nafter:\n%s", string(githubEdited), string(githubAfter))
+	}
+
+	migrationsAfter, err := manager.ReadMigrationState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(migrationsAfter.History) != initialHistory {
+		t.Fatalf("expected no migration history churn on no-op update: %+v", migrationsAfter)
+	}
+}
+
+func TestUpdateWithArchiveLegacyMovesLegacyHierarchyAndPreservesActiveSpecs(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+	if _, err := manager.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	epicsDir := filepath.Join(root, ".plan", "epics")
+	storiesDir := filepath.Join(root, ".plan", "stories")
+	if err := os.MkdirAll(epicsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(storiesDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	specPath := filepath.Join(root, ".plan", "specs", "billing.md")
+	if _, err := notes.Create(specPath, "Billing Spec", "spec", "# Billing Spec\n", map[string]any{
+		"slug":   "billing",
+		"status": "approved",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := notes.Create(filepath.Join(epicsDir, "billing.md"), "Billing", "epic", "# Billing\n", map[string]any{
+		"slug": "billing",
+		"spec": "billing",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := notes.Create(filepath.Join(storiesDir, "billing-ui.md"), "Billing UI", "story", "# Billing UI\n", map[string]any{
+		"slug":   "billing-ui",
+		"status": "todo",
+		"epic":   "billing",
+		"spec":   "billing",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := manager.UpdateWithOptions(UpdateOptions{ArchiveLegacy: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Archived) != 2 {
+		t.Fatalf("expected both legacy directories to be archived: %+v", result)
+	}
+	if _, err := os.Stat(epicsDir); !os.IsNotExist(err) {
+		t.Fatalf("expected legacy epics dir to be removed, got %v", err)
+	}
+	if _, err := os.Stat(storiesDir); !os.IsNotExist(err) {
+		t.Fatalf("expected legacy stories dir to be removed, got %v", err)
+	}
+	if _, err := os.Stat(specPath); err != nil {
+		t.Fatalf("expected active spec to remain in place: %v", err)
+	}
+
+	var batchDir string
+	for _, move := range result.Archived {
+		if strings.HasSuffix(move.To, "/epics") {
+			batchDir = filepath.Dir(filepath.Join(root, filepath.FromSlash(move.To)))
+			break
+		}
+	}
+	if batchDir == "" {
+		t.Fatalf("expected archived epics destination in result: %+v", result)
+	}
+	if _, err := os.Stat(filepath.Join(batchDir, "epics", "billing.md")); err != nil {
+		t.Fatalf("expected archived epic to exist: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(batchDir, "stories", "billing-ui.md")); err != nil {
+		t.Fatalf("expected archived story to exist: %v", err)
+	}
+
+	manifestPath := filepath.Join(batchDir, "migration.json")
+	raw, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest ArchiveManifest
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if len(manifest.ActiveSpecs) != 1 || manifest.ActiveSpecs[0].Path != ".plan/specs/billing.md" {
+		t.Fatalf("expected manifest to describe preserved active spec: %+v", manifest)
+	}
+
+	state, err := manager.ReadMigrationState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(state.LastArchived) != 2 {
+		t.Fatalf("expected migration state to record archived moves: %+v", state)
+	}
+	last := state.History[len(state.History)-1]
+	if len(last.Archived) != 2 {
+		t.Fatalf("expected migration history to record archived moves: %+v", last)
+	}
+}
+
 func TestEnsureInitializedRejectsInvalidWorkspaceMetadata(t *testing.T) {
 	root := t.TempDir()
 	manager := New(root)
@@ -486,5 +772,65 @@ func TestEnsureInitializedRejectsInvalidWorkspaceMetadata(t *testing.T) {
 
 	if _, err := manager.EnsureInitialized(); err == nil {
 		t.Fatal("expected invalid workspace metadata to fail initialization check")
+	}
+}
+
+func TestArchiveLegacyFallsBackWhenEpicSpecMetadataHasPathTraversal(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+	if _, err := manager.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	epicsDir := filepath.Join(root, ".plan", "epics")
+	if err := os.MkdirAll(epicsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	specPath := filepath.Join(root, ".plan", "specs", "billing.md")
+	if _, err := notes.Create(specPath, "Billing Spec", "spec", "# Billing Spec\n", map[string]any{
+		"slug":   "billing",
+		"status": "approved",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := notes.Create(filepath.Join(epicsDir, "billing.md"), "Billing", "epic", "# Billing\n", map[string]any{
+		"slug": "billing",
+		"spec": "../escape",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := manager.UpdateWithOptions(UpdateOptions{ArchiveLegacy: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Archived) != 1 {
+		t.Fatalf("expected archived epics move: %+v", result)
+	}
+
+	var batchDir string
+	for _, move := range result.Archived {
+		if strings.HasSuffix(move.To, "/epics") {
+			batchDir = filepath.Dir(filepath.Join(root, filepath.FromSlash(move.To)))
+			break
+		}
+	}
+	if batchDir == "" {
+		t.Fatalf("expected archive batch dir: %+v", result)
+	}
+
+	raw, err := os.ReadFile(filepath.Join(batchDir, "migration.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest ArchiveManifest
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if len(manifest.ActiveSpecs) != 1 {
+		t.Fatalf("expected one archived active spec entry: %+v", manifest)
+	}
+	if manifest.ActiveSpecs[0].Slug != "billing" || manifest.ActiveSpecs[0].Path != ".plan/specs/billing.md" {
+		t.Fatalf("expected fallback spec slug/path to stay inside specs dir: %+v", manifest.ActiveSpecs[0])
 	}
 }

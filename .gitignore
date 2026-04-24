@@ -3,3 +3,12 @@ dist/
 /plan
 *.exe
 .DS_Store
+.codex/bin/
+.codex/skills/brain/
+
+# brain:begin gitignore-session
+.brain/session.json
+.brain/sessions/
+.brain/policy.override.yaml
+.brain/state/
+# brain:end gitignore-session

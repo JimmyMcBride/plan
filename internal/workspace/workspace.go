@@ -5,14 +5,17 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
+	"plan/internal/notes"
 	"plan/internal/templates"
 )
 
 const (
-	CurrentSchemaVersion = 2
-	PlanningModel        = "epic_spec_story_v1"
+	CurrentSchemaVersion = 3
+	PlanningModel        = "spec_first_v1"
+	LegacyPlanningModel  = "epic_spec_story_v1"
 )
 
 type StoryBackend string
@@ -22,22 +25,52 @@ const (
 	StoryBackendGitHub StoryBackend = "github"
 )
 
+type SourceOfTruthMode string
+
+const (
+	SourceOfTruthLocal  SourceOfTruthMode = "local"
+	SourceOfTruthGitHub SourceOfTruthMode = "github"
+	SourceOfTruthHybrid SourceOfTruthMode = "hybrid"
+)
+
 type WorkspaceMeta struct {
-	SchemaVersion int          `json:"schema_version"`
-	PlanningModel string       `json:"planning_model"`
-	StoryBackend  StoryBackend `json:"story_backend"`
-	CreatedAt     string       `json:"created_at"`
-	UpdatedAt     string       `json:"updated_at"`
+	SchemaVersion int               `json:"schema_version"`
+	PlanningModel string            `json:"planning_model"`
+	SourceMode    SourceOfTruthMode `json:"source_mode,omitempty"`
+	StoryBackend  StoryBackend      `json:"story_backend"`
+	CreatedAt     string            `json:"created_at"`
+	UpdatedAt     string            `json:"updated_at"`
 }
 
 type GitHubState struct {
-	Repo           string                       `json:"repo,omitempty"`
-	RepoURL        string                       `json:"repo_url,omitempty"`
-	DefaultBranch  string                       `json:"default_branch,omitempty"`
-	LastEnabledAt  string                       `json:"last_enabled_at,omitempty"`
-	LastUpdatedAt  string                       `json:"last_updated_at,omitempty"`
-	LastReconciled string                       `json:"last_reconciled_at,omitempty"`
-	Stories        map[string]GitHubStoryRecord `json:"stories"`
+	Repo           string                          `json:"repo,omitempty"`
+	RepoURL        string                          `json:"repo_url,omitempty"`
+	DefaultBranch  string                          `json:"default_branch,omitempty"`
+	LastEnabledAt  string                          `json:"last_enabled_at,omitempty"`
+	LastUpdatedAt  string                          `json:"last_updated_at,omitempty"`
+	LastReconciled string                          `json:"last_reconciled_at,omitempty"`
+	Stories        map[string]GitHubStoryRecord    `json:"stories"`
+	Planning       map[string]GitHubPlanningRecord `json:"planning"`
+}
+
+type GitHubPlanningRecord struct {
+	Slug              string   `json:"slug"`
+	Kind              string   `json:"kind"`
+	Title             string   `json:"title"`
+	IssueNumber       int      `json:"issue_number,omitempty"`
+	IssueURL          string   `json:"issue_url,omitempty"`
+	RemoteState       string   `json:"remote_state,omitempty"`
+	Readiness         string   `json:"readiness,omitempty"`
+	OwnershipMode     string   `json:"ownership_mode,omitempty"`
+	EntryMode         string   `json:"entry_mode,omitempty"`
+	SourceMode        string   `json:"source_mode,omitempty"`
+	DiscussionNumber  int      `json:"discussion_number,omitempty"`
+	DiscussionURL     string   `json:"discussion_url,omitempty"`
+	ParentIssueNumber int      `json:"parent_issue_number,omitempty"`
+	MilestoneNumber   int      `json:"milestone_number,omitempty"`
+	MilestoneTitle    string   `json:"milestone_title,omitempty"`
+	BlockedBy         []string `json:"blocked_by,omitempty"`
+	UpdatedAt         string   `json:"updated_at,omitempty"`
 }
 
 type GitHubStoryRecord struct {
@@ -71,6 +104,19 @@ type GitHubStoryRecord struct {
 	UpdatedAt             string   `json:"updated_at,omitempty"`
 }
 
+type ArchivedPath struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+}
+
+type ArchivedSpec struct {
+	Slug             string `json:"slug"`
+	Path             string `json:"path"`
+	Title            string `json:"title,omitempty"`
+	Status           string `json:"status,omitempty"`
+	SourceLegacyEpic string `json:"source_legacy_epic,omitempty"`
+}
+
 type MigrationState struct {
 	SchemaVersion int            `json:"schema_version"`
 	Known         []string       `json:"known"`
@@ -79,15 +125,24 @@ type MigrationState struct {
 	LastOperation string         `json:"last_operation,omitempty"`
 	LastCreated   []string       `json:"last_created,omitempty"`
 	LastUpdated   []string       `json:"last_updated,omitempty"`
+	LastArchived  []ArchivedPath `json:"last_archived,omitempty"`
 	History       []MigrationRun `json:"history,omitempty"`
 }
 
 type MigrationRun struct {
-	Operation string   `json:"operation"`
-	At        string   `json:"at"`
-	Status    string   `json:"status"`
-	Created   []string `json:"created,omitempty"`
-	Updated   []string `json:"updated,omitempty"`
+	Operation string         `json:"operation"`
+	At        string         `json:"at"`
+	Status    string         `json:"status"`
+	Created   []string       `json:"created,omitempty"`
+	Updated   []string       `json:"updated,omitempty"`
+	Archived  []ArchivedPath `json:"archived,omitempty"`
+}
+
+type ArchiveManifest struct {
+	ArchivedAt    string         `json:"archived_at"`
+	PlanningModel string         `json:"planning_model"`
+	Sources       []ArchivedPath `json:"sources"`
+	ActiveSpecs   []ArchivedSpec `json:"active_specs,omitempty"`
 }
 
 type Surface struct {
@@ -111,6 +166,8 @@ type Info struct {
 	ProjectFile    string
 	RoadmapFile    string
 	BrainstormsDir string
+	IdeasDir       string
+	ArchiveDir     string
 	EpicsDir       string
 	SpecsDir       string
 	StoriesDir     string
@@ -127,9 +184,14 @@ type InitResult struct {
 }
 
 type UpdateResult struct {
-	Info    *Info
-	Created []string
-	Updated []string
+	Info     *Info
+	Created  []string
+	Updated  []string
+	Archived []ArchivedPath
+}
+
+type UpdateOptions struct {
+	ArchiveLegacy bool
 }
 
 type DoctorReport struct {
@@ -172,6 +234,8 @@ func (m *Manager) Resolve() (*Info, error) {
 		ProjectFile:    filepath.Join(planDir, "PROJECT.md"),
 		RoadmapFile:    filepath.Join(planDir, "ROADMAP.md"),
 		BrainstormsDir: filepath.Join(planDir, "brainstorms"),
+		IdeasDir:       filepath.Join(planDir, "ideas"),
+		ArchiveDir:     filepath.Join(planDir, "archive"),
 		EpicsDir:       filepath.Join(planDir, "epics"),
 		SpecsDir:       filepath.Join(planDir, "specs"),
 		StoriesDir:     filepath.Join(planDir, "stories"),
@@ -195,9 +259,9 @@ func (i *Info) UserAuthoredSurfaces() []Surface {
 		i.newSurface("PROJECT.md", i.ProjectFile, "user_authored", "file"),
 		i.newSurface("ROADMAP.md", i.RoadmapFile, "user_authored", "file"),
 		i.newSurface("brainstorms/", i.BrainstormsDir, "user_authored", "dir"),
-		i.newSurface("epics/", i.EpicsDir, "user_authored", "dir"),
+		i.newSurface("ideas/", i.IdeasDir, "user_authored", "dir"),
 		i.newSurface("specs/", i.SpecsDir, "user_authored", "dir"),
-		i.newSurface("stories/", i.StoriesDir, "user_authored", "dir"),
+		i.newSurface("archive/", i.ArchiveDir, "user_authored", "dir"),
 	}
 }
 
@@ -282,7 +346,7 @@ func (m *Manager) Init() (*InitResult, error) {
 	} else if created {
 		result.Created = append(result.Created, rel(info.ProjectDir, info.SessionsFile))
 	}
-	if err := recordMigrationRun(info, "init", result.Created, nil, now); err != nil {
+	if err := recordMigrationRun(info, "init", result.Created, nil, nil, now); err != nil {
 		return nil, err
 	}
 
@@ -297,6 +361,10 @@ func (i *Info) directoryPaths() []string {
 		}
 	}
 	return dirs
+}
+
+func (i *Info) legacyDirectoryPaths() []string {
+	return []string{i.EpicsDir, i.StoriesDir}
 }
 
 func (m *Manager) EnsureInitialized() (*Info, error) {
@@ -337,6 +405,12 @@ func readWorkspaceMetaFile(path string) (*WorkspaceMeta, error) {
 	if err := json.Unmarshal(raw, &meta); err != nil {
 		return nil, fmt.Errorf("parse workspace metadata: %w", err)
 	}
+	if meta.SourceMode == "" {
+		meta.SourceMode = SourceOfTruthLocal
+	}
+	if meta.StoryBackend == "" {
+		meta.StoryBackend = StoryBackendLocal
+	}
 	return &meta, nil
 }
 
@@ -376,6 +450,12 @@ func readGitHubStateFile(path string) (*GitHubState, error) {
 	var state GitHubState
 	if err := json.Unmarshal(raw, &state); err != nil {
 		return nil, fmt.Errorf("parse github state: %w", err)
+	}
+	if state.Stories == nil {
+		state.Stories = map[string]GitHubStoryRecord{}
+	}
+	if state.Planning == nil {
+		state.Planning = map[string]GitHubPlanningRecord{}
 	}
 	return &state, nil
 }
@@ -480,6 +560,10 @@ func (m *Manager) Doctor() (*DoctorReport, error) {
 }
 
 func (m *Manager) Update() (*UpdateResult, error) {
+	return m.UpdateWithOptions(UpdateOptions{})
+}
+
+func (m *Manager) UpdateWithOptions(opts UpdateOptions) (*UpdateResult, error) {
 	info, err := m.Resolve()
 	if err != nil {
 		return nil, err
@@ -490,7 +574,7 @@ func (m *Manager) Update() (*UpdateResult, error) {
 		}
 		return nil, err
 	}
-	return m.repairWorkspace(info, "update")
+	return m.repairWorkspace(info, "update", opts)
 }
 
 func (m *Manager) Adopt() (*UpdateResult, error) {
@@ -498,10 +582,10 @@ func (m *Manager) Adopt() (*UpdateResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	return m.repairWorkspace(info, "adopt")
+	return m.repairWorkspace(info, "adopt", UpdateOptions{})
 }
 
-func (m *Manager) repairWorkspace(info *Info, operation string) (*UpdateResult, error) {
+func (m *Manager) repairWorkspace(info *Info, operation string, opts UpdateOptions) (*UpdateResult, error) {
 	result := &UpdateResult{Info: info}
 	for _, dir := range append([]string{info.PlanDir}, info.directoryPaths()...) {
 		created, err := ensureDir(dir)
@@ -582,7 +666,16 @@ func (m *Manager) repairWorkspace(info *Info, operation string) (*UpdateResult, 
 			result.Updated = append(result.Updated, rel(info.ProjectDir, info.SessionsFile))
 		}
 	}
-	if err := recordMigrationRun(info, operation, result.Created, result.Updated, now); err != nil {
+	if opts.ArchiveLegacy {
+		archiveCreated, archiveUpdated, archived, err := archiveLegacyHierarchy(info, now)
+		if err != nil {
+			return nil, err
+		}
+		result.Created = append(result.Created, archiveCreated...)
+		result.Updated = append(result.Updated, archiveUpdated...)
+		result.Archived = append(result.Archived, archived...)
+	}
+	if err := recordMigrationRun(info, operation, result.Created, result.Updated, result.Archived, now); err != nil {
 		return nil, err
 	}
 
@@ -716,10 +809,139 @@ func reconcileGitHubState(path, now string) (bool, error) {
 	return true, writeJSON(path, normalized)
 }
 
+func archiveLegacyHierarchy(info *Info, now string) ([]string, []string, []ArchivedPath, error) {
+	var created []string
+	var updated []string
+	var archived []ArchivedPath
+	var activeSpecs []ArchivedSpec
+
+	batchName := archiveBatchName(now)
+	batchDir := filepath.Join(info.ArchiveDir, batchName)
+	batchCreated := false
+
+	for _, legacyDir := range info.legacyDirectoryPaths() {
+		entries, err := os.ReadDir(legacyDir)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return nil, nil, nil, err
+		}
+		if len(entries) == 0 {
+			if err := os.Remove(legacyDir); err != nil && !os.IsNotExist(err) {
+				return nil, nil, nil, err
+			}
+			updated = append(updated, rel(info.ProjectDir, legacyDir))
+			continue
+		}
+		if !batchCreated {
+			made, err := ensureDir(batchDir)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			if made {
+				created = append(created, rel(info.ProjectDir, batchDir))
+			}
+			batchCreated = true
+		}
+		destDir := filepath.Join(batchDir, filepath.Base(legacyDir))
+		if filepath.Base(legacyDir) == "epics" {
+			specs, err := archivedSpecsForLegacyEpics(info, legacyDir, destDir)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			activeSpecs = append(activeSpecs, specs...)
+		}
+		if err := os.Rename(legacyDir, destDir); err != nil {
+			return nil, nil, nil, err
+		}
+		archived = append(archived, ArchivedPath{
+			From: rel(info.ProjectDir, legacyDir),
+			To:   rel(info.ProjectDir, destDir),
+		})
+	}
+
+	if !batchCreated {
+		return created, updated, archived, nil
+	}
+
+	manifest := ArchiveManifest{
+		ArchivedAt:    now,
+		PlanningModel: PlanningModel,
+		Sources:       append([]ArchivedPath(nil), archived...),
+		ActiveSpecs:   activeSpecs,
+	}
+	manifestPath := filepath.Join(batchDir, "migration.json")
+	if err := writeJSON(manifestPath, manifest); err != nil {
+		return nil, nil, nil, err
+	}
+	created = append(created, rel(info.ProjectDir, manifestPath))
+
+	return created, updated, archived, nil
+}
+
+func archivedSpecsForLegacyEpics(info *Info, legacyDir, destDir string) ([]ArchivedSpec, error) {
+	entries, err := os.ReadDir(legacyDir)
+	if err != nil {
+		return nil, err
+	}
+	specs := make([]ArchivedSpec, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".md" {
+			continue
+		}
+		epicPath := filepath.Join(legacyDir, entry.Name())
+		epic, err := notes.Read(epicPath)
+		if err != nil {
+			return nil, err
+		}
+		specSlug := safeLegacySpecSlug(stringValue(epic.Metadata["spec"]), slugFromPath(epicPath))
+		specPath := filepath.Join(info.SpecsDir, specSlug+".md")
+		spec := ArchivedSpec{
+			Slug:             specSlug,
+			Path:             rel(info.ProjectDir, specPath),
+			Status:           "draft",
+			SourceLegacyEpic: rel(info.ProjectDir, filepath.Join(destDir, entry.Name())),
+		}
+		if current, err := notes.Read(specPath); err == nil {
+			spec.Title = current.Title
+			if status := stringValue(current.Metadata["status"]); status != "" {
+				spec.Status = status
+			}
+		}
+		specs = append(specs, spec)
+	}
+	return specs, nil
+}
+
+func safeLegacySpecSlug(raw, fallback string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return slugFromPath(fallback)
+	}
+	if strings.ContainsAny(raw, `/\`) {
+		return slugFromPath(fallback)
+	}
+	base := filepath.Base(raw)
+	if base == "." || base == ".." {
+		return slugFromPath(fallback)
+	}
+	return slugFromPath(base)
+}
+
+func archiveBatchName(now string) string {
+	parsed, err := time.Parse(time.RFC3339, now)
+	if err != nil {
+		return "legacy-" + strings.NewReplacer(":", "", "-", "", ".", "").Replace(now)
+	}
+	return "legacy-" + parsed.UTC().Format("20060102T150405Z")
+}
+
 func defaultWorkspaceMeta(now string) WorkspaceMeta {
 	return WorkspaceMeta{
 		SchemaVersion: CurrentSchemaVersion,
 		PlanningModel: PlanningModel,
+		SourceMode:    SourceOfTruthLocal,
 		StoryBackend:  StoryBackendLocal,
 		CreatedAt:     now,
 		UpdatedAt:     now,
@@ -739,6 +961,7 @@ func defaultGitHubState(now string) GitHubState {
 	return GitHubState{
 		LastUpdatedAt: now,
 		Stories:       map[string]GitHubStoryRecord{},
+		Planning:      map[string]GitHubPlanningRecord{},
 	}
 }
 
@@ -746,7 +969,7 @@ func normalizeWorkspaceMeta(meta WorkspaceMeta, now string) (WorkspaceMeta, bool
 	if meta.SchemaVersion > CurrentSchemaVersion {
 		return WorkspaceMeta{}, false, fmt.Errorf("workspace schema version %d is newer than supported version %d", meta.SchemaVersion, CurrentSchemaVersion)
 	}
-	if meta.PlanningModel != "" && meta.PlanningModel != PlanningModel {
+	if meta.PlanningModel != "" && meta.PlanningModel != PlanningModel && meta.PlanningModel != LegacyPlanningModel {
 		return WorkspaceMeta{}, false, fmt.Errorf("workspace planning model %q is not supported by this build", meta.PlanningModel)
 	}
 
@@ -759,9 +982,8 @@ func normalizeWorkspaceMeta(meta WorkspaceMeta, now string) (WorkspaceMeta, bool
 	if normalized.PlanningModel == "" {
 		normalized.PlanningModel = PlanningModel
 		changed = true
-	}
-	if normalized.StoryBackend == "" {
-		normalized.StoryBackend = StoryBackendLocal
+	} else if normalized.PlanningModel == LegacyPlanningModel {
+		normalized.PlanningModel = PlanningModel
 		changed = true
 	}
 	if normalized.CreatedAt == "" {
@@ -810,10 +1032,6 @@ func normalizeMigrationState(state MigrationState, now string) (MigrationState, 
 func normalizeGitHubState(state GitHubState, now string) (GitHubState, bool, error) {
 	normalized := state
 	changed := false
-	if normalized.Stories == nil {
-		normalized.Stories = map[string]GitHubStoryRecord{}
-		changed = true
-	}
 	if normalized.LastUpdatedAt == "" {
 		normalized.LastUpdatedAt = now
 		changed = true
@@ -834,6 +1052,8 @@ func validateWorkspaceMeta(meta *WorkspaceMeta) error {
 		return fmt.Errorf("planning_model is required")
 	case meta.PlanningModel != PlanningModel:
 		return fmt.Errorf("planning_model %q is not supported", meta.PlanningModel)
+	case meta.SourceMode != "" && meta.SourceMode != SourceOfTruthLocal && meta.SourceMode != SourceOfTruthGitHub && meta.SourceMode != SourceOfTruthHybrid:
+		return fmt.Errorf("source_mode %q is not supported", meta.SourceMode)
 	case meta.StoryBackend != "" && meta.StoryBackend != StoryBackendLocal && meta.StoryBackend != StoryBackendGitHub:
 		return fmt.Errorf("story_backend %q is not supported", meta.StoryBackend)
 	case meta.CreatedAt == "":
@@ -867,8 +1087,8 @@ func validateMigrationState(state *MigrationState) error {
 	}
 }
 
-func recordMigrationRun(info *Info, operation string, created, updated []string, now string) error {
-	if len(created) == 0 && len(updated) == 0 {
+func recordMigrationRun(info *Info, operation string, created, updated []string, archived []ArchivedPath, now string) error {
+	if len(created) == 0 && len(updated) == 0 && len(archived) == 0 {
 		return nil
 	}
 	state, err := readMigrationStateFile(info.MigrationsFile)
@@ -878,18 +1098,21 @@ func recordMigrationRun(info *Info, operation string, created, updated []string,
 	}
 	created = append([]string(nil), created...)
 	updated = append([]string(nil), updated...)
+	archived = append([]ArchivedPath(nil), archived...)
 	run := MigrationRun{
 		Operation: operation,
 		At:        now,
 		Status:    "current",
 		Created:   created,
 		Updated:   updated,
+		Archived:  archived,
 	}
 	state.LastRunAt = now
 	state.Status = "current"
 	state.LastOperation = operation
 	state.LastCreated = created
 	state.LastUpdated = updated
+	state.LastArchived = archived
 	state.History = append(state.History, run)
 	if len(state.History) > 10 {
 		state.History = append([]MigrationRun(nil), state.History[len(state.History)-10:]...)
@@ -924,6 +1147,16 @@ func rel(root, path string) string {
 		return path
 	}
 	return filepath.ToSlash(r)
+}
+
+func slugFromPath(path string) string {
+	base := filepath.Base(path)
+	return strings.TrimSuffix(base, filepath.Ext(base))
+}
+
+func stringValue(value any) string {
+	text, _ := value.(string)
+	return text
 }
 
 func classifyDoctorWorkspace(missing, broken []string) string {

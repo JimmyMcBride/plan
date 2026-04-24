@@ -1,6 +1,6 @@
 ---
 name: plan
-description: Use this skill when working with a project-local `plan` workspace that keeps planning material under `.plan/`. Focus on brainstorms, refinement, epics, specs, stories, and roadmap updates.
+description: Use this skill when working with a project-local `plan` workspace that keeps planning material under `.plan/`. Focus on brainstorms, idea docs, specs, execution slices, legacy compatibility surfaces, and roadmap updates.
 user-invocable: true
 args:
   - name: task
@@ -10,15 +10,17 @@ args:
 
 # Plan
 
-Use `plan` as the primary interface for repo-local planning.
+Use `plan` as the primary interface for project planning, while respecting the
+configured source-of-truth backend.
 
 ## Goals
 
-- keep planning local to the repo
+- keep local planning as the default while respecting `github` and `hybrid`
+  source-of-truth modes when configured
 - treat specs as the canonical execution contract
 - improve the quality of brainstorms and specs before implementation starts
-- create stories only after spec approval
-- keep stories execution-ready and verification-aware
+- use lightweight initiative metadata when multiple specs belong together
+- guide execution from approved specs without persisting tiny slice artifacts by default
 - avoid sidecar planning systems outside `.plan/`
 
 ## Startup
@@ -27,8 +29,9 @@ When a repo uses `plan`:
 
 1. Read `.plan/PROJECT.md`.
 2. Read `.plan/ROADMAP.md`.
-3. Read the brainstorm, epic, spec, and story notes relevant to the task.
-4. Use the `plan` CLI for durable planning changes.
+3. Read the brainstorm, idea, spec, and legacy compatibility notes relevant to the task.
+4. If the project is using `github` or `hybrid` ownership for durable planning data, inspect the linked GitHub issue, project, or milestone state too.
+5. Use the `plan` CLI for durable planning changes and keep backend ownership explicit.
 
 ## Commands
 
@@ -36,38 +39,55 @@ When a repo uses `plan`:
 - `plan adopt --project .`
 - `plan doctor --project .`
 - `plan update --project .`
+- `plan update --project . --archive-legacy`
 - `plan check --project .`
+- `plan source show --project .`
+- `plan source set --project . <local|github|hybrid>`
 - `plan brainstorm start --project . "<topic>"`
 - `plan brainstorm idea --project . <brainstorm-slug> --body "<idea>"`
 - `plan brainstorm refine --project . <brainstorm-slug>`
 - `plan brainstorm challenge --project . <brainstorm-slug>`
-- `plan epic create --project . "<title>"`
-- `plan epic promote --project . <brainstorm-slug>`
-- `plan epic shape --project . <epic-slug>`
-- `plan spec show --project . <epic-slug>`
-- `plan spec analyze --project . <epic-slug>`
-- `plan spec checklist --project . <epic-slug> --profile general`
-- `plan spec status --project . <epic-slug> --set approved`
-- `plan story slice --project . <epic-slug>`
+- `plan discuss assess --project . --brainstorm <brainstorm-slug> --format json`
+- `plan discuss assess --project . --discussion <number-or-url> --format json`
+- `plan discuss promote --project . --brainstorm <brainstorm-slug> --format json`
+- `plan discuss promote --project . --discussion <number-or-url> --format json`
+- `plan guide current --project . --format json` when a guided brainstorm session is active
+- `plan guide show --project . --chain <chain-id> --stage brainstorm --checkpoint <checkpoint> --format json` for explicit brainstorm preview/debug use
+- `plan guide show --project . --brainstorm <brainstorm-slug> --stage <discussion_assess|promotion_review|initiative_draft|spec_draft|needs_refinement> --format json`
+- `plan guide show --project . --discussion <number-or-url> --stage <discussion_assess|promotion_review|initiative_draft|spec_draft|needs_refinement> --format json`
+- `plan epic create|promote|shape ...` only when a repo still depends on the legacy transition path
+- `plan spec show --project . <spec-slug>`
+- `plan spec analyze --project . <spec-slug>`
+- `plan spec checklist --project . <spec-slug> --profile general`
+- `plan spec status --project . <spec-slug> --set approved`
+- `plan spec initiative --project . <spec-slug> --set <initiative-slug>`
+- `plan spec execute --project . <spec-slug>`
 - `plan story critique --project . <story-slug>`
-- `plan story create --project . <epic-slug> "<title>" --criteria "<criterion>" --verify "<step>"`
-- `plan story update --project . <story-slug> --status in_progress`
+- `plan story create|update|slice ...` only for legacy compatibility during migration
 - `plan roadmap show --project .`
 - `plan status --project .`
 
 ## Rules
 
 - Brainstorms are discovery material, not the canonical hierarchy.
-- Canonical hierarchy is `Epic -> Spec -> Story`.
+- Collaborative brainstorming may start in GitHub Discussions when the repo is using GitHub as the shaping surface.
+- Active model is `Brainstorm -> Idea Doc (optional) -> Spec`, with runtime slices during execution.
+- Local is the default backend, not the only backend.
+- Do not assume every durable planning artifact lives in `.plan/`; respect explicit ownership by planning layer.
 - `brainstorm refine` should reduce ambiguity before promotion.
 - `brainstorm challenge` should pressure-test risk, no-gos, and overengineering before promotion.
-- `epic shape` should turn an epic into a bounded bet with appetite and success signal.
+- `discuss assess` should produce an explicit maturity decision before a GitHub-backed promotion happens.
+- `discuss promote` should stay draft-first unless the task explicitly calls for `--apply --confirm`.
+- today, `discuss promote --apply` is implemented for `github` and `hybrid`; repo-backed local promotion still uses the legacy compatibility path
+- When a guided brainstorm session is active, prefer live guide packets over static stage prose.
+- For collaboration shaping, use `plan guide show` to wrap the canonical `discuss` payloads instead of inventing a parallel promotion contract.
+- `epic shape` is now a legacy compatibility pass, not the preferred active model.
 - `spec analyze` should pressure-test a spec without rewriting its canonical sections.
 - `spec checklist` should add profile-driven rigor without mutating the canonical sections.
-- `story slice` should stay preview-first and derive execution-ready slices from the canonical spec.
+- `spec execute` should derive ephemeral execution slices from the canonical spec and suggest a branch-per-spec path.
 - `story critique` should reject broad or verification-thin stories before implementation starts.
 - Keep roadmap guidance lightweight.
-- Do not add tasks beneath stories as first-class objects unless the project explicitly asks for that system.
+- Do not add a new heavyweight planning layer just to replace epics.
 - Keep planning separate from memory, retrieval, or context management systems.
 
 ## Planning Modes
@@ -76,11 +96,13 @@ Use the smallest pass that resolves the current planning gap:
 
 1. `brainstorm refine` for ambiguity reduction
 2. `brainstorm challenge` for rabbit holes, no-gos, and simplification pressure
-3. `epic shape` for appetite and scope boundaries
-4. `spec analyze` for general refinement gaps
-5. `spec checklist` for domain-specific review
-6. `story slice` for turning approved spec breakdowns into first-pass story sets
-7. `story critique` for execution-readiness pressure before coding
+3. `discuss assess` for explicit promotion readiness from a brainstorm or GitHub Discussion
+4. `discuss promote` for drafting a single-spec or multi-spec GitHub promotion plan
+5. `epic shape` only when the repo is still using the legacy transition path
+6. `spec analyze` for general refinement gaps
+7. `spec checklist` for domain-specific review
+8. `spec execute` for starting branch-per-spec execution from an approved spec
+9. `story critique` only for legacy story flows that still need execution-readiness pressure
 
 ## Model Guidance
 
@@ -105,10 +127,13 @@ Use the smallest pass that resolves the current planning gap:
 - shaping passes stay additive
 - optional rigor must not make the default path ceremonial
 - every recommendation should improve clarity, boundedness, verification, or executability
-- spec-to-story handoffs should stay checkable with `plan check`
+- active execution should stay traceable from spec -> slices -> commits -> PR
+- when backend ownership is split, the agent should preserve that split instead of silently moving truth back into `.plan/`
 
 ## Ambiguity Handling
 
 - if the next shaping pass is obvious, run it
 - if two passes could apply, choose the lighter one first
+- if the repo is in `github` or `hybrid` mode, prefer `discuss assess` and `discuss promote` before inventing new issue text manually
+- if backend ownership is unclear, inspect project rules and current GitHub state before editing durable planning artifacts
 - do not turn `plan` into memory, context, or execution orchestration

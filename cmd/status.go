@@ -27,35 +27,43 @@ func newStatusCommand() *cobra.Command {
 func printStatus(out io.Writer, status *planning.ProjectStatus) {
 	fmt.Fprintf(out, "project: %s\n", status.Project)
 	fmt.Fprintf(out, "planning_model: %s\n", status.PlanningModel)
-	fmt.Fprintf(out, "stories: %d total, %d done, %d in_progress, %d blocked\n",
-		status.TotalStories,
-		status.DoneStories,
-		status.InProgressStories,
-		status.BlockedStories,
+	fmt.Fprintf(out, "source_mode: %s\n", status.SourceMode)
+	fmt.Fprintf(out, "specs: %d total, %d draft, %d approved, %d implementing, %d done\n",
+		status.TotalSpecs,
+		status.DraftSpecs,
+		status.ApprovedSpecs,
+		status.ImplementingSpecs,
+		status.DoneSpecs,
 	)
-	if status.ReadyStories > 0 {
-		fmt.Fprintf(out, "ready_work: %d\n", status.ReadyStories)
-		for _, story := range status.ReadyWork {
-			issueRef := ""
-			if story.IssueNumber > 0 {
-				issueRef = fmt.Sprintf(" issue=#%d", story.IssueNumber)
+	if len(status.ReadySpecs) > 0 {
+		fmt.Fprintf(out, "ready_specs: %d\n", len(status.ReadySpecs))
+		for _, spec := range status.ReadySpecs {
+			initiativeRef := ""
+			if spec.Initiative != "" {
+				initiativeRef = fmt.Sprintf(" initiative=%s", spec.Initiative)
 			}
-			fmt.Fprintf(out, "  - %s%s epic=%s spec=%s\n", story.Title, issueRef, story.Epic, story.Spec)
+			fmt.Fprintf(out, "  - %s%s status=%s\n", spec.Title, initiativeRef, spec.Status)
 		}
 	}
-	if len(status.Epics) == 0 {
-		fmt.Fprintln(out, "epics: none")
-		return
-	}
-	fmt.Fprintln(out, "epics:")
-	for _, epic := range status.Epics {
-		fmt.Fprintf(out, "  - %s [%s] (%d/%d done, %d in progress, %d blocked)\n",
-			epic.Title,
-			epic.SpecStatus,
-			epic.DoneStories,
-			epic.TotalStories,
-			epic.InProgressStories,
-			epic.BlockedStories,
+	if status.TotalStories > 0 {
+		fmt.Fprintf(out, "legacy_stories: %d total, %d done, %d in_progress, %d blocked\n",
+			status.TotalStories,
+			status.DoneStories,
+			status.InProgressStories,
+			status.BlockedStories,
 		)
+	}
+	if len(status.Epics) > 0 {
+		fmt.Fprintln(out, "legacy_epics:")
+		for _, epic := range status.Epics {
+			fmt.Fprintf(out, "  - %s [%s] (%d/%d done, %d in progress, %d blocked)\n",
+				epic.Title,
+				epic.SpecStatus,
+				epic.DoneStories,
+				epic.TotalStories,
+				epic.InProgressStories,
+				epic.BlockedStories,
+			)
+		}
 	}
 }

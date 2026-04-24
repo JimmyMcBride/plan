@@ -51,25 +51,37 @@ func (m *Manager) ReconcileGitHubStories(options GitHubReconcileOptions) (*GitHu
 		CurrentBranch: context.CurrentBranch,
 		DefaultBranch: context.Repo.DefaultBranch,
 	}
+	stateChanged := false
+	if state.Repo != context.Repo.Repo {
+		state.Repo = context.Repo.Repo
+		stateChanged = true
+	}
+	if state.RepoURL != context.Repo.RepoURL {
+		state.RepoURL = context.Repo.RepoURL
+		stateChanged = true
+	}
+	if state.DefaultBranch != context.Repo.DefaultBranch {
+		state.DefaultBranch = context.Repo.DefaultBranch
+		stateChanged = true
+	}
 	if context.CurrentBranch == context.Repo.DefaultBranch {
 		result.PlanningPromote = true
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
-	stateChanged := false
+	if stateChanged {
+		state.LastUpdatedAt = now
+	}
 
 	slugs := make([]string, 0, len(state.Stories))
 	for slug := range state.Stories {
 		slugs = append(slugs, slug)
 	}
 	sort.Strings(slugs)
+	milestoneCache := map[string]*int{}
 
 	for _, slug := range slugs {
 		record := state.Stories[slug]
 		previous := record
-		epic, err := notes.Read(filepath.Join(info.EpicsDir, record.Epic+".md"))
-		if err != nil {
-			return nil, err
-		}
 		spec, err := notes.Read(filepath.Join(info.SpecsDir, record.Spec+".md"))
 		if err != nil {
 			return nil, err
@@ -95,17 +107,24 @@ func (m *Manager) ReconcileGitHubStories(options GitHubReconcileOptions) (*GitHu
 			result.BlockedStories = append(result.BlockedStories, slug)
 		}
 
-		body := mergeManagedIssueBody(issue.Body, renderGitHubStoryIssueBody(state, &context.Repo, epic, spec, record))
+		body := mergeManagedIssueBody(issue.Body, renderGitHubStoryIssueBody(state, &context.Repo, spec, record))
+		milestoneNumber, err := m.resolveSpecInitiativeMilestoneCached(info, state.Repo, spec, milestoneCache)
+		if err != nil {
+			return nil, err
+		}
+		milestoneChanged, desiredMilestone, clearMilestone := milestoneUpdate(issue.Milestone, milestoneNumber)
 		labels := issue.Labels
 		if options.UpdateVisible {
 			labels = applyDerivedReadyLabels(labels, status, ready)
 		}
-		if body != issue.Body || !sameStringSlice(labels, issue.Labels) {
+		if body != issue.Body || !sameStringSlice(labels, issue.Labels) || milestoneChanged {
 			updatedIssue, err := m.github.UpdateIssue(info.ProjectDir, state.Repo, record.IssueNumber, GitHubIssueInput{
-				Title:  record.Title,
-				Body:   body,
-				State:  issue.State,
-				Labels: labels,
+				Title:          record.Title,
+				Body:           body,
+				State:          issue.State,
+				Labels:         labels,
+				Milestone:      desiredMilestone,
+				ClearMilestone: clearMilestone,
 			})
 			if err != nil {
 				return nil, err

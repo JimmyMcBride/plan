@@ -4,7 +4,8 @@ Created: 2026-04-16T05:33:06Z
 
 ## Vision
 
-Build the best local-first planning tool for AI-assisted software projects.
+Build the best default-local, backend-flexible planning tool for AI-assisted
+software projects.
 
 `plan` should help indie developers and small teams turn rough ideas into
 shaped, execution-ready specs and stories without PM theater, cloud lock-in, or
@@ -12,7 +13,8 @@ memory/context-management bloat.
 
 ## Principles
 
-- Local-first and markdown-first.
+- Local-first by default, backend-flexible by design.
+- Markdown-first where local planning is the chosen source of truth.
 - Planning only.
 - Specs are the contract.
 - Simple default flow, deeper shaping later.
@@ -20,28 +22,54 @@ memory/context-management bloat.
 
 ## Constraints
 
-- All durable planning material lives in `.plan/`.
+- `.plan/` is the default local planning store, not the only possible durable
+  source of truth.
+- `plan` must support explicit source-of-truth modes: `local`, `github`, and
+  `hybrid`.
 - No hosted dependency is required for core workflows.
 - No issue-tracker clone behavior in the planning core.
-- External sync is later than local refinement quality.
+- Local quality still sets the bar, but external backends may own persistent
+  planning data when configured.
+- This repo uses Gitflow with `develop` as the active integration branch,
+  `release/vX.Y.Z` as the release stabilization branch, and `main` as the
+  release-only production branch.
+- Protected branches are changed only through pull requests.
 
 ## Planning Rules
 
-- Brainstorm is discovery, not a canonical hierarchy level.
+- Brainstorm is a session, not a canonical hierarchy level.
+- Persistent planning data can live locally or in integrations depending on the
+  configured backend and ownership model.
+- Ownership by planning layer must be explicit when using `github` or `hybrid`
+  mode.
 - Specs are the canonical execution contract.
 - Stories are created only after spec approval.
 - Stories should be execution-ready and verification-aware.
 - New passes should improve clarity, boundedness, and agent executability.
-- If GitHub story mode is enabled, stories live in GitHub Issues rather than
-  local markdown notes.
+- GitHub is the first external planning backend being actively shaped.
+- Current GitHub implementations can be narrower than the target architecture,
+  but the product direction is intentionally backend-flexible.
 - GitHub execution follows a queue loop: establish ready work, grab the next
-  issue or issues, ship a PR, review until ready, squash-merge, return to
-  `main`, run `plan update`, reconcile, then grab the next ready work.
+  issue or issues, ship a PR, review until ready, squash-merge into
+  `develop`, refresh local `develop` from `origin/develop`, run `plan update`,
+  reconcile, then grab the next ready work.
+
+## Delivery Rules
+
+- Normal ongoing work lands in `develop`.
+- Official releases are cut from `develop` onto `release/vX.Y.Z`, then merged
+  into `main`.
+- Release fixes land in `develop` first, then are cherry-picked into the active
+  `release/vX.Y.Z` branch.
+- Production hotfixes must be merged back into `develop`.
+- After each merge into `develop`, run
+  `./scripts/refresh-plan-develop-context.sh` to refresh local `plan` context.
 
 ## Notes
 
 - v4 focuses on refinement and simplification.
 - v5 focuses on skill quality, shaping, and evals.
 - v6 focuses on story slicing and critique.
-- v7 is GitHub sync only if local planning quality clearly earns the added complexity.
+- v7 expands `plan` beyond local-only assumptions while preserving the local
+  default.
 - v8 focuses on guided co-planning and stage-by-stage execution handoffs.

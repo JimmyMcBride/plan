@@ -1,11 +1,15 @@
 {
   "schema_version": 1,
   "known": [],
-  "last_run_at": "2026-04-20T04:03:30Z",
+  "last_run_at": "2026-04-22T04:17:54Z",
   "status": "current",
   "last_operation": "update",
   "last_created": [
-    ".plan/.meta/guided_sessions.json"
+    ".plan/ideas",
+    ".plan/archive"
+  ],
+  "last_updated": [
+    ".plan/.meta/workspace.json"
   ],
   "history": [
     {
@@ -30,6 +34,18 @@
       "status": "current",
       "created": [
         ".plan/.meta/guided_sessions.json"
+      ]
+    },
+    {
+      "operation": "update",
+      "at": "2026-04-22T04:17:54Z",
+      "status": "current",
+      "created": [
+        ".plan/ideas",
+        ".plan/archive"
+      ],
+      "updated": [
+        ".plan/.meta/workspace.json"
       ]
     }
   ]
