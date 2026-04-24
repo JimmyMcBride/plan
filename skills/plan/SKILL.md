@@ -52,7 +52,9 @@ When a repo uses `plan`:
 - `plan discuss promote --project . --brainstorm <brainstorm-slug> --format json`
 - `plan discuss promote --project . --discussion <number-or-url> --format json`
 - `plan guide current --project . --format json` when a guided brainstorm session is active
-- `plan guide show --project . --chain <chain-id> --stage brainstorm --checkpoint <checkpoint> --format json` for explicit preview/debug use
+- `plan guide show --project . --chain <chain-id> --stage brainstorm --checkpoint <checkpoint> --format json` for explicit brainstorm preview/debug use
+- `plan guide show --project . --brainstorm <brainstorm-slug> --stage <discussion_assess|promotion_review|initiative_draft|spec_draft|needs_refinement> --format json`
+- `plan guide show --project . --discussion <number-or-url> --stage <discussion_assess|promotion_review|initiative_draft|spec_draft|needs_refinement> --format json`
 - `plan epic create|promote|shape ...` only when a repo still depends on the legacy transition path
 - `plan spec show --project . <spec-slug>`
 - `plan spec analyze --project . <spec-slug>`
@@ -78,6 +80,7 @@ When a repo uses `plan`:
 - `discuss promote` should stay draft-first unless the task explicitly calls for `--apply --confirm`.
 - today, `discuss promote --apply` is implemented for `github` and `hybrid`; repo-backed local promotion still uses the legacy compatibility path
 - When a guided brainstorm session is active, prefer live guide packets over static stage prose.
+- For collaboration shaping, use `plan guide show` to wrap the canonical `discuss` payloads instead of inventing a parallel promotion contract.
 - `epic shape` is now a legacy compatibility pass, not the preferred active model.
 - `spec analyze` should pressure-test a spec without rewriting its canonical sections.
 - `spec checklist` should add profile-driven rigor without mutating the canonical sections.

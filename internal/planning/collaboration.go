@@ -67,10 +67,11 @@ const (
 type ReadinessState string
 
 const (
-	ReadinessClarifying ReadinessState = "clarifying"
-	ReadinessReady      ReadinessState = "ready"
-	ReadinessBlocked    ReadinessState = "blocked"
-	ReadinessDone       ReadinessState = "done"
+	ReadinessClarifying      ReadinessState = "clarifying"
+	ReadinessReady           ReadinessState = "ready"
+	ReadinessBlocked         ReadinessState = "blocked"
+	ReadinessNeedsRefinement ReadinessState = "needs-refinement"
+	ReadinessDone            ReadinessState = "done"
 )
 
 type CollaborationSourceRef struct {
@@ -266,7 +267,11 @@ func (m *Manager) BuildPromotionDraft(input PromotionDraftInput) (*PromotionDraf
 		specTitles = []string{fallbackSpecTitle(data.title)}
 	}
 	if draft.PromotionDecision == PromotionSingleSpec {
-		specDraft := buildPromotionSpecDraft(data, specTitles[0], nil)
+		refinementExceptions := buildRefinementExceptions(data, specTitles)
+		specDraft := buildPromotionSpecDraft(data, specTitles[0], nil, refinementExceptions[specTitles[0]])
+		if exception, ok := refinementExceptions[specTitles[0]]; ok {
+			draft.NeedsRefinementExceptions = append(draft.NeedsRefinementExceptions, exception)
+		}
 		draft.ProposedSpecIssues = []PromotionIssueDraft{specDraft}
 		return draft, nil
 	}
@@ -286,10 +291,14 @@ func (m *Manager) BuildPromotionDraft(input PromotionDraftInput) (*PromotionDraf
 			BlockedBy:  append([]string(nil), dep.BlockedBy...),
 		})
 	}
+	refinementExceptions := buildRefinementExceptions(data, specTitles)
 	for _, title := range specTitles {
 		blockedBy := findBlockedByForTitle(decision.DependencyGuess, title)
-		specDraft := buildPromotionSpecDraft(data, title, blockedBy)
+		specDraft := buildPromotionSpecDraft(data, title, blockedBy, refinementExceptions[title])
 		draft.ProposedSpecIssues = append(draft.ProposedSpecIssues, specDraft)
+		if exception, ok := refinementExceptions[title]; ok {
+			draft.NeedsRefinementExceptions = append(draft.NeedsRefinementExceptions, exception)
+		}
 	}
 	draft.MilestonePlan = &PromotionMilestonePlan{
 		Create: true,
@@ -742,11 +751,18 @@ func buildPromotionInitiativeDraft(data *collaborationSourceData, title string, 
 	}
 }
 
-func buildPromotionSpecDraft(data *collaborationSourceData, title string, blockedBy []string) PromotionIssueDraft {
-	body := renderPromotionSpecBody(title, data, blockedBy, nil)
+func buildPromotionSpecDraft(data *collaborationSourceData, title string, blockedBy []string, exception PromotionRefinementException) PromotionIssueDraft {
+	var exceptionPtr *PromotionRefinementException
+	if strings.TrimSpace(exception.IssueTitle) != "" {
+		exceptionPtr = &exception
+	}
+	body := renderPromotionSpecBody(title, data, blockedBy, exceptionPtr)
 	readiness := ReadinessReady
 	labels := []string{"enhancement", planIssueReadyLabel}
-	if len(blockedBy) > 0 {
+	if exceptionPtr != nil {
+		readiness = ReadinessNeedsRefinement
+		labels = []string{"enhancement"}
+	} else if len(blockedBy) > 0 {
 		readiness = ReadinessBlocked
 		labels = []string{"enhancement", planIssueBlockedLabel}
 	}
@@ -759,8 +775,47 @@ func buildPromotionSpecDraft(data *collaborationSourceData, title string, blocke
 		Labels:         labels,
 		SourceLinks:    append([]string(nil), data.source.SourceLinks...),
 		BlockedBy:      append([]string(nil), blockedBy...),
-		ReadyByDefault: len(blockedBy) == 0,
+		ReadyByDefault: len(blockedBy) == 0 && exceptionPtr == nil,
 	}
+}
+
+func buildRefinementExceptions(data *collaborationSourceData, specTitles []string) map[string]PromotionRefinementException {
+	out := map[string]PromotionRefinementException{}
+	raw := strings.TrimSpace(data.openQs)
+	if raw == "" {
+		return out
+	}
+	lower := strings.ToLower(raw)
+	if !strings.Contains(lower, "needs-refinement") && !strings.Contains(lower, "refinement gap") {
+		return out
+	}
+	lines := bulletItems(raw)
+	if len(specTitles) == 1 {
+		out[specTitles[0]] = PromotionRefinementException{
+			IssueTitle:               specTitles[0],
+			Gap:                      strings.TrimSpace(raw),
+			WhyNotReady:              "The source still carries an explicit refinement gap that would force execution to guess.",
+			RecommendedClarification: "Resolve the explicit refinement gap before treating this spec as ready.",
+			ExitCriteria:             []string{"The remaining refinement gap is resolved or explicitly deferred."},
+		}
+		return out
+	}
+	for _, title := range specTitles {
+		for _, line := range lines {
+			if !strings.Contains(strings.ToLower(line), strings.ToLower(title)) {
+				continue
+			}
+			out[title] = PromotionRefinementException{
+				IssueTitle:               title,
+				Gap:                      strings.TrimSpace(line),
+				WhyNotReady:              "The source calls out a spec-specific refinement gap that still needs resolution.",
+				RecommendedClarification: "Resolve the explicit refinement note for this spec before execution starts.",
+				ExitCriteria:             []string{"The spec-specific refinement gap is resolved or removed from the source."},
+			}
+			break
+		}
+	}
+	return out
 }
 
 func renderPromotionSpecBody(title string, data *collaborationSourceData, blockedBy []string, exception *PromotionRefinementException) string {
