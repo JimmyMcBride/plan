@@ -73,6 +73,9 @@ func newGitHubCommand() *cobra.Command {
 		Short: "Adopt existing GitHub planning issues into Plan metadata",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if strings.TrimSpace(adoptFormat) != "json" {
+				return fmt.Errorf("unsupported github adopt output format %q; only json is supported", adoptFormat)
+			}
 			issueNumbers, err := parseIssueNumbers(adoptIssues)
 			if err != nil {
 				return err
@@ -85,9 +88,6 @@ func newGitHubCommand() *cobra.Command {
 			})
 			if err != nil {
 				return err
-			}
-			if strings.TrimSpace(adoptFormat) != "json" {
-				return fmt.Errorf("unsupported github adopt output format %q; only json is supported", adoptFormat)
 			}
 			encoder := json.NewEncoder(cmd.OutOrStdout())
 			encoder.SetIndent("", "  ")

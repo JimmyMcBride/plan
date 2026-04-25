@@ -19,6 +19,8 @@ const (
 	promotionDraftKind         = "promotion_draft"
 )
 
+var safeShellArgPattern = regexp.MustCompile(`^[A-Za-z0-9_./:=+-]+$`)
+
 type SourceOfTruthMode = workspace.SourceOfTruthMode
 
 const (
@@ -1660,7 +1662,7 @@ func shellQuote(arg string) string {
 	if arg == "" {
 		return "''"
 	}
-	if regexp.MustCompile(`^[A-Za-z0-9_./:=+-]+$`).MatchString(arg) {
+	if safeShellArgPattern.MatchString(arg) {
 		return arg
 	}
 	return "'" + strings.ReplaceAll(arg, "'", "'\"'\"'") + "'"
@@ -1753,14 +1755,12 @@ func (m *Manager) ensurePromotionLabels(projectDir, repo string, draft *Promotio
 
 func promotionLabelInputs(draft *PromotionDraft) []GitHubLabelInput {
 	colors := map[string]string{
-		"enhancement":            "a2eeef",
 		planIssueInitiativeLabel: "5319e7",
 		planIssueSpecLabel:       "1d76db",
 		planIssueReadyLabel:      "0e8a16",
 		planIssueBlockedLabel:    "d93f0b",
 	}
 	descriptions := map[string]string{
-		"enhancement":            "New feature or request",
 		planIssueInitiativeLabel: "Plan-managed initiative issue",
 		planIssueSpecLabel:       "Plan-managed spec issue",
 		planIssueReadyLabel:      "Plan-managed issue is ready for execution",
@@ -1782,6 +1782,9 @@ func promotionLabelInputs(draft *PromotionDraft) []GitHubLabelInput {
 	out := make([]GitHubLabelInput, 0, len(names))
 	for name := range names {
 		if strings.TrimSpace(name) == "" {
+			continue
+		}
+		if !strings.HasPrefix(name, "plan:") {
 			continue
 		}
 		color := colors[name]

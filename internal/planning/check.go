@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -153,6 +154,7 @@ func (m *Manager) checkGitHubPlanningDrift(info *workspace.Info) ([]CheckFinding
 	recordsByIssue := map[int]workspace.GitHubPlanningRecord{}
 	specsByParent := map[int]int{}
 	specsByMilestone := map[string]int{}
+	milestoneTitlesByKey := map[string]string{}
 	for _, record := range state.Planning {
 		if record.IssueNumber > 0 {
 			recordsByIssue[record.IssueNumber] = record
@@ -164,6 +166,9 @@ func (m *Manager) checkGitHubPlanningDrift(info *workspace.Info) ([]CheckFinding
 			}
 			if key := milestoneKey(record.MilestoneNumber, record.MilestoneTitle); key != "" {
 				specsByMilestone[key]++
+				if milestoneTitlesByKey[key] == "" {
+					milestoneTitlesByKey[key] = strings.TrimSpace(record.MilestoneTitle)
+				}
 			}
 		}
 	}
@@ -228,6 +233,10 @@ func (m *Manager) checkGitHubPlanningDrift(info *workspace.Info) ([]CheckFinding
 			continue
 		}
 		number, title := splitMilestoneKey(key)
+		displayTitle := milestoneTitlesByKey[key]
+		if displayTitle == "" {
+			displayTitle = title
+		}
 		if hasProjectDecisionForMilestone(state, number, title) {
 			continue
 		}
@@ -235,10 +244,10 @@ func (m *Manager) checkGitHubPlanningDrift(info *workspace.Info) ([]CheckFinding
 			Severity:      "error",
 			Rule:          "github_planning.missing_project_decision",
 			ArtifactType:  "github_milestone",
-			ArtifactPath:  title,
-			ArtifactTitle: title,
+			ArtifactPath:  displayTitle,
+			ArtifactTitle: displayTitle,
 			Section:       "GitHub Planning",
-			Message:       fmt.Sprintf("Milestone %q has %d promoted specs but no project prompt decision record.", title, count),
+			Message:       fmt.Sprintf("Milestone %q has %d promoted specs but no project prompt decision record.", displayTitle, count),
 			Suggestion:    "Rerun promotion/adoption with `--project-decision create|skip` so coordination intent is explicit.",
 		})
 	}
@@ -260,6 +269,9 @@ func (m *Manager) planLabeledIssues(projectDir, repo string) ([]GitHubIssue, err
 	for _, issue := range byNumber {
 		out = append(out, issue)
 	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].Number < out[j].Number
+	})
 	return out, nil
 }
 

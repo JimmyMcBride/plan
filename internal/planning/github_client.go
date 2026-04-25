@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -111,6 +112,8 @@ func SetGitHubClientFactoryForTesting(factory func() GitHubClient) func() {
 }
 
 type cliGitHubClient struct{}
+
+const gitHubIssueListLimit = 1000
 
 func (c *cliGitHubClient) Preflight(projectDir string) (*GitHubRepoInfo, error) {
 	if _, err := exec.LookPath("gh"); err != nil {
@@ -257,7 +260,7 @@ func (c *cliGitHubClient) GetIssue(projectDir, repo string, issueNumber int) (*G
 }
 
 func (c *cliGitHubClient) ListIssuesByLabel(projectDir, repo string, labels []string) ([]GitHubIssue, error) {
-	args := []string{"issue", "list", "--repo", repo, "--state", "all", "--limit", "100", "--json", "number,url,title,body,state,labels,milestone"}
+	args := []string{"issue", "list", "--repo", repo, "--state", "all", "--limit", strconv.Itoa(gitHubIssueListLimit), "--json", "number,url,title,body,state,labels,milestone"}
 	for _, label := range labels {
 		if strings.TrimSpace(label) == "" {
 			continue
@@ -268,7 +271,14 @@ func (c *cliGitHubClient) ListIssuesByLabel(projectDir, repo string, labels []st
 	if err != nil {
 		return nil, fmt.Errorf("gh issue list failed: %w", err)
 	}
-	return parseGitHubIssueList(out)
+	issues, err := parseGitHubIssueList(out)
+	if err != nil {
+		return nil, err
+	}
+	if len(issues) >= gitHubIssueListLimit {
+		return nil, fmt.Errorf("GitHub issue listing for labels %s reached the %d issue safety limit; rerun with a narrower Plan label or add pagination before relying on drift checks", strings.Join(labels, ","), gitHubIssueListLimit)
+	}
+	return issues, nil
 }
 
 func (c *cliGitHubClient) EnsureLabel(projectDir, repo string, input GitHubLabelInput) error {
