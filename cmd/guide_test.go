@@ -450,6 +450,14 @@ func (s *stubGuideGitHubClient) GetIssue(projectDir, repo string, issueNumber in
 	return nil, nil
 }
 
+func (s *stubGuideGitHubClient) ListIssuesByLabel(projectDir, repo string, labels []string) ([]planning.GitHubIssue, error) {
+	return nil, nil
+}
+
+func (s *stubGuideGitHubClient) EnsureLabel(projectDir, repo string, input planning.GitHubLabelInput) error {
+	return nil
+}
+
 func (s *stubGuideGitHubClient) FindMilestone(projectDir, repo, title string) (*planning.GitHubMilestone, error) {
 	return nil, nil
 }
@@ -459,6 +467,11 @@ func (s *stubGuideGitHubClient) CreateMilestone(projectDir, repo string, input p
 }
 
 func (s *stubGuideGitHubClient) GetDiscussion(projectDir, repo string, number int) (*planning.GitHubDiscussion, error) {
+	return s.discussions[number], nil
+}
+
+func (s *stubGuideGitHubClient) UpdateDiscussionBody(projectDir, repo string, number int, body string) (*planning.GitHubDiscussion, error) {
+	s.discussions[number].Body = body
 	return s.discussions[number], nil
 }
 

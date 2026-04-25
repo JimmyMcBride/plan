@@ -154,6 +154,11 @@ plan discuss promote --project . --discussion 49 --format json
 plan discuss promote --project . --discussion 49 --apply --confirm --target github --format json
 ```
 
+If Plan says the source needs repair, use the emitted repair command before
+promotion. In GitHub or hybrid source mode, do not create planning issues,
+labels, or milestones manually unless Plan emitted `manual_fallback_allowed=true`;
+after any allowed fallback, run `plan github adopt`.
+
 Full guide:
 
 - [Using plan](docs/using-plan.md)
@@ -168,11 +173,12 @@ Full guide:
 - `plan brainstorm start|idea|show|refine`
 - `plan brainstorm challenge`
 - `plan discuss assess|promote`
+- `plan discuss repair`
 - `plan guide current|show` for brainstorm and collaboration guide packets
 - `plan epic create|promote|list|show|shape` for legacy compatibility during migration
 - `plan spec show|edit|status|analyze|checklist|initiative|execute|handoff`
 - `plan story create|update|list|show|slice|critique` for legacy compatibility during migration
-- `plan github enable|reconcile`
+- `plan github enable|reconcile|adopt`
 - `plan roadmap show|edit`
 - `plan check`
 - `plan status`

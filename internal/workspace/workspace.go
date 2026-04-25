@@ -43,14 +43,15 @@ type WorkspaceMeta struct {
 }
 
 type GitHubState struct {
-	Repo           string                          `json:"repo,omitempty"`
-	RepoURL        string                          `json:"repo_url,omitempty"`
-	DefaultBranch  string                          `json:"default_branch,omitempty"`
-	LastEnabledAt  string                          `json:"last_enabled_at,omitempty"`
-	LastUpdatedAt  string                          `json:"last_updated_at,omitempty"`
-	LastReconciled string                          `json:"last_reconciled_at,omitempty"`
-	Stories        map[string]GitHubStoryRecord    `json:"stories"`
-	Planning       map[string]GitHubPlanningRecord `json:"planning"`
+	Repo             string                                 `json:"repo,omitempty"`
+	RepoURL          string                                 `json:"repo_url,omitempty"`
+	DefaultBranch    string                                 `json:"default_branch,omitempty"`
+	LastEnabledAt    string                                 `json:"last_enabled_at,omitempty"`
+	LastUpdatedAt    string                                 `json:"last_updated_at,omitempty"`
+	LastReconciled   string                                 `json:"last_reconciled_at,omitempty"`
+	Stories          map[string]GitHubStoryRecord           `json:"stories"`
+	Planning         map[string]GitHubPlanningRecord        `json:"planning"`
+	ProjectDecisions map[string]GitHubProjectDecisionRecord `json:"project_decisions,omitempty"`
 }
 
 type GitHubPlanningRecord struct {
@@ -71,6 +72,20 @@ type GitHubPlanningRecord struct {
 	MilestoneTitle    string   `json:"milestone_title,omitempty"`
 	BlockedBy         []string `json:"blocked_by,omitempty"`
 	UpdatedAt         string   `json:"updated_at,omitempty"`
+}
+
+type GitHubProjectDecisionRecord struct {
+	Slug             string `json:"slug"`
+	Decision         string `json:"decision"`
+	Reason           string `json:"reason,omitempty"`
+	SpecCount        int    `json:"spec_count,omitempty"`
+	MilestoneNumber  int    `json:"milestone_number,omitempty"`
+	MilestoneTitle   string `json:"milestone_title,omitempty"`
+	SourceMode       string `json:"source_mode,omitempty"`
+	EntryMode        string `json:"entry_mode,omitempty"`
+	DiscussionNumber int    `json:"discussion_number,omitempty"`
+	DiscussionURL    string `json:"discussion_url,omitempty"`
+	UpdatedAt        string `json:"updated_at,omitempty"`
 }
 
 type GitHubStoryRecord struct {
@@ -456,6 +471,9 @@ func readGitHubStateFile(path string) (*GitHubState, error) {
 	}
 	if state.Planning == nil {
 		state.Planning = map[string]GitHubPlanningRecord{}
+	}
+	if state.ProjectDecisions == nil {
+		state.ProjectDecisions = map[string]GitHubProjectDecisionRecord{}
 	}
 	return &state, nil
 }
@@ -959,9 +977,10 @@ func defaultMigrationState(now string) MigrationState {
 
 func defaultGitHubState(now string) GitHubState {
 	return GitHubState{
-		LastUpdatedAt: now,
-		Stories:       map[string]GitHubStoryRecord{},
-		Planning:      map[string]GitHubPlanningRecord{},
+		LastUpdatedAt:    now,
+		Stories:          map[string]GitHubStoryRecord{},
+		Planning:         map[string]GitHubPlanningRecord{},
+		ProjectDecisions: map[string]GitHubProjectDecisionRecord{},
 	}
 }
 

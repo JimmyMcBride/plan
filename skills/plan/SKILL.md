@@ -51,6 +51,10 @@ When a repo uses `plan`:
 - `plan discuss assess --project . --discussion <number-or-url> --format json`
 - `plan discuss promote --project . --brainstorm <brainstorm-slug> --format json`
 - `plan discuss promote --project . --discussion <number-or-url> --format json`
+- `plan discuss repair --project . --brainstorm <brainstorm-slug> --spec "<title>" --spec "<title>" --format json`
+- `plan discuss repair --project . --discussion <number-or-url> --spec "<title>" --spec "<title>" --confirm --format json`
+- `plan github adopt --project . --brainstorm <brainstorm-slug> --issues <numbers> --format json`
+- `plan github adopt --project . --discussion <number-or-url> --issues <numbers> --format json`
 - `plan guide current --project . --format json` when a guided brainstorm session is active
 - `plan guide show --project . --chain <chain-id> --stage brainstorm --checkpoint <checkpoint> --format json` for explicit brainstorm preview/debug use
 - `plan guide show --project . --brainstorm <brainstorm-slug> --stage <discussion_assess|promotion_review|initiative_draft|spec_draft|needs_refinement> --format json`
@@ -78,6 +82,8 @@ When a repo uses `plan`:
 - `brainstorm challenge` should pressure-test risk, no-gos, and overengineering before promotion.
 - `discuss assess` should produce an explicit maturity decision before a GitHub-backed promotion happens.
 - `discuss promote` should stay draft-first unless the task explicitly calls for `--apply --confirm`.
+- In `github` or `hybrid` source mode, never create planning issues, labels, milestones, or project prompts with `gh` unless Plan emitted `manual_fallback_allowed=true`.
+- If Plan output disagrees with user intent, repair the Plan source with `plan discuss repair` and rerun assess/promote instead of filling the gap manually.
 - today, `discuss promote --apply` is implemented for `github` and `hybrid`; repo-backed local promotion still uses the legacy compatibility path
 - When a guided brainstorm session is active, prefer live guide packets over static stage prose.
 - For collaboration shaping, use `plan guide show` to wrap the canonical `discuss` payloads instead of inventing a parallel promotion contract.
@@ -134,6 +140,7 @@ Use the smallest pass that resolves the current planning gap:
 
 - if the next shaping pass is obvious, run it
 - if two passes could apply, choose the lighter one first
-- if the repo is in `github` or `hybrid` mode, prefer `discuss assess` and `discuss promote` before inventing new issue text manually
+- if the repo is in `github` or `hybrid` mode, use `discuss assess` and `discuss promote`; do not invent issue text or create GitHub planning objects manually
+- if `discuss assess` returns `needs_source_repair`, run the emitted repair command and reassess before promotion
 - if backend ownership is unclear, inspect project rules and current GitHub state before editing durable planning artifacts
 - do not turn `plan` into memory, context, or execution orchestration

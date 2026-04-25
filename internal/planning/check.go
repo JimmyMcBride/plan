@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 
 	"plan/internal/notes"
@@ -77,6 +79,11 @@ func (m *Manager) Check(input CheckInput) (*CheckReport, error) {
 	for _, story := range stories {
 		report.Findings = append(report.Findings, checkStoryNote(rel(info.ProjectDir, story.Path), story)...)
 	}
+	githubFindings, err := m.checkGitHubPlanningDrift(info)
+	if err != nil {
+		return nil, err
+	}
+	report.Findings = append(report.Findings, githubFindings...)
 
 	return report, nil
 }
@@ -117,6 +124,197 @@ func (m *Manager) storyNotesForCheck(info *workspace.Info, input CheckInput) ([]
 	default:
 		return nil, nil
 	}
+}
+
+func (m *Manager) checkGitHubPlanningDrift(info *workspace.Info) ([]CheckFinding, error) {
+	meta, err := m.workspace.ReadWorkspaceMeta()
+	if err != nil {
+		return nil, err
+	}
+	if meta.SourceMode != workspace.SourceOfTruthGitHub && meta.SourceMode != workspace.SourceOfTruthHybrid {
+		return nil, nil
+	}
+	state, err := m.workspace.ReadGitHubState()
+	if err != nil {
+		return nil, err
+	}
+	repo := strings.TrimSpace(state.Repo)
+	if repo == "" {
+		context, err := m.github.CurrentContext(info.ProjectDir)
+		if err != nil {
+			return nil, err
+		}
+		repo = context.Repo.Repo
+	}
+	remoteIssues, err := m.planLabeledIssues(info.ProjectDir, repo)
+	if err != nil {
+		return nil, err
+	}
+
+	recordsByIssue := map[int]workspace.GitHubPlanningRecord{}
+	specsByParent := map[int]int{}
+	specsByMilestone := map[string]int{}
+	milestoneTitlesByKey := map[string]string{}
+	for _, record := range state.Planning {
+		if record.IssueNumber > 0 {
+			recordsByIssue[record.IssueNumber] = record
+		}
+		switch record.Kind {
+		case "spec":
+			if record.ParentIssueNumber > 0 {
+				specsByParent[record.ParentIssueNumber]++
+			}
+			if key := milestoneKey(record.MilestoneNumber, record.MilestoneTitle); key != "" {
+				specsByMilestone[key]++
+				if milestoneTitlesByKey[key] == "" {
+					milestoneTitlesByKey[key] = strings.TrimSpace(record.MilestoneTitle)
+				}
+			}
+		}
+	}
+
+	var findings []CheckFinding
+	initiativeTitles := map[string]struct{}{}
+	for _, record := range state.Planning {
+		if record.Kind != "initiative" {
+			continue
+		}
+		initiativeTitles[strings.ToLower(record.Title)] = struct{}{}
+		initiativeTitles[strings.ToLower(record.Slug)] = struct{}{}
+		if specsByParent[record.IssueNumber] > 1 && record.MilestoneNumber == 0 {
+			findings = append(findings, githubDriftFinding(
+				"github_planning.missing_multi_spec_milestone",
+				record.IssueURL,
+				record.Title,
+				"Multi-spec initiative is missing milestone metadata.",
+				"Run `plan github adopt` or rerun `plan discuss promote --apply` so the milestone is created and mirrored.",
+			))
+		}
+	}
+
+	for _, issue := range remoteIssues {
+		record, tracked := recordsByIssue[issue.Number]
+		if !tracked {
+			findings = append(findings, githubDriftFinding(
+				"github_planning.untracked_issue",
+				issue.URL,
+				issue.Title,
+				"GitHub planning issue has a Plan label but no .plan/.meta/github.json planning record.",
+				"Run `plan github adopt` with the source and issue numbers, or remove the Plan label if this is not Plan-managed.",
+			))
+		}
+		if issue.Milestone == nil {
+			for _, label := range issue.Labels {
+				if _, ok := initiativeTitles[strings.ToLower(label)]; ok {
+					findings = append(findings, githubDriftFinding(
+						"github_planning.label_used_as_milestone",
+						issue.URL,
+						issue.Title,
+						fmt.Sprintf("Issue uses label %q where Plan expects the initiative milestone.", label),
+						"Remove the grouping label and attach the issue to the Plan-created milestone.",
+					))
+					break
+				}
+			}
+		}
+		if tracked && record.Kind == "initiative" && issue.Milestone == nil && specsByParent[record.IssueNumber] > 1 {
+			findings = append(findings, githubDriftFinding(
+				"github_planning.remote_missing_milestone",
+				issue.URL,
+				issue.Title,
+				"Remote multi-spec initiative issue is not attached to its milestone.",
+				"Run `plan github adopt` to attach the milestone and refresh metadata.",
+			))
+		}
+	}
+
+	for key, count := range specsByMilestone {
+		if count < 5 {
+			continue
+		}
+		number, title := splitMilestoneKey(key)
+		displayTitle := milestoneTitlesByKey[key]
+		if displayTitle == "" {
+			displayTitle = title
+		}
+		if hasProjectDecisionForMilestone(state, number, title) {
+			continue
+		}
+		findings = append(findings, CheckFinding{
+			Severity:      "error",
+			Rule:          "github_planning.missing_project_decision",
+			ArtifactType:  "github_milestone",
+			ArtifactPath:  displayTitle,
+			ArtifactTitle: displayTitle,
+			Section:       "GitHub Planning",
+			Message:       fmt.Sprintf("Milestone %q has %d promoted specs but no project prompt decision record.", displayTitle, count),
+			Suggestion:    "Rerun promotion/adoption with `--project-decision create|skip` so coordination intent is explicit.",
+		})
+	}
+	return findings, nil
+}
+
+func (m *Manager) planLabeledIssues(projectDir, repo string) ([]GitHubIssue, error) {
+	byNumber := map[int]GitHubIssue{}
+	for _, label := range []string{planIssueInitiativeLabel, planIssueSpecLabel} {
+		issues, err := m.github.ListIssuesByLabel(projectDir, repo, []string{label})
+		if err != nil {
+			return nil, err
+		}
+		for _, issue := range issues {
+			byNumber[issue.Number] = issue
+		}
+	}
+	out := make([]GitHubIssue, 0, len(byNumber))
+	for _, issue := range byNumber {
+		out = append(out, issue)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].Number < out[j].Number
+	})
+	return out, nil
+}
+
+func githubDriftFinding(rule, path, title, message, suggestion string) CheckFinding {
+	return CheckFinding{
+		Severity:      "error",
+		Rule:          rule,
+		ArtifactType:  "github_issue",
+		ArtifactPath:  path,
+		ArtifactTitle: title,
+		Section:       "GitHub Planning",
+		Message:       message,
+		Suggestion:    suggestion,
+	}
+}
+
+func milestoneKey(number int, title string) string {
+	title = strings.TrimSpace(title)
+	if number == 0 && title == "" {
+		return ""
+	}
+	return fmt.Sprintf("%d:%s", number, strings.ToLower(title))
+}
+
+func splitMilestoneKey(key string) (int, string) {
+	parts := strings.SplitN(key, ":", 2)
+	if len(parts) != 2 {
+		return 0, key
+	}
+	number, _ := strconv.Atoi(parts[0])
+	return number, parts[1]
+}
+
+func hasProjectDecisionForMilestone(state *workspace.GitHubState, number int, title string) bool {
+	for _, decision := range state.ProjectDecisions {
+		if number > 0 && decision.MilestoneNumber == number {
+			return true
+		}
+		if strings.EqualFold(strings.TrimSpace(decision.MilestoneTitle), strings.TrimSpace(title)) && strings.TrimSpace(title) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *Manager) readStoriesByFilter(info *workspace.Info, keep func(StoryInfo) bool) ([]*notes.Note, error) {

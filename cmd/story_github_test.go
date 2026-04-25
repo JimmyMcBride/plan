@@ -61,6 +61,14 @@ func (s *stubGitHubStoryClient) GetIssue(projectDir, repo string, issueNumber in
 	return &copy, nil
 }
 
+func (s *stubGitHubStoryClient) ListIssuesByLabel(projectDir, repo string, labels []string) ([]planning.GitHubIssue, error) {
+	return nil, nil
+}
+
+func (s *stubGitHubStoryClient) EnsureLabel(projectDir, repo string, input planning.GitHubLabelInput) error {
+	return nil
+}
+
 func (s *stubGitHubStoryClient) FindMilestone(projectDir, repo, title string) (*planning.GitHubMilestone, error) {
 	return nil, nil
 }
@@ -80,6 +88,16 @@ func (s *stubGitHubStoryClient) GetDiscussion(projectDir, repo string, number in
 	copy := *item
 	copy.Comments = append([]planning.GitHubDiscussionComment(nil), item.Comments...)
 	return &copy, nil
+}
+
+func (s *stubGitHubStoryClient) UpdateDiscussionBody(projectDir, repo string, number int, body string) (*planning.GitHubDiscussion, error) {
+	item, err := s.GetDiscussion(projectDir, repo, number)
+	if err != nil {
+		return nil, err
+	}
+	item.Body = body
+	s.discussions[number].Body = body
+	return item, nil
 }
 
 func (s *stubGitHubStoryClient) AddSubIssue(projectDir, repo string, issueNumber, subIssueNumber int) error {

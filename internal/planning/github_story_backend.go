@@ -12,11 +12,13 @@ import (
 )
 
 const (
-	planIssueBlockStart   = "<!-- plan:start -->"
-	planIssueBlockEnd     = "<!-- plan:end -->"
-	planIssueMetaPrefix   = "<!-- plan:meta"
-	planIssueReadyLabel   = "plan:ready"
-	planIssueBlockedLabel = "plan:blocked"
+	planIssueBlockStart      = "<!-- plan:start -->"
+	planIssueBlockEnd        = "<!-- plan:end -->"
+	planIssueMetaPrefix      = "<!-- plan:meta"
+	planIssueInitiativeLabel = "plan:initiative"
+	planIssueSpecLabel       = "plan:spec"
+	planIssueReadyLabel      = "plan:ready"
+	planIssueBlockedLabel    = "plan:blocked"
 )
 
 func (m *Manager) storyBackendForInfo() (workspace.StoryBackend, error) {
