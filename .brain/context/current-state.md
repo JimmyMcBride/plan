@@ -1,5 +1,5 @@
 ---
-updated: "2026-04-25T04:43:54Z"
+updated: "2026-04-25T05:03:09Z"
 ---
 # Current State
 
@@ -36,3 +36,4 @@ Add repo-specific notes here. `brain context refresh` preserves content outside 
 - On April 23, 2026, PR `#55` review feedback tightened the GitHub collaboration foundation: promotion dependency edges now wire in a second pass after all issues exist, guide packets default blank `source_mode` to `local`, GraphQL responses now fail on `errors` and paginate Discussion comments, promotion drafts keep `proposed_spec_issues` as a stable empty array when not ready, and bullet parsing strips GitHub task-list markers before deriving spec titles.
 - On April 23, 2026, workspace refresh stopped backfilling optional compatibility defaults into tracked metadata during `plan update`: `source_mode` and GitHub `planning` map now default in memory on read, so `./scripts/refresh-plan-develop-context.sh` no longer dirties `develop` just to normalize older `.plan/.meta/*.json` files.
 - On April 25, 2026, GitHub promotion became fail-closed: explicit multi-spec sources that parse as fewer than two specs now return `needs_source_repair`, `plan discuss repair` owns canonical `## Specs` repair, promotion drafts include hard agent policy and fallback gating, 5+ spec apply/adopt requires `--project-decision`, `plan github adopt` recovers manual issue sets, and `plan check` detects Plan-labeled GitHub planning drift.
+- On April 25, 2026, PR `#62` review comments tightened the fail-closed promotion branch: GitHub issue listing now raises on 1000-item truncation instead of silently missing Plan-labeled issues, `github adopt` validates output format before mutation, drift findings are deterministic and preserve milestone display casing, label ensuring only touches Plan-owned `plan:*` labels, and shell command quoting reuses a package-level regex.
