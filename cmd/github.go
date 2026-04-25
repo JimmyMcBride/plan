@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"plan/internal/planning"
@@ -59,6 +61,66 @@ func newGitHubCommand() *cobra.Command {
 	}
 	reconcile.Flags().BoolVar(&updateVisible, "update-visible", false, "update optional GitHub-visible readiness markers while reconciling")
 
-	cmd.AddCommand(enable, reconcile)
+	var (
+		adoptBrainstorm      string
+		adoptDiscussion      string
+		adoptIssues          []string
+		adoptFormat          string
+		adoptProjectDecision string
+	)
+	adopt := &cobra.Command{
+		Use:   "adopt",
+		Short: "Adopt existing GitHub planning issues into Plan metadata",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if strings.TrimSpace(adoptFormat) != "json" {
+				return fmt.Errorf("unsupported github adopt output format %q; only json is supported", adoptFormat)
+			}
+			issueNumbers, err := parseIssueNumbers(adoptIssues)
+			if err != nil {
+				return err
+			}
+			result, err := planningManager().AdoptGitHubPromotion(planning.GitHubAdoptInput{
+				BrainstormSlug:  adoptBrainstorm,
+				DiscussionRef:   adoptDiscussion,
+				IssueNumbers:    issueNumbers,
+				ProjectDecision: strings.TrimSpace(adoptProjectDecision),
+			})
+			if err != nil {
+				return err
+			}
+			encoder := json.NewEncoder(cmd.OutOrStdout())
+			encoder.SetIndent("", "  ")
+			return encoder.Encode(result)
+		},
+	}
+	adopt.Flags().StringVar(&adoptBrainstorm, "brainstorm", "", "local brainstorm slug that produced the promotion draft")
+	adopt.Flags().StringVar(&adoptDiscussion, "discussion", "", "GitHub Discussion number or URL that produced the promotion draft")
+	adopt.Flags().StringSliceVar(&adoptIssues, "issues", nil, "GitHub issue numbers in draft order, comma-separated or repeated")
+	adopt.Flags().StringVar(&adoptFormat, "format", "json", "output format: json")
+	adopt.Flags().StringVar(&adoptProjectDecision, "project-decision", "", "project prompt decision for 5+ spec promotions: create or skip")
+
+	cmd.AddCommand(enable, reconcile, adopt)
 	return cmd
+}
+
+func parseIssueNumbers(values []string) ([]int, error) {
+	var out []int
+	for _, value := range values {
+		for _, part := range strings.Split(value, ",") {
+			part = strings.TrimSpace(strings.TrimPrefix(part, "#"))
+			if part == "" {
+				continue
+			}
+			number, err := strconv.Atoi(part)
+			if err != nil || number <= 0 {
+				return nil, fmt.Errorf("invalid issue number %q", part)
+			}
+			out = append(out, number)
+		}
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("github adopt requires --issues")
+	}
+	return out, nil
 }

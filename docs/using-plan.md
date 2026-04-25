@@ -307,6 +307,7 @@ plan discuss assess --project . --discussion 49 --format json
 The assessment decides whether the source is:
 
 - `not_ready`
+- `needs_source_repair`
 - `ready_single_spec`
 - `ready_multi_spec`
 
@@ -317,6 +318,15 @@ The JSON output includes:
 - recommended path
 - suggested issue titles
 - an initial dependency guess
+- a blocking repair command when explicit multi-spec intent cannot be parsed
+
+If the source asks for multiple spec issues but Plan cannot parse at least two
+spec titles, repair the source instead of creating GitHub issues manually:
+
+```bash
+plan discuss repair --project . --brainstorm newsletter-system --spec "Template CRUD" --spec "Preview API" --format json
+plan discuss repair --project . --discussion 49 --spec "Template CRUD" --spec "Preview API" --confirm --format json
+```
 
 ### 6. Review The Promotion Draft
 
@@ -342,6 +352,8 @@ The draft tells you:
 - whether a milestone should be created
 - whether a project should be recommended
 - whether any spec should start with `needs-refinement`
+- the agent policy that forbids manual GitHub planning mutations unless Plan
+  emits `manual_fallback_allowed=true`
 
 Rules:
 
@@ -373,6 +385,11 @@ Current shipped boundary:
   compatibility path to create the local spec file today
 - the promoted issue body becomes the canonical distilled planning artifact
 - the original GitHub Discussion stays linked as collaboration history
+- promotions with 5+ specs require `--project-decision create|skip` so project
+  tracking is never silently skipped
+- if a valid apply path fails on the GitHub API, Plan emits
+  `manual_fallback_allowed=true`; only then may an agent use manual `gh`
+  commands, followed by `plan github adopt`
 
 When a multi-spec promotion is applied, `plan` will:
 
@@ -386,6 +403,12 @@ When a multi-spec promotion is applied, `plan` will:
 
 By default, new spec issues are `ready`. A spec starts as `needs-refinement`
 only when the draft identified a concrete execution gap.
+
+Recover manually-created or pre-existing planning issues with:
+
+```bash
+plan github adopt --project . --discussion 49 --issues 101,102,103 --format json
+```
 
 ### 8. Preview Collaboration Guide Packets
 
