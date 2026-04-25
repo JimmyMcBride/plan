@@ -474,6 +474,7 @@ func collaborationGuideContract(stage, artifactPath string) GuidePacketContract 
 			"Do not replace the canonical discuss payloads with ad hoc packet-only data.",
 			"Do not mutate the collaboration source while rendering the packet.",
 			"Do not invent execution-state automation during collaboration shaping.",
+			"Do not create GitHub planning issues, labels, milestones, or projects manually unless Plan emits manual_fallback_allowed=true.",
 		},
 		StrengthenSections: collaborationStrengthenSections(stage),
 	}
@@ -489,6 +490,7 @@ func collaborationGuideContract(stage, artifactPath string) GuidePacketContract 
 			"Do not treat the guide packet as the canonical collaboration record.",
 			"Do not bypass the explicit review and confirmation flow.",
 			"Do not mutate GitHub or local planning state while previewing the packet.",
+			"Do not create GitHub planning issues manually; repair the source and rerun Plan commands when output disagrees with user intent.",
 		},
 		QualityBar: []string{
 			"The packet should make the next collaboration decision obvious without re-deriving the discuss payloads.",
@@ -642,6 +644,9 @@ func collaborationNextAction(stage string, mode SourceOfTruthMode, assessment *C
 		if assessment != nil && assessment.Decision.State == MaturityNotReady {
 			return "Refine the source material until the missing gaps are resolved, then reassess."
 		}
+		if assessment != nil && assessment.Decision.State == MaturityNeedsSourceRepair {
+			return "Repair the source spec split with `plan discuss repair`, then reassess before promotion."
+		}
 		return "Review the promotion draft before any apply action."
 	case "promotion_review":
 		return nextApplyAction(mode, draft)
@@ -742,7 +747,19 @@ func buildCollaborationActions(stage string, mode SourceOfTruthMode, brainstormS
 	if stage == "promotion_review" || stage == "initiative_draft" || stage == "spec_draft" || stage == "needs_refinement" {
 		actions = append(actions, collaborationApplyActions(mode, sourceArg, draft)...)
 	}
-	if stage == "discussion_assess" && assessment != nil && assessment.Decision.State != MaturityNotReady {
+	if stage == "discussion_assess" && assessment != nil && assessment.Decision.State == MaturityNeedsSourceRepair {
+		actions = append(actions, GuidePacketAction{
+			ID:            "repair_spec_split",
+			Kind:          "repair",
+			Label:         "Repair spec split",
+			Description:   "Write a canonical Specs section before promotion can continue.",
+			Command:       assessment.Decision.NextCommand,
+			Target:        "collaboration_source",
+			Available:     true,
+			BlockedReason: assessment.Decision.BlockingReason,
+		})
+	}
+	if stage == "discussion_assess" && assessment != nil && (assessment.Decision.State == MaturityReadySingleSpec || assessment.Decision.State == MaturityReadyMultiSpec) {
 		actions = append(actions, GuidePacketAction{
 			ID:          "build_promotion_draft",
 			Kind:        "review",

@@ -2,6 +2,7 @@ package planning
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -196,6 +197,300 @@ func TestAssessAndPromoteGitHubDiscussion(t *testing.T) {
 	}
 }
 
+func TestSixSpecProsePromotesAsMultiSpecWithProjectDecision(t *testing.T) {
+	client := &stubGitHubClient{
+		preflight: &GitHubRepoInfo{
+			Repo:          "JimmyMcBride/plan",
+			RepoURL:       "https://github.com/JimmyMcBride/plan",
+			DefaultBranch: "develop",
+		},
+		context: &GitHubContext{
+			Repo: GitHubRepoInfo{
+				Repo:          "JimmyMcBride/plan",
+				RepoURL:       "https://github.com/JimmyMcBride/plan",
+				DefaultBranch: "develop",
+			},
+			CurrentBranch: "develop",
+			CurrentSHA:    "abc123",
+		},
+		discussions: map[int]*GitHubDiscussion{
+			88: {
+				Number: 88,
+				URL:    "https://github.com/JimmyMcBride/plan/discussions/88",
+				Title:  "Pre-planning Center Product Readiness",
+				Body: strings.Join([]string{
+					"## Problem",
+					"Product readiness work is being shaped inconsistently across operational surfaces.",
+					"",
+					"## Goals",
+					"Create predictable GitHub planning issues for the readiness work.",
+					"",
+					"## Non-Goals",
+					"Do not implement the product surfaces during promotion.",
+					"",
+					"## Constraints",
+					"Keep the promoted issue set milestone-backed and reviewable.",
+					"",
+					"## Proposed Shape",
+					"Create spec issues for: Operational Data UI CRUD, Product Readiness API, Import Pipeline, Permission Model, Audit Trail, Release Coordination",
+				}, "\n"),
+			},
+		},
+	}
+	reset := SetGitHubClientFactoryForTesting(func() GitHubClient { return client })
+	t.Cleanup(reset)
+
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := New(ws)
+
+	assessment, err := manager.AssessCollaborationSource(CollaborationAssessInput{DiscussionRef: "88"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if assessment.Decision.State != MaturityReadyMultiSpec {
+		t.Fatalf("expected multi-spec readiness: %+v", assessment.Decision)
+	}
+	if len(assessment.Decision.SuggestedTitles.Specs) != 6 {
+		t.Fatalf("expected six specs: %+v", assessment.Decision.SuggestedTitles.Specs)
+	}
+
+	draft, err := manager.BuildPromotionDraft(PromotionDraftInput{DiscussionRef: "88"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if draft.ProjectPrompt == nil || !draft.ProjectPrompt.Recommended {
+		t.Fatalf("expected project prompt recommendation: %+v", draft.ProjectPrompt)
+	}
+	if draft.ManualFallbackAllowed {
+		t.Fatalf("draft fallback should be disabled by default: %+v", draft)
+	}
+	if len(draft.AgentPolicy.ForbiddenMutations) == 0 || !containsString(draft.AgentPolicy.ForbiddenMutations, "gh issue create") {
+		t.Fatalf("expected hard agent policy: %+v", draft.AgentPolicy)
+	}
+
+	_, err = manager.ApplyPromotionDraft(PromotionApplyInput{
+		DiscussionRef: "88",
+		Confirm:       true,
+		TargetMode:    SourceOfTruthGitHub,
+	})
+	if err == nil || !strings.Contains(err.Error(), "--project-decision create|skip") {
+		t.Fatalf("expected project decision gate, got %v", err)
+	}
+
+	result, err := manager.ApplyPromotionDraft(PromotionApplyInput{
+		DiscussionRef:   "88",
+		Confirm:         true,
+		TargetMode:      SourceOfTruthGitHub,
+		ProjectDecision: "create",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Initiative == nil || len(result.Specs) != 6 || result.Milestone == nil {
+		t.Fatalf("expected initiative plus six specs and milestone: %+v", result)
+	}
+	if result.ProjectDecision == nil || result.ProjectDecision.Decision != "create" {
+		t.Fatalf("expected project decision record: %+v", result.ProjectDecision)
+	}
+	if !containsString(result.Initiative.Labels, planIssueInitiativeLabel) {
+		t.Fatalf("expected initiative label: %+v", result.Initiative.Labels)
+	}
+	for _, spec := range result.Specs {
+		if !containsString(spec.Labels, planIssueSpecLabel) {
+			t.Fatalf("expected spec label on %s: %+v", spec.Title, spec.Labels)
+		}
+	}
+	state, err := ws.ReadGitHubState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(state.Planning) != 7 {
+		t.Fatalf("expected initiative plus six specs in metadata: %+v", state.Planning)
+	}
+	if len(state.ProjectDecisions) != 1 {
+		t.Fatalf("expected project decision metadata: %+v", state.ProjectDecisions)
+	}
+}
+
+func TestAssessBlocksExplicitMultiSpecSourceThatNeedsRepair(t *testing.T) {
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := New(ws)
+	if _, err := manager.CreateBrainstorm("Repair Split"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := manager.UpdateGuidedBrainstormIntake("repair-split", GuidedBrainstormIntakeInput{
+		Vision: "Create spec issues for a multi-spec readiness initiative.",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.UpdateBrainstormRefinement("repair-split", BrainstormRefinementInput{
+		Problem:             "Agents can collapse multi-spec requests into one issue.",
+		UserValue:           "The user gets deterministic promotion structure.",
+		Constraints:         "Promotion must fail closed.",
+		CandidateApproaches: "Create spec issues for: Operational Data UI CRUD",
+		DecisionSnapshot:    "Repair the source split before promotion.",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.UpdateBrainstormChallenge("repair-split", BrainstormChallengeInput{
+		NoGos:              "Do not create GitHub issues manually.",
+		SimplerAlternative: "Repair the Specs section.",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	assessment, err := manager.AssessCollaborationSource(CollaborationAssessInput{BrainstormSlug: "repair-split"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if assessment.Decision.State != MaturityNeedsSourceRepair {
+		t.Fatalf("expected source repair state: %+v", assessment.Decision)
+	}
+	if assessment.Decision.BlockingReason != "requested multi-spec promotion but source parsed as single spec" {
+		t.Fatalf("unexpected blocking reason: %+v", assessment.Decision)
+	}
+	if !strings.Contains(assessment.Decision.NextCommand, "plan discuss repair") {
+		t.Fatalf("expected repair command: %+v", assessment.Decision)
+	}
+}
+
+func TestApplyPromotionDraftEmitsManualFallbackPayloadOnGitHubFailure(t *testing.T) {
+	client := &stubGitHubClient{
+		preflight: &GitHubRepoInfo{
+			Repo:          "JimmyMcBride/plan",
+			RepoURL:       "https://github.com/JimmyMcBride/plan",
+			DefaultBranch: "develop",
+		},
+		context: &GitHubContext{
+			Repo: GitHubRepoInfo{
+				Repo:          "JimmyMcBride/plan",
+				RepoURL:       "https://github.com/JimmyMcBride/plan",
+				DefaultBranch: "develop",
+			},
+			CurrentBranch: "develop",
+			CurrentSHA:    "abc123",
+		},
+		createIssueErr: errors.New("api unavailable"),
+	}
+	reset := SetGitHubClientFactoryForTesting(func() GitHubClient { return client })
+	t.Cleanup(reset)
+
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := New(ws)
+	createReadyCollaborationBrainstormForTest(t, manager, "fallback-flow")
+
+	_, err := manager.ApplyPromotionDraft(PromotionApplyInput{
+		BrainstormSlug: "fallback-flow",
+		Confirm:        true,
+		TargetMode:     SourceOfTruthGitHub,
+	})
+	var fallback *PromotionApplyManualFallbackError
+	if !errors.As(err, &fallback) {
+		t.Fatalf("expected fallback error, got %v", err)
+	}
+	if fallback.Result == nil || !fallback.Result.ManualFallbackAllowed || fallback.Result.Draft == nil || !fallback.Result.Draft.ManualFallbackAllowed {
+		t.Fatalf("expected fallback payload: %+v", fallback.Result)
+	}
+	if !strings.Contains(fallback.Result.NextCommand, "plan github adopt") {
+		t.Fatalf("expected adopt command: %+v", fallback.Result)
+	}
+}
+
+func TestAdoptGitHubPromotionMirrorsExistingIssues(t *testing.T) {
+	client := &stubGitHubClient{
+		preflight: &GitHubRepoInfo{
+			Repo:          "JimmyMcBride/plan",
+			RepoURL:       "https://github.com/JimmyMcBride/plan",
+			DefaultBranch: "develop",
+		},
+		context: &GitHubContext{
+			Repo: GitHubRepoInfo{
+				Repo:          "JimmyMcBride/plan",
+				RepoURL:       "https://github.com/JimmyMcBride/plan",
+				DefaultBranch: "develop",
+			},
+			CurrentBranch: "develop",
+			CurrentSHA:    "abc123",
+		},
+		issues: map[int]*GitHubIssue{
+			201: {Number: 201, URL: "https://github.com/JimmyMcBride/plan/issues/201", Title: "Adopt Flow", State: "open"},
+			202: {Number: 202, URL: "https://github.com/JimmyMcBride/plan/issues/202", Title: "Adopt schema", State: "open"},
+			203: {Number: 203, URL: "https://github.com/JimmyMcBride/plan/issues/203", Title: "Adopt CLI", State: "open"},
+		},
+		discussions: map[int]*GitHubDiscussion{
+			89: {
+				Number: 89,
+				URL:    "https://github.com/JimmyMcBride/plan/discussions/89",
+				Title:  "Adopt Flow",
+				Body: strings.Join([]string{
+					"## Problem",
+					"Manual issue creation needs a Plan-owned recovery path.",
+					"",
+					"## Goals",
+					"Adopt existing issues into metadata.",
+					"",
+					"## Non-Goals",
+					"Do not create unrelated work.",
+					"",
+					"## Constraints",
+					"Validate issue order.",
+					"",
+					"## Proposed Shape",
+					"Use an initiative issue and two specs.",
+					"",
+					"## Spec Split",
+					"- Adopt schema",
+					"- Adopt CLI",
+				}, "\n"),
+			},
+		},
+	}
+	reset := SetGitHubClientFactoryForTesting(func() GitHubClient { return client })
+	t.Cleanup(reset)
+
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := New(ws)
+	result, err := manager.AdoptGitHubPromotion(GitHubAdoptInput{
+		DiscussionRef: "89",
+		IssueNumbers:  []int{201, 202, 203},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Initiative == nil || len(result.Specs) != 2 || result.Milestone == nil {
+		t.Fatalf("expected adopted initiative/spec set: %+v", result)
+	}
+	if len(client.subIssues) != 2 {
+		t.Fatalf("expected adopted sub-issue edges: %+v", client.subIssues)
+	}
+	state, err := ws.ReadGitHubState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(state.Planning) != 3 {
+		t.Fatalf("expected adopted planning metadata: %+v", state.Planning)
+	}
+	if !containsString(client.issues[202].Labels, planIssueSpecLabel) {
+		t.Fatalf("expected spec labels after adopt: %+v", client.issues[202].Labels)
+	}
+}
+
 func TestBuildPromotionDraftNotReadyUsesEmptySpecSliceInJSON(t *testing.T) {
 	root := t.TempDir()
 	ws := workspace.New(root)
@@ -223,6 +518,34 @@ func TestBuildPromotionDraftNotReadyUsesEmptySpecSliceInJSON(t *testing.T) {
 	}
 	if !strings.Contains(string(raw), `"proposed_spec_issues":[]`) {
 		t.Fatalf("expected stable empty array in json output: %s", string(raw))
+	}
+}
+
+func createReadyCollaborationBrainstormForTest(t *testing.T, manager *Manager, slug string) {
+	t.Helper()
+	title := strings.ReplaceAll(slug, "-", " ")
+	if _, err := manager.CreateBrainstorm(title); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := manager.UpdateGuidedBrainstormIntake(slug, GuidedBrainstormIntakeInput{
+		Vision: "Create a reviewed promotion draft.",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.UpdateBrainstormRefinement(slug, BrainstormRefinementInput{
+		Problem:             "Promotion needs a deterministic gate.",
+		UserValue:           "The user can review before GitHub writes happen.",
+		Constraints:         "Use Plan-owned commands.",
+		CandidateApproaches: "Build promotion draft review.",
+		DecisionSnapshot:    "Promote directly into one spec.",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.UpdateBrainstormChallenge(slug, BrainstormChallengeInput{
+		NoGos:              "No manual GitHub creation.",
+		SimplerAlternative: "Use discuss promote.",
+	}); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -314,5 +637,52 @@ func TestBulletItemsStripsGitHubTaskMarkers(t *testing.T) {
 	}
 	if items[0] != "First spec" || items[1] != "Second spec" || items[2] != "Third spec" {
 		t.Fatalf("expected task markers to be stripped: %+v", items)
+	}
+}
+
+func TestExtractSpecCandidatesSupportsExplicitSpecIssuePatterns(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		want    []string
+	}{
+		{
+			name:    "comma semicolon phrase",
+			content: "Create spec issues for: Operational Data UI CRUD, Product Readiness API; Audit Trail",
+			want:    []string{"Operational Data UI CRUD", "Product Readiness API", "Audit Trail"},
+		},
+		{
+			name: "numbered list behind explicit intent",
+			content: strings.Join([]string{
+				"Please create spec issues for:",
+				"1. Operational Data UI CRUD",
+				"2. Product Readiness API",
+			}, "\n"),
+			want: []string{"Operational Data UI CRUD", "Product Readiness API"},
+		},
+		{
+			name: "desired outcome bullets",
+			content: strings.Join([]string{
+				"Create spec issues for this outcome.",
+				"",
+				"## Desired Outcome",
+				"- Operational Data UI CRUD",
+				"- Product Readiness API",
+			}, "\n"),
+			want: []string{"Operational Data UI CRUD", "Product Readiness API"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := extractSpecCandidates(tc.content)
+			if len(got) != len(tc.want) {
+				t.Fatalf("expected %d specs, got %+v", len(tc.want), got)
+			}
+			for i := range tc.want {
+				if got[i] != tc.want[i] {
+					t.Fatalf("expected %+v, got %+v", tc.want, got)
+				}
+			}
+		})
 	}
 }

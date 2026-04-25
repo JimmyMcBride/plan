@@ -3,6 +3,8 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"strings"
 	"testing"
 
 	"plan/internal/planning"
@@ -60,6 +62,50 @@ func TestDiscussAssessCommandPrintsJSONForBrainstorm(t *testing.T) {
 	}
 	if payload.Kind != "maturity_assessment" || payload.Decision.State != planning.MaturityReadySingleSpec {
 		t.Fatalf("unexpected discuss assess payload: %+v", payload)
+	}
+}
+
+func TestDiscussRepairCommandWritesSpecsSection(t *testing.T) {
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := planning.New(ws)
+	if _, err := manager.CreateBrainstorm("Repair Command"); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	command := newRootCmd()
+	command.SetOut(&buf)
+	command.SetErr(&buf)
+	command.SetArgs([]string{
+		"--project", root,
+		"discuss", "repair",
+		"--brainstorm", "repair-command",
+		"--spec", "Operational Data UI CRUD",
+		"--spec", "Readiness Dashboard",
+		"--format", "json",
+	})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("expected discuss repair to succeed: %v\n%s", err, buf.String())
+	}
+
+	var payload planning.RepairSpecSplitResult
+	if err := json.Unmarshal(buf.Bytes(), &payload); err != nil {
+		t.Fatalf("expected JSON repair output, got %v\n%s", err, buf.String())
+	}
+	if len(payload.Specs) != 2 || payload.Kind != "source_repair" {
+		t.Fatalf("unexpected repair payload: %+v", payload)
+	}
+	raw, err := os.ReadFile(root + "/.plan/brainstorms/repair-command.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(raw)
+	if !strings.Contains(body, "## Specs") || !strings.Contains(body, "- Operational Data UI CRUD") || !strings.Contains(body, "- Readiness Dashboard") {
+		t.Fatalf("expected repaired specs section:\n%s", body)
 	}
 }
 

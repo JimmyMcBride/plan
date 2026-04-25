@@ -17,6 +17,7 @@ type stubGitHubClient struct {
 	context          *GitHubContext
 	issues           map[int]*GitHubIssue
 	milestones       map[string]*GitHubMilestone
+	labels           map[string]GitHubLabelInput
 	milestoneLookups []string
 	discussions      map[int]*GitHubDiscussion
 	subIssues        [][2]int
@@ -24,6 +25,8 @@ type stubGitHubClient struct {
 	nextIssue        int
 	lastCreate       GitHubIssueInput
 	lastUpdate       GitHubIssueInput
+	createIssueErr   error
+	ensureLabelErr   error
 }
 
 func (s *stubGitHubClient) Preflight(projectDir string) (*GitHubRepoInfo, error) {
@@ -41,6 +44,9 @@ func (s *stubGitHubClient) CurrentContext(projectDir string) (*GitHubContext, er
 }
 
 func (s *stubGitHubClient) CreateIssue(projectDir, repo string, input GitHubIssueInput) (*GitHubIssue, error) {
+	if s.createIssueErr != nil {
+		return nil, s.createIssueErr
+	}
 	s.lastCreate = input
 	if s.issues == nil {
 		s.issues = map[int]*GitHubIssue{}
@@ -113,6 +119,32 @@ func (s *stubGitHubClient) GetIssue(projectDir, repo string, issueNumber int) (*
 	return &copy, nil
 }
 
+func (s *stubGitHubClient) ListIssuesByLabel(projectDir, repo string, labels []string) ([]GitHubIssue, error) {
+	var out []GitHubIssue
+	for _, issue := range s.issues {
+		for _, label := range labels {
+			if containsString(issue.Labels, label) {
+				copy := *issue
+				copy.Labels = append([]string(nil), issue.Labels...)
+				out = append(out, copy)
+				break
+			}
+		}
+	}
+	return out, nil
+}
+
+func (s *stubGitHubClient) EnsureLabel(projectDir, repo string, input GitHubLabelInput) error {
+	if s.ensureLabelErr != nil {
+		return s.ensureLabelErr
+	}
+	if s.labels == nil {
+		s.labels = map[string]GitHubLabelInput{}
+	}
+	s.labels[input.Name] = input
+	return nil
+}
+
 func (s *stubGitHubClient) FindMilestone(projectDir, repo, title string) (*GitHubMilestone, error) {
 	s.milestoneLookups = append(s.milestoneLookups, title)
 	if s.milestones == nil {
@@ -145,6 +177,20 @@ func (s *stubGitHubClient) GetDiscussion(projectDir, repo string, number int) (*
 	if !ok {
 		return nil, fmt.Errorf("discussion %d not found", number)
 	}
+	copy := *item
+	copy.Comments = append([]GitHubDiscussionComment(nil), item.Comments...)
+	return &copy, nil
+}
+
+func (s *stubGitHubClient) UpdateDiscussionBody(projectDir, repo string, number int, body string) (*GitHubDiscussion, error) {
+	if s.discussions == nil {
+		return nil, fmt.Errorf("unexpected UpdateDiscussionBody call")
+	}
+	item, ok := s.discussions[number]
+	if !ok {
+		return nil, fmt.Errorf("discussion %d not found", number)
+	}
+	item.Body = body
 	copy := *item
 	copy.Comments = append([]GitHubDiscussionComment(nil), item.Comments...)
 	return &copy, nil

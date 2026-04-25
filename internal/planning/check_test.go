@@ -1,6 +1,7 @@
 package planning
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -287,4 +288,121 @@ func TestCheckStorySupportsGitHubBackedStories(t *testing.T) {
 	if report.HasErrors() {
 		t.Fatalf("expected GitHub-backed story check to pass: %+v", report.Findings)
 	}
+}
+
+func TestCheckFlagsUntrackedPlanLabeledGitHubIssue(t *testing.T) {
+	client := checkDriftClient(map[int]*GitHubIssue{
+		301: {Number: 301, URL: "https://github.com/JimmyMcBride/plan/issues/301", Title: "Manual Spec", State: "open", Labels: []string{planIssueSpecLabel}},
+	})
+	reset := SetGitHubClientFactoryForTesting(func() GitHubClient { return client })
+	t.Cleanup(reset)
+	manager := setupGitHubSourceModeCheck(t)
+
+	report, err := manager.Check(CheckInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertHasFinding(t, report.Findings, "github_planning.untracked_issue", "GitHub Planning")
+}
+
+func TestCheckFlagsMultiSpecInitiativeWithoutMilestone(t *testing.T) {
+	reset := SetGitHubClientFactoryForTesting(func() GitHubClient { return checkDriftClient(nil) })
+	t.Cleanup(reset)
+	manager := setupGitHubSourceModeCheck(t)
+	state, err := manager.workspace.ReadGitHubState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	state.Planning["initiative"] = workspace.GitHubPlanningRecord{Slug: "initiative", Kind: "initiative", Title: "Initiative", IssueNumber: 401, IssueURL: "https://github.com/JimmyMcBride/plan/issues/401"}
+	state.Planning["spec-a"] = workspace.GitHubPlanningRecord{Slug: "spec-a", Kind: "spec", Title: "Spec A", IssueNumber: 402, ParentIssueNumber: 401}
+	state.Planning["spec-b"] = workspace.GitHubPlanningRecord{Slug: "spec-b", Kind: "spec", Title: "Spec B", IssueNumber: 403, ParentIssueNumber: 401}
+	if err := manager.workspace.WriteGitHubState(*state); err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := manager.Check(CheckInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertHasFinding(t, report.Findings, "github_planning.missing_multi_spec_milestone", "GitHub Planning")
+}
+
+func TestCheckFlagsMissingProjectDecisionForFiveSpecMilestone(t *testing.T) {
+	reset := SetGitHubClientFactoryForTesting(func() GitHubClient { return checkDriftClient(nil) })
+	t.Cleanup(reset)
+	manager := setupGitHubSourceModeCheck(t)
+	state, err := manager.workspace.ReadGitHubState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 5; i++ {
+		slug := fmt.Sprintf("spec-%d", i)
+		state.Planning[slug] = workspace.GitHubPlanningRecord{
+			Slug:            slug,
+			Kind:            "spec",
+			Title:           fmt.Sprintf("Spec %d", i),
+			IssueNumber:     500 + i,
+			MilestoneNumber: 7,
+			MilestoneTitle:  "Readiness",
+		}
+	}
+	if err := manager.workspace.WriteGitHubState(*state); err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := manager.Check(CheckInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertHasFinding(t, report.Findings, "github_planning.missing_project_decision", "GitHub Planning")
+}
+
+func TestCheckFlagsLabelUsedWhereMilestoneExpected(t *testing.T) {
+	client := checkDriftClient(map[int]*GitHubIssue{
+		601: {Number: 601, URL: "https://github.com/JimmyMcBride/plan/issues/601", Title: "Spec", State: "open", Labels: []string{planIssueSpecLabel, "Readiness Initiative"}},
+	})
+	reset := SetGitHubClientFactoryForTesting(func() GitHubClient { return client })
+	t.Cleanup(reset)
+	manager := setupGitHubSourceModeCheck(t)
+	state, err := manager.workspace.ReadGitHubState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	state.Planning["readiness-initiative"] = workspace.GitHubPlanningRecord{Slug: "readiness-initiative", Kind: "initiative", Title: "Readiness Initiative", IssueNumber: 600}
+	state.Planning["spec"] = workspace.GitHubPlanningRecord{Slug: "spec", Kind: "spec", Title: "Spec", IssueNumber: 601, ParentIssueNumber: 600}
+	if err := manager.workspace.WriteGitHubState(*state); err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := manager.Check(CheckInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertHasFinding(t, report.Findings, "github_planning.label_used_as_milestone", "GitHub Planning")
+}
+
+func checkDriftClient(issues map[int]*GitHubIssue) *stubGitHubClient {
+	return &stubGitHubClient{
+		preflight: &GitHubRepoInfo{Repo: "JimmyMcBride/plan", RepoURL: "https://github.com/JimmyMcBride/plan", DefaultBranch: "develop"},
+		context: &GitHubContext{
+			Repo:          GitHubRepoInfo{Repo: "JimmyMcBride/plan", RepoURL: "https://github.com/JimmyMcBride/plan", DefaultBranch: "develop"},
+			CurrentBranch: "develop",
+			CurrentSHA:    "abc123",
+		},
+		issues: issues,
+	}
+}
+
+func setupGitHubSourceModeCheck(t *testing.T) *Manager {
+	t.Helper()
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := New(ws)
+	if _, err := manager.SetSourceMode(workspace.SourceOfTruthGitHub); err != nil {
+		t.Fatal(err)
+	}
+	return manager
 }

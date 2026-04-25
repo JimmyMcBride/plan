@@ -15,9 +15,12 @@ type GitHubClient interface {
 	CreateIssue(projectDir, repo string, input GitHubIssueInput) (*GitHubIssue, error)
 	UpdateIssue(projectDir, repo string, issueNumber int, input GitHubIssueInput) (*GitHubIssue, error)
 	GetIssue(projectDir, repo string, issueNumber int) (*GitHubIssue, error)
+	ListIssuesByLabel(projectDir, repo string, labels []string) ([]GitHubIssue, error)
+	EnsureLabel(projectDir, repo string, input GitHubLabelInput) error
 	FindMilestone(projectDir, repo, title string) (*GitHubMilestone, error)
 	CreateMilestone(projectDir, repo string, input GitHubMilestoneInput) (*GitHubMilestone, error)
 	GetDiscussion(projectDir, repo string, number int) (*GitHubDiscussion, error)
+	UpdateDiscussionBody(projectDir, repo string, number int, body string) (*GitHubDiscussion, error)
 	AddSubIssue(projectDir, repo string, issueNumber, subIssueNumber int) error
 	AddBlockedBy(projectDir, repo string, issueNumber, blockingIssueNumber int) error
 }
@@ -65,6 +68,12 @@ type GitHubIssue struct {
 	State     string
 	Labels    []string
 	Milestone *GitHubMilestone
+}
+
+type GitHubLabelInput struct {
+	Name        string
+	Color       string
+	Description string
 }
 
 type GitHubMilestone struct {
@@ -247,6 +256,35 @@ func (c *cliGitHubClient) GetIssue(projectDir, repo string, issueNumber int) (*G
 	return parseGitHubIssue(out)
 }
 
+func (c *cliGitHubClient) ListIssuesByLabel(projectDir, repo string, labels []string) ([]GitHubIssue, error) {
+	args := []string{"issue", "list", "--repo", repo, "--state", "all", "--limit", "100", "--json", "number,url,title,body,state,labels,milestone"}
+	for _, label := range labels {
+		if strings.TrimSpace(label) == "" {
+			continue
+		}
+		args = append(args, "--label", label)
+	}
+	out, err := c.run(projectDir, nil, "gh", args...)
+	if err != nil {
+		return nil, fmt.Errorf("gh issue list failed: %w", err)
+	}
+	return parseGitHubIssueList(out)
+}
+
+func (c *cliGitHubClient) EnsureLabel(projectDir, repo string, input GitHubLabelInput) error {
+	args := []string{"label", "create", input.Name, "--repo", repo, "--force"}
+	if strings.TrimSpace(input.Color) != "" {
+		args = append(args, "--color", strings.TrimSpace(input.Color))
+	}
+	if strings.TrimSpace(input.Description) != "" {
+		args = append(args, "--description", strings.TrimSpace(input.Description))
+	}
+	if _, err := c.run(projectDir, nil, "gh", args...); err != nil {
+		return fmt.Errorf("ensure GitHub label %q: %w", input.Name, err)
+	}
+	return nil
+}
+
 func (c *cliGitHubClient) FindMilestone(projectDir, repo, title string) (*GitHubMilestone, error) {
 	type milestonePayload struct {
 		Number int    `json:"number"`
@@ -374,6 +412,88 @@ func (c *cliGitHubClient) GetDiscussion(projectDir, repo string, number int) (*G
 	}
 	item.Comments = comments
 	return item, nil
+}
+
+func (c *cliGitHubClient) UpdateDiscussionBody(projectDir, repo string, number int, body string) (*GitHubDiscussion, error) {
+	owner, name, err := splitRepo(repo)
+	if err != nil {
+		return nil, err
+	}
+	query := `query($owner:String!, $name:String!, $number:Int!) {
+  repository(owner:$owner, name:$name) {
+    discussion(number:$number) {
+      id
+      number
+      url
+      title
+      body
+    }
+  }
+}`
+	var lookup struct {
+		Data struct {
+			Repository struct {
+				Discussion *struct {
+					ID     string `json:"id"`
+					Number int    `json:"number"`
+					URL    string `json:"url"`
+					Title  string `json:"title"`
+					Body   string `json:"body"`
+				} `json:"discussion"`
+			} `json:"repository"`
+		} `json:"data"`
+	}
+	payload := map[string]any{
+		"query": query,
+		"variables": map[string]any{
+			"owner":  owner,
+			"name":   name,
+			"number": number,
+		},
+	}
+	if err := c.graphql(projectDir, payload, &lookup); err != nil {
+		return nil, err
+	}
+	if lookup.Data.Repository.Discussion == nil || strings.TrimSpace(lookup.Data.Repository.Discussion.ID) == "" {
+		return nil, fmt.Errorf("discussion #%d not found in %s", number, repo)
+	}
+	mutation := map[string]any{
+		"query": `mutation($discussionId:ID!, $body:String!) {
+  updateDiscussion(input:{discussionId:$discussionId, body:$body}) {
+    discussion {
+      number
+      url
+      title
+      body
+    }
+  }
+}`,
+		"variables": map[string]any{
+			"discussionId": lookup.Data.Repository.Discussion.ID,
+			"body":         body,
+		},
+	}
+	var response struct {
+		Data struct {
+			UpdateDiscussion struct {
+				Discussion struct {
+					Number int    `json:"number"`
+					URL    string `json:"url"`
+					Title  string `json:"title"`
+					Body   string `json:"body"`
+				} `json:"discussion"`
+			} `json:"updateDiscussion"`
+		} `json:"data"`
+	}
+	if err := c.graphql(projectDir, mutation, &response); err != nil {
+		return nil, err
+	}
+	return &GitHubDiscussion{
+		Number: response.Data.UpdateDiscussion.Discussion.Number,
+		URL:    response.Data.UpdateDiscussion.Discussion.URL,
+		Title:  response.Data.UpdateDiscussion.Discussion.Title,
+		Body:   response.Data.UpdateDiscussion.Discussion.Body,
+	}, nil
 }
 
 func (c *cliGitHubClient) AddSubIssue(projectDir, repo string, issueNumber, subIssueNumber int) error {
@@ -581,4 +701,49 @@ func parseGitHubIssue(raw []byte) (*GitHubIssue, error) {
 		}
 	}
 	return issue, nil
+}
+
+func parseGitHubIssueList(raw []byte) ([]GitHubIssue, error) {
+	type label struct {
+		Name string `json:"name"`
+	}
+	type payload struct {
+		Number    int     `json:"number"`
+		URL       string  `json:"url"`
+		Title     string  `json:"title"`
+		Body      string  `json:"body"`
+		State     string  `json:"state"`
+		Labels    []label `json:"labels"`
+		Milestone *struct {
+			Number int    `json:"number"`
+			Title  string `json:"title"`
+		} `json:"milestone"`
+	}
+	var items []payload
+	if err := json.Unmarshal(raw, &items); err != nil {
+		return nil, fmt.Errorf("parse issue list payload: %w", err)
+	}
+	out := make([]GitHubIssue, 0, len(items))
+	for _, item := range items {
+		issue := GitHubIssue{
+			Number: item.Number,
+			URL:    item.URL,
+			Title:  item.Title,
+			Body:   item.Body,
+			State:  item.State,
+		}
+		for _, label := range item.Labels {
+			if strings.TrimSpace(label.Name) != "" {
+				issue.Labels = append(issue.Labels, label.Name)
+			}
+		}
+		if item.Milestone != nil {
+			issue.Milestone = &GitHubMilestone{
+				Number: item.Milestone.Number,
+				Title:  item.Milestone.Title,
+			}
+		}
+		out = append(out, issue)
+	}
+	return out, nil
 }
