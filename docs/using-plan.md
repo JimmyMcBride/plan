@@ -665,13 +665,13 @@ plan roadmap edit --project .
 
 ## Skill Installation
 
-Install the `plan` skill globally:
+Install the `plan` and `plan-execute` skills globally:
 
 ```bash
 plan skills install --scope global --agent codex
 ```
 
-Install locally in the repo:
+Install both skills locally in the repo:
 
 ```bash
 plan skills install --scope local --agent codex --project .
@@ -684,6 +684,11 @@ plan skills targets --scope both --agent codex --project .
 ```
 
 You can repeat `--agent` for multiple targets.
+
+The base `plan` skill covers planning, source-of-truth ownership, brainstorms,
+specs, and promotion workflows. The `plan-execute` skill is the companion
+execution rail for one approved spec: resolve the spec, derive execution slices,
+branch, implement, verify, commit, push, and open a ready PR.
 
 ## End-To-End Examples
 

@@ -259,7 +259,13 @@ go build -o plan .
 install -Dm0755 plan ~/.local/bin/plan
 ```
 
-## Install The Plan Skill
+## Install The Plan Skills
+
+The installer copies two companion skills:
+
+- `plan` for planning, spec truth, and shaping workflows
+- `plan-execute` for executing one approved spec through branch, code, tests,
+  commit, push, and a ready PR
 
 Global:
 
@@ -278,6 +284,10 @@ Preview install targets:
 ```bash
 plan skills targets --scope both --agent codex --project .
 ```
+
+`plan-execute` is intentionally plan-adjacent. It consumes approved `plan`
+specs but owns the agent execution rail instead of adding task-runner behavior
+to the core `plan` CLI.
 
 ## Codex Cloud + Brain
 

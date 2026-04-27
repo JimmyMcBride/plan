@@ -2,12 +2,15 @@ package skills
 
 import (
 	"encoding/json"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
 )
 
 func TestResolveTargetsGlobalAndLocal(t *testing.T) {
+	registerTestBundles(t)
+
 	home := t.TempDir()
 	projectDir := t.TempDir()
 	installer := NewInstaller(home)
@@ -20,14 +23,22 @@ func TestResolveTargetsGlobalAndLocal(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := map[string]bool{
-		filepath.Join(home, ".codex", "skills", "plan"):        true,
-		filepath.Join(home, ".copilot", "skills", "plan"):      true,
-		filepath.Join(home, ".pi", "agent", "skills", "plan"):  true,
-		filepath.Join(home, ".zed", "skills", "plan"):          true,
-		filepath.Join(projectDir, ".codex", "skills", "plan"):  true,
-		filepath.Join(projectDir, ".github", "skills", "plan"): true,
-		filepath.Join(projectDir, ".pi", "skills", "plan"):     true,
-		filepath.Join(projectDir, ".zed", "skills", "plan"):    true,
+		filepath.Join(home, ".codex", "skills", "plan"):                true,
+		filepath.Join(home, ".codex", "skills", "plan-execute"):        true,
+		filepath.Join(home, ".copilot", "skills", "plan"):              true,
+		filepath.Join(home, ".copilot", "skills", "plan-execute"):      true,
+		filepath.Join(home, ".pi", "agent", "skills", "plan"):          true,
+		filepath.Join(home, ".pi", "agent", "skills", "plan-execute"):  true,
+		filepath.Join(home, ".zed", "skills", "plan"):                  true,
+		filepath.Join(home, ".zed", "skills", "plan-execute"):          true,
+		filepath.Join(projectDir, ".codex", "skills", "plan"):          true,
+		filepath.Join(projectDir, ".codex", "skills", "plan-execute"):  true,
+		filepath.Join(projectDir, ".github", "skills", "plan"):         true,
+		filepath.Join(projectDir, ".github", "skills", "plan-execute"): true,
+		filepath.Join(projectDir, ".pi", "skills", "plan"):             true,
+		filepath.Join(projectDir, ".pi", "skills", "plan-execute"):     true,
+		filepath.Join(projectDir, ".zed", "skills", "plan"):            true,
+		filepath.Join(projectDir, ".zed", "skills", "plan-execute"):    true,
 	}
 	if len(targets) != len(want) {
 		t.Fatalf("expected %d targets, got %d", len(want), len(targets))
@@ -40,7 +51,7 @@ func TestResolveTargetsGlobalAndLocal(t *testing.T) {
 }
 
 func TestInstallCopiesSkillBundleAndWritesManifest(t *testing.T) {
-	bundleHash := registerTestBundle(t)
+	bundleHashes := registerTestBundles(t)
 
 	home := t.TempDir()
 	installer := NewInstaller(home)
@@ -51,24 +62,28 @@ func TestInstallCopiesSkillBundleAndWritesManifest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(results) != 1 {
-		t.Fatalf("expected 1 result, got %d", len(results))
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(results))
 	}
 
-	skillDir := filepath.Join(home, ".codex", "skills", "plan")
-	if _, err := os.Stat(filepath.Join(skillDir, "SKILL.md")); err != nil {
-		t.Fatalf("expected skill file: %v", err)
-	}
-	manifest, err := readManifest(skillDir)
-	if err != nil {
-		t.Fatalf("expected manifest: %v", err)
-	}
-	if manifest.BundleHash != bundleHash {
-		t.Fatalf("unexpected bundle hash: %+v", manifest)
+	for _, skill := range []string{"plan", "plan-execute"} {
+		skillDir := filepath.Join(home, ".codex", "skills", skill)
+		if _, err := os.Stat(filepath.Join(skillDir, "SKILL.md")); err != nil {
+			t.Fatalf("expected %s skill file: %v", skill, err)
+		}
+		manifest, err := readManifest(skillDir)
+		if err != nil {
+			t.Fatalf("expected %s manifest: %v", skill, err)
+		}
+		if manifest.Skill != skill || manifest.BundleHash != bundleHashes[skill] {
+			t.Fatalf("unexpected %s manifest: %+v", skill, manifest)
+		}
 	}
 }
 
 func TestResolveTargetsLocalScopeUsesAbsoluteProjectDir(t *testing.T) {
+	registerTestBundles(t)
+
 	installer := NewInstaller("/home/tester")
 	projectDir := t.TempDir()
 	prevWD, err := os.Getwd()
@@ -90,19 +105,25 @@ func TestResolveTargetsLocalScopeUsesAbsoluteProjectDir(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(targets) != 1 {
-		t.Fatalf("expected 1 target, got %d", len(targets))
+	if len(targets) != 2 {
+		t.Fatalf("expected 2 targets, got %d", len(targets))
 	}
-	if !filepath.IsAbs(targets[0].Root) || !filepath.IsAbs(targets[0].Path) {
-		t.Fatalf("expected absolute local target paths: %+v", targets[0])
+	want := map[string]bool{
+		filepath.Join(projectDir, ".codex", "skills", "plan"):         true,
+		filepath.Join(projectDir, ".codex", "skills", "plan-execute"): true,
 	}
-	if targets[0].Path != filepath.Join(projectDir, ".codex", "skills", "plan") {
-		t.Fatalf("unexpected resolved target path: %+v", targets[0])
+	for _, target := range targets {
+		if !filepath.IsAbs(target.Root) || !filepath.IsAbs(target.Path) {
+			t.Fatalf("expected absolute local target paths: %+v", target)
+		}
+		if !want[target.Path] {
+			t.Fatalf("unexpected resolved target path: %+v", target)
+		}
 	}
 }
 
 func TestInspectFlagsLegacyAndStaleInstalls(t *testing.T) {
-	bundleHash := registerTestBundle(t)
+	bundleHashes := registerTestBundles(t)
 
 	home := t.TempDir()
 	installer := NewInstaller(home)
@@ -150,7 +171,7 @@ func TestInspectFlagsLegacyAndStaleInstalls(t *testing.T) {
 	reasons := map[string]string{}
 	for _, status := range statuses {
 		if status.Path == staleDir {
-			if status.Manifest == nil || status.Manifest.BundleHash == bundleHash {
+			if status.Manifest == nil || status.Manifest.BundleHash == bundleHashes["plan"] {
 				t.Fatalf("expected stale manifest to be inspected: %+v", status)
 			}
 		}
@@ -165,7 +186,7 @@ func TestInspectFlagsLegacyAndStaleInstalls(t *testing.T) {
 }
 
 func TestInstallRepairsLegacyInstallCleanly(t *testing.T) {
-	bundleHash := registerTestBundle(t)
+	bundleHashes := registerTestBundles(t)
 
 	home := t.TempDir()
 	installer := NewInstaller(home)
@@ -191,13 +212,16 @@ func TestInstallRepairsLegacyInstallCleanly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if manifest.BundleHash != bundleHash {
+	if manifest.Skill != "plan" || manifest.BundleHash != bundleHashes["plan"] {
 		t.Fatalf("unexpected repaired manifest: %+v", manifest)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".codex", "skills", "plan-execute", "SKILL.md")); err != nil {
+		t.Fatalf("expected plan-execute to install alongside plan: %v", err)
 	}
 }
 
-func TestSourceTreeBundleInstallsModelGuidanceFiles(t *testing.T) {
-	RegisterBundle(nil)
+func TestSourceTreeBundlesInstallPlanAndExecuteSkills(t *testing.T) {
+	RegisterBundles(nil)
 
 	home := t.TempDir()
 	installer := NewInstaller(home)
@@ -219,30 +243,42 @@ func TestSourceTreeBundleInstallsModelGuidanceFiles(t *testing.T) {
 			t.Fatalf("expected installed skill file %s: %v", rel, err)
 		}
 	}
+	if _, err := os.Stat(filepath.Join(home, ".codex", "skills", "plan-execute", "SKILL.md")); err != nil {
+		t.Fatalf("expected installed plan-execute skill file: %v", err)
+	}
 }
 
-func registerTestBundle(t *testing.T) string {
+func registerTestBundles(t *testing.T) map[string]string {
 	t.Helper()
 
-	bundleDir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(bundleDir, "agents"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(bundleDir, "SKILL.md"), []byte("skill"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(bundleDir, "agents", "openai.yaml"), []byte("name: plan"), 0o644); err != nil {
-		t.Fatal(err)
+	root := t.TempDir()
+	bundleFSes := map[string]fs.FS{}
+	for _, skill := range []string{"plan", "plan-execute"} {
+		bundleDir := filepath.Join(root, skill)
+		if err := os.MkdirAll(filepath.Join(bundleDir, "agents"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(bundleDir, "SKILL.md"), []byte("skill: "+skill), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(bundleDir, "agents", "openai.yaml"), []byte("name: "+skill), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		bundleFSes[skill] = os.DirFS(bundleDir)
 	}
 
-	RegisterBundle(os.DirFS(bundleDir))
+	RegisterBundles(bundleFSes)
 	t.Cleanup(func() {
-		RegisterBundle(nil)
+		RegisterBundles(nil)
 	})
 
-	bundle, err := loadBundle()
+	loaded, err := loadBundles()
 	if err != nil {
 		t.Fatal(err)
 	}
-	return bundle.Hash
+	hashes := map[string]string{}
+	for _, bundle := range loaded {
+		hashes[bundle.Name] = bundle.Hash
+	}
+	return hashes
 }
