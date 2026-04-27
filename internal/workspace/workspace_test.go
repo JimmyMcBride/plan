@@ -581,6 +581,92 @@ func TestReadGitHubStateDefaultsPlanningMapInMemory(t *testing.T) {
 	}
 }
 
+func TestGitHubProjectDecisionRecordSupportsWorkspaceProjectMetadata(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+	if _, err := manager.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	state, err := manager.ReadGitHubState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	state.ProjectDecisions["readiness"] = GitHubProjectDecisionRecord{
+		Slug:            "readiness",
+		Decision:        "connect",
+		Reason:          "Coordination spans many specs.",
+		InitiativeSlug:  "readiness",
+		SpecCount:       6,
+		MilestoneNumber: 7,
+		MilestoneTitle:  "Readiness",
+		ProjectOwner:    "JimmyMcBride",
+		ProjectNumber:   12,
+		ProjectID:       "PVT_kwExample",
+		ProjectURL:      "https://github.com/users/JimmyMcBride/projects/12",
+		FieldIDs: map[string]string{
+			"Status": "PVTSSF_status",
+			"Ready":  "PVTSSF_ready",
+		},
+		SourceMode:       "github",
+		EntryMode:        "github_collaborative",
+		DiscussionNumber: 49,
+		DiscussionURL:    "https://github.com/JimmyMcBride/plan/discussions/49",
+		UpdatedAt:        "2026-04-27T00:00:00Z",
+	}
+	if err := manager.WriteGitHubState(*state); err != nil {
+		t.Fatal(err)
+	}
+
+	roundTrip, err := manager.ReadGitHubState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	record := roundTrip.ProjectDecisions["readiness"]
+	if record.Decision != "connect" || record.ProjectOwner != "JimmyMcBride" || record.ProjectNumber != 12 || record.ProjectID == "" || record.ProjectURL == "" {
+		t.Fatalf("expected project identity fields to round-trip: %+v", record)
+	}
+	if record.InitiativeSlug != "readiness" || record.FieldIDs["Status"] != "PVTSSF_status" || record.FieldIDs["Ready"] != "PVTSSF_ready" {
+		t.Fatalf("expected initiative and field ids to round-trip: %+v", record)
+	}
+}
+
+func TestReadGitHubStateKeepsLegacyProjectDecisionRecordsCompatible(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+	if _, err := manager.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	githubPath := filepath.Join(root, ".plan", ".meta", "github.json")
+	raw := []byte(`{
+  "last_updated_at": "2026-04-27T00:00:00Z",
+  "stories": {},
+  "planning": {},
+  "project_decisions": {
+    "legacy": {
+      "slug": "legacy",
+      "decision": "create",
+      "spec_count": 5,
+      "milestone_number": 7,
+      "milestone_title": "Legacy"
+    }
+  }
+}`)
+	if err := os.WriteFile(githubPath, raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	state, err := manager.ReadGitHubState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	record := state.ProjectDecisions["legacy"]
+	if record.Decision != "create" || record.ProjectNumber != 0 || record.ProjectID != "" || len(record.FieldIDs) != 0 {
+		t.Fatalf("expected legacy project decision record to remain readable: %+v", record)
+	}
+}
+
 func TestUpdateDoesNotRewriteOptionalCompatibilityDefaults(t *testing.T) {
 	root := t.TempDir()
 	manager := New(root)

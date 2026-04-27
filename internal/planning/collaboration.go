@@ -192,6 +192,12 @@ type PromotionProjectPrompt struct {
 	Reason      string `json:"reason,omitempty"`
 }
 
+const (
+	projectDecisionCreate  = "create"
+	projectDecisionSkip    = "skip"
+	projectDecisionConnect = "connect"
+)
+
 type PromotionRefinementException struct {
 	IssueTitle               string   `json:"issue_title"`
 	Gap                      string   `json:"gap"`
@@ -1698,16 +1704,23 @@ func shouldRecommendProject(specCount int, deps []PromotionDependencyPlan) bool 
 }
 
 func validateProjectDecision(decision string, draft *PromotionDraft) error {
-	decision = strings.TrimSpace(decision)
+	decision = normalizeProjectDecision(decision)
 	switch decision {
-	case "", "create", "skip":
+	case "", projectDecisionCreate, projectDecisionSkip, projectDecisionConnect:
 	default:
-		return fmt.Errorf("unsupported project decision %q; use create or skip", decision)
+		return fmt.Errorf("unsupported project decision %q; use create or skip; connect is reserved and not yet implemented", decision)
 	}
 	if requiresProjectDecision(draft) && decision == "" {
-		return fmt.Errorf("promotion has %d specs and requires --project-decision create|skip before apply", len(draft.ProposedSpecIssues))
+		return fmt.Errorf("promotion has %d specs and requires --project-decision create|skip before apply; connect is reserved and not yet implemented", len(draft.ProposedSpecIssues))
+	}
+	if decision == projectDecisionConnect {
+		return fmt.Errorf("project decision %q requires project reference support, which is not implemented yet", decision)
 	}
 	return nil
+}
+
+func normalizeProjectDecision(decision string) string {
+	return strings.ToLower(strings.TrimSpace(decision))
 }
 
 func requiresProjectDecision(draft *PromotionDraft) bool {
@@ -1716,9 +1729,11 @@ func requiresProjectDecision(draft *PromotionDraft) bool {
 
 func buildProjectDecisionRecord(draft *PromotionDraft, decision string, milestone *GitHubMilestone) workspace.GitHubProjectDecisionRecord {
 	now := time.Now().UTC().Format(time.RFC3339)
+	slug := promotionProjectDecisionSlug(draft)
 	record := workspace.GitHubProjectDecisionRecord{
-		Slug:             promotionProjectDecisionSlug(draft),
-		Decision:         strings.TrimSpace(decision),
+		Slug:             slug,
+		Decision:         normalizeProjectDecision(decision),
+		InitiativeSlug:   slug,
 		SpecCount:        len(draft.ProposedSpecIssues),
 		MilestoneNumber:  milestoneNumberOrZero(milestone),
 		MilestoneTitle:   milestoneTitle(milestone),

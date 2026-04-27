@@ -90,7 +90,7 @@ func newDiscussCommand() *cobra.Command {
 	promote.Flags().BoolVar(&promoteApply, "apply", false, "create the promoted GitHub issue set after review")
 	promote.Flags().BoolVar(&promoteConfirm, "confirm", false, "required acknowledgement before apply mutates GitHub")
 	promote.Flags().StringVar(&promoteTarget, "target", "", "promotion ownership target: local, github, or hybrid")
-	promote.Flags().StringVar(&promoteProjectDecision, "project-decision", "", "project prompt decision for 5+ spec promotions: create or skip")
+	promote.Flags().StringVar(&promoteProjectDecision, "project-decision", "", "project prompt decision for 5+ spec promotions: create or skip; connect is reserved and not yet implemented")
 
 	var (
 		repairBrainstorm string
