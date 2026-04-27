@@ -37,6 +37,7 @@ type InstallResult struct {
 
 type Target struct {
 	Agent string `json:"agent"`
+	Skill string `json:"skill"`
 	Scope string `json:"scope"`
 	Root  string `json:"root"`
 	Path  string `json:"path"`
@@ -60,17 +61,26 @@ func NewInstaller(home string) *Installer {
 }
 
 func (i *Installer) Install(req InstallRequest) ([]InstallResult, error) {
-	targets, err := i.ResolveTargets(req)
+	bundles, err := loadBundles()
 	if err != nil {
 		return nil, err
 	}
-	bundle, err := loadBundle()
+	bundlesByName := map[string]skillBundle{}
+	for _, bundle := range bundles {
+		bundlesByName[bundle.Name] = bundle
+	}
+
+	targets, err := i.ResolveTargets(req)
 	if err != nil {
 		return nil, err
 	}
 
 	results := make([]InstallResult, 0, len(targets))
 	for _, target := range targets {
+		bundle, ok := bundlesByName[target.Skill]
+		if !ok {
+			return nil, fmt.Errorf("missing bundled skill %s", target.Skill)
+		}
 		if err := os.MkdirAll(target.Root, 0o755); err != nil {
 			return nil, fmt.Errorf("create skill root %s: %w", target.Root, err)
 		}
@@ -79,7 +89,7 @@ func (i *Installer) Install(req InstallRequest) ([]InstallResult, error) {
 		}
 		results = append(results, InstallResult{
 			Agent:  target.Agent,
-			Skill:  "plan",
+			Skill:  target.Skill,
 			Scope:  target.Scope,
 			Root:   target.Root,
 			Path:   target.Path,
@@ -90,6 +100,16 @@ func (i *Installer) Install(req InstallRequest) ([]InstallResult, error) {
 }
 
 func (i *Installer) ResolveTargets(req InstallRequest) ([]Target, error) {
+	bundles, err := loadBundles()
+	if err != nil {
+		return nil, err
+	}
+	skillNames := make([]string, 0, len(bundles))
+	for _, bundle := range bundles {
+		skillNames = append(skillNames, bundle.Name)
+	}
+	sort.Strings(skillNames)
+
 	scope := req.Scope
 	if scope == "" {
 		scope = ScopeGlobal
@@ -115,41 +135,56 @@ func (i *Installer) ResolveTargets(req InstallRequest) ([]Target, error) {
 		}
 		for _, agent := range agents {
 			root := knownLocalSkillRoot(resolvedProjectDir, agent)
-			targets = append(targets, Target{
-				Agent: agent,
-				Scope: string(ScopeLocal),
-				Root:  root,
-				Path:  filepath.Join(root, "plan"),
-			})
+			for _, skill := range skillNames {
+				targets = append(targets, Target{
+					Agent: agent,
+					Skill: skill,
+					Scope: string(ScopeLocal),
+					Root:  root,
+					Path:  filepath.Join(root, skill),
+				})
+			}
 		}
 	}
 	if scope == ScopeGlobal || scope == ScopeBoth {
 		for _, agent := range agents {
 			root := knownGlobalSkillRoot(i.Home, agent)
-			targets = append(targets, Target{
-				Agent: agent,
-				Scope: string(ScopeGlobal),
-				Root:  root,
-				Path:  filepath.Join(root, "plan"),
-			})
+			for _, skill := range skillNames {
+				targets = append(targets, Target{
+					Agent: agent,
+					Skill: skill,
+					Scope: string(ScopeGlobal),
+					Root:  root,
+					Path:  filepath.Join(root, skill),
+				})
+			}
 		}
 	}
 	return dedupeTargets(targets), nil
 }
 
 func (i *Installer) Inspect(req InstallRequest) ([]TargetStatus, error) {
-	targets, err := i.ResolveTargets(req)
+	bundles, err := loadBundles()
 	if err != nil {
 		return nil, err
 	}
-	bundle, err := loadBundle()
+	hashesByName := map[string]string{}
+	for _, bundle := range bundles {
+		hashesByName[bundle.Name] = bundle.Hash
+	}
+
+	targets, err := i.ResolveTargets(req)
 	if err != nil {
 		return nil, err
 	}
 
 	statuses := make([]TargetStatus, 0, len(targets))
 	for _, target := range targets {
-		status, err := inspectTarget(target, bundle.Hash)
+		bundleHash, ok := hashesByName[target.Skill]
+		if !ok {
+			return nil, fmt.Errorf("missing bundled skill %s", target.Skill)
+		}
+		status, err := inspectTarget(target, bundleHash)
 		if err != nil {
 			return nil, err
 		}
@@ -165,7 +200,7 @@ func installPath(bundle skillBundle, target Target) error {
 	if err := copyBundle(bundle, target.Path); err != nil {
 		return fmt.Errorf("copy skill to %s: %w", target.Path, err)
 	}
-	if err := writeManifest(target.Path, target.Agent, target.Scope, bundle.Hash); err != nil {
+	if err := writeManifest(target.Path, target.Skill, target.Agent, target.Scope, bundle.Hash); err != nil {
 		return fmt.Errorf("write skill manifest %s: %w", manifestPath(target.Path), err)
 	}
 	return nil
@@ -295,7 +330,7 @@ func dedupeTargets(targets []Target) []Target {
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Scope == out[j].Scope {
 			if out[i].Agent == out[j].Agent {
-				return out[i].Path < out[j].Path
+				return out[i].Skill < out[j].Skill
 			}
 			return out[i].Agent < out[j].Agent
 		}

@@ -16,6 +16,7 @@ const (
 
 type Manifest struct {
 	SchemaVersion int    `json:"schema_version"`
+	Skill         string `json:"skill,omitempty"`
 	PlanVersion   string `json:"plan_version"`
 	PlanCommit    string `json:"plan_commit"`
 	BundleHash    string `json:"bundle_hash"`
@@ -40,10 +41,11 @@ func readManifest(target string) (*Manifest, error) {
 	return &manifest, nil
 }
 
-func writeManifest(target, agent, scope, bundleHash string) error {
+func writeManifest(target, skill, agent, scope, bundleHash string) error {
 	info := buildinfo.Current()
 	manifest := Manifest{
 		SchemaVersion: manifestSchemaVersion,
+		Skill:         skill,
 		PlanVersion:   info.Version,
 		PlanCommit:    info.Commit,
 		BundleHash:    bundleHash,

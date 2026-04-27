@@ -15,12 +15,12 @@ func newSkillsCommand() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "skills",
-		Short: "Install the Plan skill into global or project-local skill roots",
+		Short: "Install Plan skills into global or project-local skill roots",
 	}
 
 	install := &cobra.Command{
 		Use:   "install",
-		Short: "Install the Plan skill",
+		Short: "Install the Plan skills",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			results, err := skills.NewInstaller("").Install(skills.InstallRequest{
 				Scope:      skills.Scope(scope),
@@ -31,7 +31,7 @@ func newSkillsCommand() *cobra.Command {
 				return err
 			}
 			for _, result := range results {
-				fmt.Printf("%s [%s] plan %s -> %s\n", result.Agent, result.Scope, result.Method, result.Path)
+				fmt.Fprintf(cmd.OutOrStdout(), "%s [%s] %s %s -> %s\n", result.Agent, result.Scope, result.Skill, result.Method, result.Path)
 			}
 			return nil
 		},
@@ -50,7 +50,7 @@ func newSkillsCommand() *cobra.Command {
 				return err
 			}
 			for _, item := range items {
-				fmt.Printf("%s [%s] %s\n", item.Agent, item.Scope, item.Path)
+				fmt.Fprintf(cmd.OutOrStdout(), "%s [%s] %s\n", item.Agent, item.Scope, item.Path)
 			}
 			return nil
 		},
