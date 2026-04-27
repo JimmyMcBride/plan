@@ -1,5 +1,5 @@
 ---
-updated: "2026-04-27T06:17:17Z"
+updated: "2026-04-27T15:44:41Z"
 ---
 # Current State
 
@@ -38,3 +38,4 @@ Add repo-specific notes here. `brain context refresh` preserves content outside 
 - On April 25, 2026, GitHub promotion became fail-closed: explicit multi-spec sources that parse as fewer than two specs now return `needs_source_repair`, `plan discuss repair` owns canonical `## Specs` repair, promotion drafts include hard agent policy and fallback gating, 5+ spec apply/adopt requires `--project-decision`, `plan github adopt` recovers manual issue sets, and `plan check` detects Plan-labeled GitHub planning drift.
 - On April 25, 2026, PR `#62` review comments tightened the fail-closed promotion branch: GitHub issue listing now raises on 1000-item truncation instead of silently missing Plan-labeled issues, `github adopt` validates output format before mutation, drift findings are deterministic and preserve milestone display casing, label ensuring only touches Plan-owned `plan:*` labels, and shell command quoting reuses a package-level regex.
 - On April 27, 2026, Plan skill installation expanded from one bundled skill to two: `plan skills install` now installs both the base `plan` planning skill and the companion `plan-execute` execution rail skill, with manifests recording the installed skill name.
+- On April 27, 2026, PR `#71` merged GitHub project workspace provisioning and item field setup into `develop`; review follow-up touched `internal/planning/collaboration.go`, `internal/planning/collaboration_test.go`, `internal/planning/github_client.go`, `internal/planning/github_client_test.go`, and `internal/planning/github_project_workspace.go` to require explicit project decisions for project references, accept `www.github.com` project URLs with trailing view paths, and cache issue node IDs from CLI issue payloads before falling back to GraphQL lookups.
