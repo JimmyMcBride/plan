@@ -1773,9 +1773,14 @@ func validateProjectDecision(decision string, draft *PromotionDraft, ref GitHubP
 	if requiresProjectDecision(draft) && decision == "" {
 		return fmt.Errorf("promotion has %d specs and requires --project-decision create|skip|connect before apply", len(draft.ProposedSpecIssues))
 	}
+	if decision == "" {
+		if strings.TrimSpace(ref.Owner) != "" || ref.Number != 0 || strings.TrimSpace(ref.ID) != "" || strings.TrimSpace(ref.URL) != "" {
+			return fmt.Errorf("project reference flags require --project-decision connect or create explicitly")
+		}
+	}
 	if decision == projectDecisionConnect {
 		if strings.TrimSpace(ref.ID) == "" && (strings.TrimSpace(ref.Owner) == "" || ref.Number <= 0) {
-			return fmt.Errorf("project decision %q requires --project-owner and --project-number, --project-url, or --project-id", decision)
+			return fmt.Errorf("project decision %q requires either --project-owner and --project-number, or --project-url, or --project-id", decision)
 		}
 	}
 	if decision == projectDecisionCreate {

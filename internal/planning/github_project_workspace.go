@@ -262,12 +262,12 @@ func parseGitHubProjectURL(raw string) (GitHubProjectReference, error) {
 	if err != nil {
 		return GitHubProjectReference{}, fmt.Errorf("parse GitHub Project URL: %w", err)
 	}
-	if !strings.EqualFold(parsed.Host, "github.com") {
+	if !strings.EqualFold(parsed.Host, "github.com") && !strings.EqualFold(parsed.Host, "www.github.com") {
 		return GitHubProjectReference{}, fmt.Errorf("GitHub Project URL must use github.com")
 	}
 	parts := strings.Split(strings.Trim(parsed.Path, "/"), "/")
-	if len(parts) != 4 || (parts[0] != "users" && parts[0] != "orgs") || parts[2] != "projects" {
-		return GitHubProjectReference{}, fmt.Errorf("GitHub Project URL must look like https://github.com/users/<owner>/projects/<number> or https://github.com/orgs/<owner>/projects/<number>")
+	if len(parts) < 4 || (parts[0] != "users" && parts[0] != "orgs") || parts[1] == "" || parts[2] != "projects" {
+		return GitHubProjectReference{}, fmt.Errorf("GitHub Project URL must look like https://github.com/users/<owner>/projects/<number> or https://github.com/orgs/<owner>/projects/<number>, with optional trailing path segments")
 	}
 	number, err := strconv.Atoi(parts[3])
 	if err != nil || number <= 0 {

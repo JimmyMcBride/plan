@@ -288,7 +288,7 @@ func TestSixSpecProsePromotesAsMultiSpecWithProjectDecision(t *testing.T) {
 		TargetMode:      SourceOfTruthGitHub,
 		ProjectDecision: "connect",
 	})
-	if err == nil || !strings.Contains(err.Error(), "requires --project-owner and --project-number") {
+	if err == nil || !strings.Contains(err.Error(), "requires either --project-owner and --project-number") {
 		t.Fatalf("expected connect project-reference error, got %v", err)
 	}
 	if len(client.issues) != 0 {
@@ -658,6 +658,18 @@ func TestBuildPromotionDraftNotReadyUsesEmptySpecSliceInJSON(t *testing.T) {
 	}
 	if !strings.Contains(string(raw), `"proposed_spec_issues":[]`) {
 		t.Fatalf("expected stable empty array in json output: %s", string(raw))
+	}
+}
+
+func TestValidateProjectDecisionRejectsReferenceFlagsWithoutDecision(t *testing.T) {
+	draft := &PromotionDraft{
+		ProposedSpecIssues: []PromotionIssueDraft{
+			{Title: "Small spec", Slug: "small-spec"},
+		},
+	}
+	err := validateProjectDecision("", draft, GitHubProjectReference{Owner: "JimmyMcBride", Number: 12})
+	if err == nil || !strings.Contains(err.Error(), "project reference flags require --project-decision") {
+		t.Fatalf("expected project reference flag validation error, got %v", err)
 	}
 }
 

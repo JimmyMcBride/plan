@@ -68,6 +68,7 @@ type GitHubIssueInput struct {
 
 type GitHubIssue struct {
 	Number    int
+	NodeID    string
 	URL       string
 	Title     string
 	Body      string
@@ -155,7 +156,9 @@ func SetGitHubClientFactoryForTesting(factory func() GitHubClient) func() {
 	}
 }
 
-type cliGitHubClient struct{}
+type cliGitHubClient struct {
+	issueNodeIDs map[string]string
+}
 
 const gitHubIssueListLimit = 1000
 
@@ -292,7 +295,12 @@ func (c *cliGitHubClient) upsertIssue(projectDir, apiPath string, input GitHubIs
 	if err != nil {
 		return nil, err
 	}
-	return parseGitHubIssue(out)
+	issue, err := parseGitHubIssue(out)
+	if err != nil {
+		return nil, err
+	}
+	c.cacheIssueNodeID(repoFromIssueAPIPath(apiPath), issue)
+	return issue, nil
 }
 
 func (c *cliGitHubClient) GetIssue(projectDir, repo string, issueNumber int) (*GitHubIssue, error) {
@@ -300,11 +308,16 @@ func (c *cliGitHubClient) GetIssue(projectDir, repo string, issueNumber int) (*G
 	if err != nil {
 		return nil, err
 	}
-	return parseGitHubIssue(out)
+	issue, err := parseGitHubIssue(out)
+	if err != nil {
+		return nil, err
+	}
+	c.cacheIssueNodeID(repo, issue)
+	return issue, nil
 }
 
 func (c *cliGitHubClient) ListIssuesByLabel(projectDir, repo string, labels []string) ([]GitHubIssue, error) {
-	args := []string{"issue", "list", "--repo", repo, "--state", "all", "--limit", strconv.Itoa(gitHubIssueListLimit), "--json", "number,url,title,body,state,labels,milestone"}
+	args := []string{"issue", "list", "--repo", repo, "--state", "all", "--limit", strconv.Itoa(gitHubIssueListLimit), "--json", "id,number,url,title,body,state,labels,milestone"}
 	for _, label := range labels {
 		if strings.TrimSpace(label) == "" {
 			continue
@@ -321,6 +334,9 @@ func (c *cliGitHubClient) ListIssuesByLabel(projectDir, repo string, labels []st
 	}
 	if len(issues) >= gitHubIssueListLimit {
 		return nil, fmt.Errorf("GitHub issue listing for labels %s reached the %d issue safety limit; rerun with a narrower Plan label or add pagination before relying on drift checks", strings.Join(labels, ","), gitHubIssueListLimit)
+	}
+	for i := range issues {
+		c.cacheIssueNodeID(repo, &issues[i])
 	}
 	return issues, nil
 }
@@ -840,9 +856,14 @@ func (c *cliGitHubClient) EnsureProjectField(projectDir string, project GitHubPr
 }
 
 func (c *cliGitHubClient) AddProjectItemByIssue(projectDir, repo, projectID string, issueNumber int) (*GitHubProjectItem, error) {
-	issueID, err := c.issueID(projectDir, repo, issueNumber)
-	if err != nil {
-		return nil, err
+	issueID := c.cachedIssueNodeID(repo, issueNumber)
+	if strings.TrimSpace(issueID) == "" {
+		var err error
+		issueID, err = c.issueID(projectDir, repo, issueNumber)
+		if err != nil {
+			return nil, err
+		}
+		c.cacheIssueNodeIDValue(repo, issueNumber, issueID)
 	}
 	payload := map[string]any{
 		"query": `mutation($projectId:ID!, $contentId:ID!) {
@@ -1159,6 +1180,45 @@ func (c *cliGitHubClient) issueID(projectDir, repo string, issueNumber int) (str
 	return response.Data.Repository.Issue.ID, nil
 }
 
+func (c *cliGitHubClient) cacheIssueNodeID(repo string, issue *GitHubIssue) {
+	if issue == nil {
+		return
+	}
+	c.cacheIssueNodeIDValue(repo, issue.Number, issue.NodeID)
+}
+
+func (c *cliGitHubClient) cacheIssueNodeIDValue(repo string, issueNumber int, nodeID string) {
+	repo = strings.TrimSpace(repo)
+	nodeID = strings.TrimSpace(nodeID)
+	if repo == "" || issueNumber <= 0 || nodeID == "" {
+		return
+	}
+	if c.issueNodeIDs == nil {
+		c.issueNodeIDs = map[string]string{}
+	}
+	c.issueNodeIDs[issueNodeCacheKey(repo, issueNumber)] = nodeID
+}
+
+func (c *cliGitHubClient) cachedIssueNodeID(repo string, issueNumber int) string {
+	if c.issueNodeIDs == nil {
+		return ""
+	}
+	return c.issueNodeIDs[issueNodeCacheKey(repo, issueNumber)]
+}
+
+func issueNodeCacheKey(repo string, issueNumber int) string {
+	return fmt.Sprintf("%s#%d", strings.TrimSpace(repo), issueNumber)
+}
+
+func repoFromIssueAPIPath(apiPath string) string {
+	trimmed := strings.TrimPrefix(strings.TrimSpace(apiPath), "repos/")
+	parts := strings.Split(trimmed, "/")
+	if len(parts) < 3 || parts[0] == "" || parts[1] == "" || parts[2] != "issues" {
+		return ""
+	}
+	return parts[0] + "/" + parts[1]
+}
+
 func (c *cliGitHubClient) issueIDs(projectDir, repo string, issueNumber, otherIssueNumber int) (string, string, error) {
 	owner, name, err := splitRepo(repo)
 	if err != nil {
@@ -1261,6 +1321,7 @@ func parseGitHubIssue(raw []byte) (*GitHubIssue, error) {
 	}
 	type payload struct {
 		Number    int     `json:"number"`
+		NodeID    string  `json:"node_id"`
 		URL       string  `json:"html_url"`
 		Title     string  `json:"title"`
 		Body      string  `json:"body"`
@@ -1277,6 +1338,7 @@ func parseGitHubIssue(raw []byte) (*GitHubIssue, error) {
 	}
 	issue := &GitHubIssue{
 		Number: item.Number,
+		NodeID: item.NodeID,
 		URL:    item.URL,
 		Title:  item.Title,
 		Body:   item.Body,
@@ -1303,6 +1365,7 @@ func parseGitHubIssueList(raw []byte) ([]GitHubIssue, error) {
 	}
 	type payload struct {
 		Number    int     `json:"number"`
+		NodeID    string  `json:"id"`
 		URL       string  `json:"url"`
 		Title     string  `json:"title"`
 		Body      string  `json:"body"`
@@ -1321,6 +1384,7 @@ func parseGitHubIssueList(raw []byte) ([]GitHubIssue, error) {
 	for _, item := range items {
 		issue := GitHubIssue{
 			Number: item.Number,
+			NodeID: item.NodeID,
 			URL:    item.URL,
 			Title:  item.Title,
 			Body:   item.Body,
