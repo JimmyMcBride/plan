@@ -357,6 +357,43 @@ func TestCheckFlagsMissingProjectDecisionForFiveSpecMilestone(t *testing.T) {
 	assertHasFinding(t, report.Findings, "github_planning.missing_project_decision", "GitHub Planning")
 }
 
+func TestCheckFlagsIncompleteProjectDecisionForFiveSpecMilestone(t *testing.T) {
+	reset := SetGitHubClientFactoryForTesting(func() GitHubClient { return checkDriftClient(nil) })
+	t.Cleanup(reset)
+	manager := setupGitHubSourceModeCheck(t)
+	state, err := manager.workspace.ReadGitHubState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 5; i++ {
+		slug := fmt.Sprintf("spec-%d", i)
+		state.Planning[slug] = workspace.GitHubPlanningRecord{
+			Slug:            slug,
+			Kind:            "spec",
+			Title:           fmt.Sprintf("Spec %d", i),
+			IssueNumber:     500 + i,
+			MilestoneNumber: 7,
+			MilestoneTitle:  "Readiness",
+		}
+	}
+	state.ProjectDecisions["readiness"] = workspace.GitHubProjectDecisionRecord{
+		Slug:            "readiness",
+		Decision:        "connect",
+		SpecCount:       5,
+		MilestoneNumber: 7,
+		MilestoneTitle:  "Readiness",
+	}
+	if err := manager.workspace.WriteGitHubState(*state); err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := manager.Check(CheckInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertHasFinding(t, report.Findings, "github_planning.incomplete_project_decision", "GitHub Planning")
+}
+
 func TestCheckFlagsLabelUsedWhereMilestoneExpected(t *testing.T) {
 	client := checkDriftClient(map[int]*GitHubIssue{
 		601: {Number: 601, URL: "https://github.com/JimmyMcBride/plan/issues/601", Title: "Spec", State: "open", Labels: []string{planIssueSpecLabel, "Readiness Initiative"}},

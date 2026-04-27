@@ -75,17 +75,23 @@ type GitHubPlanningRecord struct {
 }
 
 type GitHubProjectDecisionRecord struct {
-	Slug             string `json:"slug"`
-	Decision         string `json:"decision"`
-	Reason           string `json:"reason,omitempty"`
-	SpecCount        int    `json:"spec_count,omitempty"`
-	MilestoneNumber  int    `json:"milestone_number,omitempty"`
-	MilestoneTitle   string `json:"milestone_title,omitempty"`
-	SourceMode       string `json:"source_mode,omitempty"`
-	EntryMode        string `json:"entry_mode,omitempty"`
-	DiscussionNumber int    `json:"discussion_number,omitempty"`
-	DiscussionURL    string `json:"discussion_url,omitempty"`
-	UpdatedAt        string `json:"updated_at,omitempty"`
+	Slug             string            `json:"slug"`
+	Decision         string            `json:"decision"`
+	Reason           string            `json:"reason,omitempty"`
+	InitiativeSlug   string            `json:"initiative_slug,omitempty"`
+	SpecCount        int               `json:"spec_count,omitempty"`
+	MilestoneNumber  int               `json:"milestone_number,omitempty"`
+	MilestoneTitle   string            `json:"milestone_title,omitempty"`
+	ProjectOwner     string            `json:"project_owner,omitempty"`
+	ProjectNumber    int               `json:"project_number,omitempty"`
+	ProjectID        string            `json:"project_id,omitempty"`
+	ProjectURL       string            `json:"project_url,omitempty"`
+	FieldIDs         map[string]string `json:"field_ids,omitempty"`
+	SourceMode       string            `json:"source_mode,omitempty"`
+	EntryMode        string            `json:"entry_mode,omitempty"`
+	DiscussionNumber int               `json:"discussion_number,omitempty"`
+	DiscussionURL    string            `json:"discussion_url,omitempty"`
+	UpdatedAt        string            `json:"updated_at,omitempty"`
 }
 
 type GitHubStoryRecord struct {

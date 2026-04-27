@@ -277,8 +277,21 @@ func TestSixSpecProsePromotesAsMultiSpecWithProjectDecision(t *testing.T) {
 		Confirm:       true,
 		TargetMode:    SourceOfTruthGitHub,
 	})
-	if err == nil || !strings.Contains(err.Error(), "--project-decision create|skip") {
+	if err == nil || !strings.Contains(err.Error(), "--project-decision create|skip|connect") {
 		t.Fatalf("expected project decision gate, got %v", err)
+	}
+
+	_, err = manager.ApplyPromotionDraft(PromotionApplyInput{
+		DiscussionRef:   "88",
+		Confirm:         true,
+		TargetMode:      SourceOfTruthGitHub,
+		ProjectDecision: "connect",
+	})
+	if err == nil || !strings.Contains(err.Error(), "requires project reference support") {
+		t.Fatalf("expected connect project-reference error, got %v", err)
+	}
+	if len(client.issues) != 0 {
+		t.Fatalf("connect decision should fail before mutating GitHub issues: %+v", client.issues)
 	}
 
 	result, err := manager.ApplyPromotionDraft(PromotionApplyInput{
@@ -295,6 +308,15 @@ func TestSixSpecProsePromotesAsMultiSpecWithProjectDecision(t *testing.T) {
 	}
 	if result.ProjectDecision == nil || result.ProjectDecision.Decision != "create" {
 		t.Fatalf("expected project decision record: %+v", result.ProjectDecision)
+	}
+	if result.ProjectDecision.InitiativeSlug == "" || result.ProjectDecision.InitiativeSlug != result.ProjectDecision.Slug {
+		t.Fatalf("expected initiative slug on project decision record: %+v", result.ProjectDecision)
+	}
+	if result.ProjectDecision.MilestoneNumber != result.Milestone.Number || result.ProjectDecision.MilestoneTitle != result.Milestone.Title {
+		t.Fatalf("expected milestone identity on project decision record: %+v", result.ProjectDecision)
+	}
+	if result.ProjectDecision.ProjectOwner != "" || result.ProjectDecision.ProjectNumber != 0 || result.ProjectDecision.ProjectID != "" || result.ProjectDecision.ProjectURL != "" || len(result.ProjectDecision.FieldIDs) != 0 {
+		t.Fatalf("project identity should stay unset until project provisioning: %+v", result.ProjectDecision)
 	}
 	if !containsString(result.Initiative.Labels, planIssueInitiativeLabel) {
 		t.Fatalf("expected initiative label: %+v", result.Initiative.Labels)
