@@ -81,4 +81,6 @@ go run . check --project .
 - Finish one slice, review it, verify it, then commit that slice.
 - Repeat until the current spec is complete.
 - Move to the next queued spec only after the current spec is done.
+- Before opening or merging the PR, run `brain session finish`; if it requires
+  durable notes, commit those notes on the same branch and retry finish.
 - Open one PR after the queued specs for the branch are complete.
