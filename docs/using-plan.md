@@ -386,11 +386,20 @@ Current shipped boundary:
 - the promoted issue body becomes the canonical distilled planning artifact
 - the original GitHub Discussion stays linked as collaboration history
 - promotions with 5+ specs require an explicit project decision so project
-  tracking is never silently skipped; supported values today are
-  `--project-decision create|skip`
-- `connect` is a reserved project decision until project-reference wiring ships;
-  Plan recognizes it but returns a clear error instead of guessing which Project
-  to use
+  tracking is never silently skipped: `--project-decision create|skip|connect`
+- `create` creates one GitHub Project for the initiative and links it to the
+  repository when GitHub accepts the repository link during project creation
+- `connect` requires an existing Project reference with `--project-owner` and
+  `--project-number`, `--project-url`, or `--project-id`
+- Project provisioning adds the initiative/spec issues to the Project, ensures
+  the `Type`, `Stage`, `Ready`, `Status`, and `Area` fields exist, sets initial
+  field values, stores Project metadata in `.plan/.meta/github.json`, and prints
+  manual saved-view setup instructions
+- If an existing single-select field is present but missing required options,
+  Plan fails closed instead of editing options because GitHub can regenerate
+  option ids and clear existing selections
+- Plan does not create saved views; create Workspace, Execution, and
+  Ideas/Tracking views manually in GitHub after provisioning
 - if a valid apply path fails on the GitHub API, Plan emits
   `manual_fallback_allowed=true`; only then may an agent use manual `gh`
   commands, followed by `plan github adopt`
@@ -403,7 +412,8 @@ When a multi-spec promotion is applied, `plan` will:
 - wire the initiative as parent of the spec issues
 - add `blocked by` relationships only where the dependency plan says they are
   real
-- mirror the created issue/milestone metadata into `.plan/.meta/github.json`
+- mirror the created issue/milestone/project metadata into
+  `.plan/.meta/github.json`
 
 By default, new spec issues are `ready`. A spec starts as `needs-refinement`
 only when the draft identified a concrete execution gap.

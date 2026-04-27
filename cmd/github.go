@@ -67,6 +67,10 @@ func newGitHubCommand() *cobra.Command {
 		adoptIssues          []string
 		adoptFormat          string
 		adoptProjectDecision string
+		adoptProjectOwner    string
+		adoptProjectNumber   int
+		adoptProjectID       string
+		adoptProjectURL      string
 	)
 	adopt := &cobra.Command{
 		Use:   "adopt",
@@ -85,6 +89,10 @@ func newGitHubCommand() *cobra.Command {
 				DiscussionRef:   adoptDiscussion,
 				IssueNumbers:    issueNumbers,
 				ProjectDecision: strings.TrimSpace(adoptProjectDecision),
+				ProjectOwner:    strings.TrimSpace(adoptProjectOwner),
+				ProjectNumber:   adoptProjectNumber,
+				ProjectID:       strings.TrimSpace(adoptProjectID),
+				ProjectURL:      strings.TrimSpace(adoptProjectURL),
 			})
 			if err != nil {
 				return err
@@ -98,7 +106,11 @@ func newGitHubCommand() *cobra.Command {
 	adopt.Flags().StringVar(&adoptDiscussion, "discussion", "", "GitHub Discussion number or URL that produced the promotion draft")
 	adopt.Flags().StringSliceVar(&adoptIssues, "issues", nil, "GitHub issue numbers in draft order, comma-separated or repeated")
 	adopt.Flags().StringVar(&adoptFormat, "format", "json", "output format: json")
-	adopt.Flags().StringVar(&adoptProjectDecision, "project-decision", "", "project prompt decision for 5+ spec promotions: create or skip; connect is reserved and not yet implemented")
+	adopt.Flags().StringVar(&adoptProjectDecision, "project-decision", "", "project prompt decision for 5+ spec promotions: create, skip, or connect")
+	adopt.Flags().StringVar(&adoptProjectOwner, "project-owner", "", "GitHub Project owner for create/connect; defaults to repo owner for create")
+	adopt.Flags().IntVar(&adoptProjectNumber, "project-number", 0, "existing GitHub Project number when --project-decision connect")
+	adopt.Flags().StringVar(&adoptProjectID, "project-id", "", "existing GitHub Project node id when --project-decision connect")
+	adopt.Flags().StringVar(&adoptProjectURL, "project-url", "", "existing GitHub Project URL when --project-decision connect")
 
 	cmd.AddCommand(enable, reconcile, adopt)
 	return cmd

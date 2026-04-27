@@ -70,6 +70,26 @@ func (s *stubGitHubEnableClient) AddBlockedBy(projectDir, repo string, issueNumb
 	panic("unexpected AddBlockedBy call")
 }
 
+func (s *stubGitHubEnableClient) CreateProjectWorkspace(projectDir, repo string, input planning.GitHubProjectWorkspaceInput) (*planning.GitHubProjectWorkspace, error) {
+	panic("unexpected CreateProjectWorkspace call")
+}
+
+func (s *stubGitHubEnableClient) GetProjectWorkspace(projectDir, repo string, ref planning.GitHubProjectReference) (*planning.GitHubProjectWorkspace, error) {
+	panic("unexpected GetProjectWorkspace call")
+}
+
+func (s *stubGitHubEnableClient) EnsureProjectField(projectDir string, project planning.GitHubProjectWorkspace, input planning.GitHubProjectFieldInput) (*planning.GitHubProjectField, error) {
+	panic("unexpected EnsureProjectField call")
+}
+
+func (s *stubGitHubEnableClient) AddProjectItemByIssue(projectDir, repo, projectID string, issueNumber int) (*planning.GitHubProjectItem, error) {
+	panic("unexpected AddProjectItemByIssue call")
+}
+
+func (s *stubGitHubEnableClient) SetProjectItemField(projectDir, projectID, itemID string, field planning.GitHubProjectField, value string) error {
+	panic("unexpected SetProjectItemField call")
+}
+
 func TestGitHubEnableCommandPrintsBackendSummary(t *testing.T) {
 	reset := planning.SetGitHubClientFactoryForTesting(func() planning.GitHubClient {
 		return &stubGitHubEnableClient{

@@ -230,6 +230,10 @@ type PromotionApplyInput struct {
 	Confirm         bool
 	TargetMode      SourceOfTruthMode
 	ProjectDecision string
+	ProjectOwner    string
+	ProjectNumber   int
+	ProjectID       string
+	ProjectURL      string
 }
 
 type PromotionApplyResult struct {
@@ -239,6 +243,7 @@ type PromotionApplyResult struct {
 	Milestone             *GitHubMilestone                       `json:"milestone,omitempty"`
 	ParentIssue           int                                    `json:"parent_issue,omitempty"`
 	ProjectDecision       *workspace.GitHubProjectDecisionRecord `json:"project_decision,omitempty"`
+	ProjectWorkspace      *GitHubProjectWorkspaceResult          `json:"project_workspace,omitempty"`
 	ManualFallbackAllowed bool                                   `json:"manual_fallback_allowed"`
 	ManualFallbackReason  string                                 `json:"manual_fallback_reason,omitempty"`
 	NextCommand           string                                 `json:"next_command,omitempty"`
@@ -286,15 +291,20 @@ type GitHubAdoptInput struct {
 	DiscussionRef   string
 	IssueNumbers    []int
 	ProjectDecision string
+	ProjectOwner    string
+	ProjectNumber   int
+	ProjectID       string
+	ProjectURL      string
 }
 
 type GitHubAdoptResult struct {
-	Draft           *PromotionDraft                        `json:"draft"`
-	Initiative      *GitHubIssue                           `json:"initiative,omitempty"`
-	Specs           []GitHubIssue                          `json:"specs,omitempty"`
-	Milestone       *GitHubMilestone                       `json:"milestone,omitempty"`
-	ProjectDecision *workspace.GitHubProjectDecisionRecord `json:"project_decision,omitempty"`
-	Adopted         []workspace.GitHubPlanningRecord       `json:"adopted"`
+	Draft            *PromotionDraft                        `json:"draft"`
+	Initiative       *GitHubIssue                           `json:"initiative,omitempty"`
+	Specs            []GitHubIssue                          `json:"specs,omitempty"`
+	Milestone        *GitHubMilestone                       `json:"milestone,omitempty"`
+	ProjectDecision  *workspace.GitHubProjectDecisionRecord `json:"project_decision,omitempty"`
+	ProjectWorkspace *GitHubProjectWorkspaceResult          `json:"project_workspace,omitempty"`
+	Adopted          []workspace.GitHubPlanningRecord       `json:"adopted"`
 }
 
 type collaborationSourceData struct {
@@ -492,7 +502,11 @@ func (m *Manager) ApplyPromotionDraft(input PromotionApplyInput) (*PromotionAppl
 		}
 		return nil, fmt.Errorf("source is not ready for promotion")
 	}
-	if err := validateProjectDecision(input.ProjectDecision, draft); err != nil {
+	projectRef, err := normalizeProjectReference(input.ProjectOwner, input.ProjectNumber, input.ProjectID, input.ProjectURL)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateProjectDecision(input.ProjectDecision, draft, projectRef); err != nil {
 		return nil, err
 	}
 	mode := input.TargetMode
@@ -556,10 +570,20 @@ func (m *Manager) ApplyPromotionDraft(input PromotionApplyInput) (*PromotionAppl
 		}
 		result.Milestone = milestone
 	}
+	var projectRecord *workspace.GitHubProjectDecisionRecord
+	var preparedProject *preparedProjectWorkspace
 	if strings.TrimSpace(input.ProjectDecision) != "" {
-		record := buildProjectDecisionRecord(draft, input.ProjectDecision, milestone)
+		record := buildProjectDecisionRecord(draft, input.ProjectDecision, milestone, projectRef)
+		preparedProject, record, err = m.prepareProjectWorkspace(info.ProjectDir, state.Repo, draft, record)
+		if err != nil {
+			return fallback(err)
+		}
 		state.ProjectDecisions[record.Slug] = record
 		result.ProjectDecision = &record
+		projectRecord = &record
+		if preparedProject != nil {
+			result.ProjectWorkspace = preparedProject.result
+		}
 	}
 	var initiativeIssue *GitHubIssue
 	if draft.ProposedInitiativeIssue != nil {
@@ -635,6 +659,17 @@ func (m *Manager) ApplyPromotionDraft(input PromotionApplyInput) (*PromotionAppl
 			}
 		}
 	}
+	if preparedProject != nil {
+		if err := m.populateProjectWorkspaceItems(info.ProjectDir, state.Repo, preparedProject, initiativeIssue, specIssuesBySlug, draft.ProposedSpecIssues); err != nil {
+			return fallback(err)
+		}
+		if projectRecord != nil {
+			projectRecord.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+			state.ProjectDecisions[projectRecord.Slug] = *projectRecord
+			result.ProjectDecision = projectRecord
+		}
+		result.ProjectWorkspace = preparedProject.result
+	}
 	for slug, specIssue := range specIssuesBySlug {
 		specDraft := specDraftsBySlug[slug]
 		readiness := string(specDraft.Readiness)
@@ -680,7 +715,11 @@ func (m *Manager) AdoptGitHubPromotion(input GitHubAdoptInput) (*GitHubAdoptResu
 		}
 		return nil, fmt.Errorf("source is not ready for adoption")
 	}
-	if err := validateProjectDecision(input.ProjectDecision, draft); err != nil {
+	projectRef, err := normalizeProjectReference(input.ProjectOwner, input.ProjectNumber, input.ProjectID, input.ProjectURL)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateProjectDecision(input.ProjectDecision, draft, projectRef); err != nil {
 		return nil, err
 	}
 	expected := len(draft.ProposedSpecIssues)
@@ -741,10 +780,20 @@ func (m *Manager) AdoptGitHubPromotion(input GitHubAdoptInput) (*GitHubAdoptResu
 		}
 	}
 	result := &GitHubAdoptResult{Draft: draft, Milestone: milestone}
+	var projectRecord *workspace.GitHubProjectDecisionRecord
+	var preparedProject *preparedProjectWorkspace
 	if strings.TrimSpace(input.ProjectDecision) != "" {
-		record := buildProjectDecisionRecord(draft, input.ProjectDecision, milestone)
+		record := buildProjectDecisionRecord(draft, input.ProjectDecision, milestone, projectRef)
+		preparedProject, record, err = m.prepareProjectWorkspace(info.ProjectDir, state.Repo, draft, record)
+		if err != nil {
+			return nil, err
+		}
 		state.ProjectDecisions[record.Slug] = record
 		result.ProjectDecision = &record
+		projectRecord = &record
+		if preparedProject != nil {
+			result.ProjectWorkspace = preparedProject.result
+		}
 	}
 
 	index := 0
@@ -806,6 +855,17 @@ func (m *Manager) AdoptGitHubPromotion(input GitHubAdoptInput) (*GitHubAdoptResu
 				return nil, err
 			}
 		}
+	}
+	if preparedProject != nil {
+		if err := m.populateProjectWorkspaceItems(info.ProjectDir, state.Repo, preparedProject, initiativeIssue, specIssuesBySlug, draft.ProposedSpecIssues); err != nil {
+			return nil, err
+		}
+		if projectRecord != nil {
+			projectRecord.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+			state.ProjectDecisions[projectRecord.Slug] = *projectRecord
+			result.ProjectDecision = projectRecord
+		}
+		result.ProjectWorkspace = preparedProject.result
 	}
 	for slug, specIssue := range specIssuesBySlug {
 		specDraft := specDraftsBySlug[slug]
@@ -1703,18 +1763,30 @@ func shouldRecommendProject(specCount int, deps []PromotionDependencyPlan) bool 
 	return false
 }
 
-func validateProjectDecision(decision string, draft *PromotionDraft) error {
+func validateProjectDecision(decision string, draft *PromotionDraft, ref GitHubProjectReference) error {
 	decision = normalizeProjectDecision(decision)
 	switch decision {
 	case "", projectDecisionCreate, projectDecisionSkip, projectDecisionConnect:
 	default:
-		return fmt.Errorf("unsupported project decision %q; use create or skip; connect is reserved and not yet implemented", decision)
+		return fmt.Errorf("unsupported project decision %q; use create, skip, or connect", decision)
 	}
 	if requiresProjectDecision(draft) && decision == "" {
-		return fmt.Errorf("promotion has %d specs and requires --project-decision create|skip before apply; connect is reserved and not yet implemented", len(draft.ProposedSpecIssues))
+		return fmt.Errorf("promotion has %d specs and requires --project-decision create|skip|connect before apply", len(draft.ProposedSpecIssues))
 	}
 	if decision == projectDecisionConnect {
-		return fmt.Errorf("project decision %q requires project reference support, which is not implemented yet", decision)
+		if strings.TrimSpace(ref.ID) == "" && (strings.TrimSpace(ref.Owner) == "" || ref.Number <= 0) {
+			return fmt.Errorf("project decision %q requires --project-owner and --project-number, --project-url, or --project-id", decision)
+		}
+	}
+	if decision == projectDecisionCreate {
+		if ref.Number != 0 || strings.TrimSpace(ref.ID) != "" || strings.TrimSpace(ref.URL) != "" {
+			return fmt.Errorf("project decision %q creates a new Project; omit existing project number, id, and url", decision)
+		}
+	}
+	if decision == projectDecisionSkip {
+		if strings.TrimSpace(ref.Owner) != "" || ref.Number != 0 || strings.TrimSpace(ref.ID) != "" || strings.TrimSpace(ref.URL) != "" {
+			return fmt.Errorf("project decision %q skips Project provisioning; omit project reference flags", decision)
+		}
 	}
 	return nil
 }
@@ -1727,7 +1799,7 @@ func requiresProjectDecision(draft *PromotionDraft) bool {
 	return draft != nil && len(draft.ProposedSpecIssues) >= 5
 }
 
-func buildProjectDecisionRecord(draft *PromotionDraft, decision string, milestone *GitHubMilestone) workspace.GitHubProjectDecisionRecord {
+func buildProjectDecisionRecord(draft *PromotionDraft, decision string, milestone *GitHubMilestone, ref GitHubProjectReference) workspace.GitHubProjectDecisionRecord {
 	now := time.Now().UTC().Format(time.RFC3339)
 	slug := promotionProjectDecisionSlug(draft)
 	record := workspace.GitHubProjectDecisionRecord{
@@ -1737,6 +1809,10 @@ func buildProjectDecisionRecord(draft *PromotionDraft, decision string, mileston
 		SpecCount:        len(draft.ProposedSpecIssues),
 		MilestoneNumber:  milestoneNumberOrZero(milestone),
 		MilestoneTitle:   milestoneTitle(milestone),
+		ProjectOwner:     ref.Owner,
+		ProjectNumber:    ref.Number,
+		ProjectID:        ref.ID,
+		ProjectURL:       ref.URL,
 		SourceMode:       string(draft.Source.Mode),
 		EntryMode:        string(draft.Source.EntryMode),
 		DiscussionNumber: discussionNumber(draft.Source.Discussion),
@@ -1849,7 +1925,7 @@ func manualFallbackAdoptCommand(draft *PromotionDraft) string {
 	}
 	args = append(args, "--issues", strings.Join(placeholders, ","))
 	if requiresProjectDecision(draft) {
-		args = append(args, "--project-decision", "<create|skip>")
+		args = append(args, "--project-decision", "<create|skip|connect>")
 	}
 	args = append(args, "--format", "json")
 	return shellCommand(args)
