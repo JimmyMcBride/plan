@@ -98,7 +98,7 @@ func newGitHubCommand() *cobra.Command {
 	adopt.Flags().StringVar(&adoptDiscussion, "discussion", "", "GitHub Discussion number or URL that produced the promotion draft")
 	adopt.Flags().StringSliceVar(&adoptIssues, "issues", nil, "GitHub issue numbers in draft order, comma-separated or repeated")
 	adopt.Flags().StringVar(&adoptFormat, "format", "json", "output format: json")
-	adopt.Flags().StringVar(&adoptProjectDecision, "project-decision", "", "project prompt decision for 5+ spec promotions: create, skip, or connect")
+	adopt.Flags().StringVar(&adoptProjectDecision, "project-decision", "", "project prompt decision for 5+ spec promotions: create or skip; connect is reserved and not yet implemented")
 
 	cmd.AddCommand(enable, reconcile, adopt)
 	return cmd

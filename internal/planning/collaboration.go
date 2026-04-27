@@ -1708,10 +1708,10 @@ func validateProjectDecision(decision string, draft *PromotionDraft) error {
 	switch decision {
 	case "", projectDecisionCreate, projectDecisionSkip, projectDecisionConnect:
 	default:
-		return fmt.Errorf("unsupported project decision %q; use create, skip, or connect", decision)
+		return fmt.Errorf("unsupported project decision %q; use create or skip; connect is reserved and not yet implemented", decision)
 	}
 	if requiresProjectDecision(draft) && decision == "" {
-		return fmt.Errorf("promotion has %d specs and requires --project-decision create|skip|connect before apply", len(draft.ProposedSpecIssues))
+		return fmt.Errorf("promotion has %d specs and requires --project-decision create|skip before apply; connect is reserved and not yet implemented", len(draft.ProposedSpecIssues))
 	}
 	if decision == projectDecisionConnect {
 		return fmt.Errorf("project decision %q requires project reference support, which is not implemented yet", decision)
@@ -1849,7 +1849,7 @@ func manualFallbackAdoptCommand(draft *PromotionDraft) string {
 	}
 	args = append(args, "--issues", strings.Join(placeholders, ","))
 	if requiresProjectDecision(draft) {
-		args = append(args, "--project-decision", "<create|skip|connect>")
+		args = append(args, "--project-decision", "<create|skip>")
 	}
 	args = append(args, "--format", "json")
 	return shellCommand(args)

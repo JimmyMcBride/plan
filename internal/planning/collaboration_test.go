@@ -277,7 +277,7 @@ func TestSixSpecProsePromotesAsMultiSpecWithProjectDecision(t *testing.T) {
 		Confirm:       true,
 		TargetMode:    SourceOfTruthGitHub,
 	})
-	if err == nil || !strings.Contains(err.Error(), "--project-decision create|skip|connect") {
+	if err == nil || !strings.Contains(err.Error(), "--project-decision create|skip") {
 		t.Fatalf("expected project decision gate, got %v", err)
 	}
 

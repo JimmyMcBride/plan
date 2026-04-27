@@ -385,10 +385,12 @@ Current shipped boundary:
   compatibility path to create the local spec file today
 - the promoted issue body becomes the canonical distilled planning artifact
 - the original GitHub Discussion stays linked as collaboration history
-- promotions with 5+ specs require `--project-decision create|skip|connect`
-  so project tracking is never silently skipped
+- promotions with 5+ specs require an explicit project decision so project
+  tracking is never silently skipped; supported values today are
+  `--project-decision create|skip`
 - `connect` is a reserved project decision until project-reference wiring ships;
-  it returns a clear error instead of guessing which Project to use
+  Plan recognizes it but returns a clear error instead of guessing which Project
+  to use
 - if a valid apply path fails on the GitHub API, Plan emits
   `manual_fallback_allowed=true`; only then may an agent use manual `gh`
   commands, followed by `plan github adopt`

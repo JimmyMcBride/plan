@@ -247,7 +247,7 @@ func (m *Manager) checkGitHubPlanningDrift(info *workspace.Info) ([]CheckFinding
 				ArtifactTitle: displayTitle,
 				Section:       "GitHub Planning",
 				Message:       fmt.Sprintf("Milestone %q has %d promoted specs but no project prompt decision record.", displayTitle, count),
-				Suggestion:    "Rerun promotion/adoption with `--project-decision create|skip|connect` so coordination intent is explicit.",
+				Suggestion:    "Rerun promotion/adoption with `--project-decision create|skip` so coordination intent is explicit. `connect` is reserved until project reference support ships.",
 			})
 			continue
 		}
