@@ -3,6 +3,7 @@ package planning
 import (
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -277,7 +278,7 @@ func TestSixSpecProsePromotesAsMultiSpecWithProjectDecision(t *testing.T) {
 		Confirm:       true,
 		TargetMode:    SourceOfTruthGitHub,
 	})
-	if err == nil || !strings.Contains(err.Error(), "--project-decision create|skip") {
+	if err == nil || !strings.Contains(err.Error(), "--project-decision create|skip|connect") {
 		t.Fatalf("expected project decision gate, got %v", err)
 	}
 
@@ -287,7 +288,7 @@ func TestSixSpecProsePromotesAsMultiSpecWithProjectDecision(t *testing.T) {
 		TargetMode:      SourceOfTruthGitHub,
 		ProjectDecision: "connect",
 	})
-	if err == nil || !strings.Contains(err.Error(), "requires project reference support") {
+	if err == nil || !strings.Contains(err.Error(), "requires either --project-owner and --project-number") {
 		t.Fatalf("expected connect project-reference error, got %v", err)
 	}
 	if len(client.issues) != 0 {
@@ -315,8 +316,23 @@ func TestSixSpecProsePromotesAsMultiSpecWithProjectDecision(t *testing.T) {
 	if result.ProjectDecision.MilestoneNumber != result.Milestone.Number || result.ProjectDecision.MilestoneTitle != result.Milestone.Title {
 		t.Fatalf("expected milestone identity on project decision record: %+v", result.ProjectDecision)
 	}
-	if result.ProjectDecision.ProjectOwner != "" || result.ProjectDecision.ProjectNumber != 0 || result.ProjectDecision.ProjectID != "" || result.ProjectDecision.ProjectURL != "" || len(result.ProjectDecision.FieldIDs) != 0 {
-		t.Fatalf("project identity should stay unset until project provisioning: %+v", result.ProjectDecision)
+	if result.ProjectDecision.ProjectOwner != "JimmyMcBride" || result.ProjectDecision.ProjectNumber == 0 || result.ProjectDecision.ProjectID == "" || result.ProjectDecision.ProjectURL == "" || len(result.ProjectDecision.FieldIDs) != 5 {
+		t.Fatalf("expected project identity after provisioning: %+v", result.ProjectDecision)
+	}
+	if result.ProjectWorkspace == nil || len(result.ProjectWorkspace.Items) != 7 || len(result.ProjectWorkspace.SavedViewInstructions) == 0 {
+		t.Fatalf("expected project workspace provisioning result: %+v", result.ProjectWorkspace)
+	}
+	if len(client.createdProjects) != 1 || client.createdProjects[0].Title != "Pre-planning Center Product Readiness" {
+		t.Fatalf("expected one created project: %+v", client.createdProjects)
+	}
+	if len(client.projectItems) != 7 {
+		t.Fatalf("expected initiative plus spec project items: %+v", client.projectItems)
+	}
+	if !stubHasProjectValue(client.projectValues, result.Initiative.Number, projectFieldType, projectValueTracking) {
+		t.Fatalf("expected initiative type tracking value: %+v", client.projectValues)
+	}
+	if !stubHasProjectValue(client.projectValues, result.Specs[0].Number, projectFieldReady, projectValueYes) {
+		t.Fatalf("expected ready spec value: %+v", client.projectValues)
 	}
 	if !containsString(result.Initiative.Labels, planIssueInitiativeLabel) {
 		t.Fatalf("expected initiative label: %+v", result.Initiative.Labels)
@@ -335,6 +351,108 @@ func TestSixSpecProsePromotesAsMultiSpecWithProjectDecision(t *testing.T) {
 	}
 	if len(state.ProjectDecisions) != 1 {
 		t.Fatalf("expected project decision metadata: %+v", state.ProjectDecisions)
+	}
+}
+
+func TestApplyPromotionDraftConnectsExistingProjectWorkspace(t *testing.T) {
+	client := &stubGitHubClient{
+		preflight: &GitHubRepoInfo{
+			Repo:          "JimmyMcBride/plan",
+			RepoURL:       "https://github.com/JimmyMcBride/plan",
+			DefaultBranch: "develop",
+		},
+		context: &GitHubContext{
+			Repo: GitHubRepoInfo{
+				Repo:          "JimmyMcBride/plan",
+				RepoURL:       "https://github.com/JimmyMcBride/plan",
+				DefaultBranch: "develop",
+			},
+			CurrentBranch: "develop",
+			CurrentSHA:    "abc123",
+		},
+		projects: map[int]*GitHubProjectWorkspace{
+			12: {
+				Owner:  "JimmyMcBride",
+				Number: 12,
+				ID:     "PVT_existing",
+				URL:    "https://github.com/users/JimmyMcBride/projects/12",
+				Title:  "Existing Workspace",
+			},
+		},
+		discussions: map[int]*GitHubDiscussion{
+			90: {
+				Number: 90,
+				URL:    "https://github.com/JimmyMcBride/plan/discussions/90",
+				Title:  "Connected Workspace",
+				Body: strings.Join([]string{
+					"## Problem",
+					"Existing project workspaces need Plan-managed cards.",
+					"",
+					"## Goals",
+					"Connect existing projects and seed initiative/spec items.",
+					"",
+					"## Non-Goals",
+					"Do not create saved views.",
+					"",
+					"## Constraints",
+					"Keep field setup deterministic.",
+					"",
+					"## Proposed Shape",
+					"Use a connected GitHub Project and add issue items.",
+					"",
+					"## Spec Split",
+					"- Project connect schema",
+					"- Project item values",
+					"",
+					"Project item values depends on Project connect schema.",
+				}, "\n"),
+			},
+		},
+	}
+	reset := SetGitHubClientFactoryForTesting(func() GitHubClient { return client })
+	t.Cleanup(reset)
+
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := New(ws)
+
+	result, err := manager.ApplyPromotionDraft(PromotionApplyInput{
+		DiscussionRef:   "90",
+		Confirm:         true,
+		TargetMode:      SourceOfTruthGitHub,
+		ProjectDecision: "connect",
+		ProjectOwner:    "JimmyMcBride",
+		ProjectNumber:   12,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(client.createdProjects) != 0 {
+		t.Fatalf("connect should not create a project: %+v", client.createdProjects)
+	}
+	if result.ProjectDecision == nil || result.ProjectDecision.Decision != "connect" || result.ProjectDecision.ProjectID != "PVT_existing" || result.ProjectDecision.ProjectNumber != 12 {
+		t.Fatalf("expected connected project decision metadata: %+v", result.ProjectDecision)
+	}
+	if result.ProjectWorkspace == nil || len(result.ProjectWorkspace.Items) != 3 || len(result.ProjectWorkspace.SavedViewInstructions) != 3 {
+		t.Fatalf("expected project workspace output: %+v", result.ProjectWorkspace)
+	}
+	if !stubHasProjectValue(client.projectValues, result.Specs[0].Number, projectFieldReady, projectValueYes) {
+		t.Fatalf("expected first spec to be ready: %+v", client.projectValues)
+	}
+	if !stubHasProjectValue(client.projectValues, result.Specs[1].Number, projectFieldReady, projectValueNo) {
+		t.Fatalf("expected blocked spec to be not ready: %+v", client.projectValues)
+	}
+
+	state, err := ws.ReadGitHubState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	record := state.ProjectDecisions["connected-workspace"]
+	if record.ProjectID != "PVT_existing" || len(record.FieldIDs) != 5 {
+		t.Fatalf("expected persisted project metadata: %+v", record)
 	}
 }
 
@@ -543,6 +661,18 @@ func TestBuildPromotionDraftNotReadyUsesEmptySpecSliceInJSON(t *testing.T) {
 	}
 }
 
+func TestValidateProjectDecisionRejectsReferenceFlagsWithoutDecision(t *testing.T) {
+	draft := &PromotionDraft{
+		ProposedSpecIssues: []PromotionIssueDraft{
+			{Title: "Small spec", Slug: "small-spec"},
+		},
+	}
+	err := validateProjectDecision("", draft, GitHubProjectReference{Owner: "JimmyMcBride", Number: 12})
+	if err == nil || !strings.Contains(err.Error(), "project reference flags require --project-decision") {
+		t.Fatalf("expected project reference flag validation error, got %v", err)
+	}
+}
+
 func createReadyCollaborationBrainstormForTest(t *testing.T, manager *Manager, slug string) {
 	t.Helper()
 	title := strings.ReplaceAll(slug, "-", " ")
@@ -569,6 +699,16 @@ func createReadyCollaborationBrainstormForTest(t *testing.T, manager *Manager, s
 	}); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func stubHasProjectValue(values []stubProjectValue, issueNumber int, field, value string) bool {
+	itemID := "PVTI_" + strconv.Itoa(issueNumber)
+	for _, current := range values {
+		if current.ItemID == itemID && current.Field == field && current.Value == value {
+			return true
+		}
+	}
+	return false
 }
 
 func TestApplyPromotionDraftWiresBlockedByAfterAllIssuesExist(t *testing.T) {

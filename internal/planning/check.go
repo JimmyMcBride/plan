@@ -247,7 +247,7 @@ func (m *Manager) checkGitHubPlanningDrift(info *workspace.Info) ([]CheckFinding
 				ArtifactTitle: displayTitle,
 				Section:       "GitHub Planning",
 				Message:       fmt.Sprintf("Milestone %q has %d promoted specs but no project prompt decision record.", displayTitle, count),
-				Suggestion:    "Rerun promotion/adoption with `--project-decision create|skip` so coordination intent is explicit. `connect` is reserved until project reference support ships.",
+				Suggestion:    "Rerun promotion/adoption with `--project-decision create|skip|connect` so coordination intent is explicit.",
 			})
 			continue
 		}
@@ -332,11 +332,16 @@ func projectDecisionForMilestone(state *workspace.GitHubState, number int, title
 
 func incompleteProjectDecisionReason(decision workspace.GitHubProjectDecisionRecord) string {
 	switch normalizeProjectDecision(decision.Decision) {
-	case projectDecisionCreate, projectDecisionSkip:
+	case projectDecisionSkip:
 		return ""
-	case projectDecisionConnect:
+	case projectDecisionCreate, projectDecisionConnect:
 		if strings.TrimSpace(decision.ProjectID) == "" && decision.ProjectNumber == 0 && strings.TrimSpace(decision.ProjectURL) == "" {
-			return "connect decisions require a project id, number, or url"
+			return fmt.Sprintf("%s decisions require a project id, number, or url", normalizeProjectDecision(decision.Decision))
+		}
+		for _, field := range projectWorkspaceFieldInputs() {
+			if strings.TrimSpace(decision.FieldIDs[field.Name]) == "" {
+				return fmt.Sprintf("%s decisions require project field id %q", normalizeProjectDecision(decision.Decision), field.Name)
+			}
 		}
 		return ""
 	case "":
