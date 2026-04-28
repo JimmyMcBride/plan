@@ -15,6 +15,11 @@
 - [ ] `go build ./...`
 - [ ] Other:
 
+## Workflow Readiness
+
+- [ ] `brain session finish` completed before this PR is marked ready or merged.
+- [ ] Required Brain durable notes, docs, or contract updates are committed in this PR.
+
 ## Release Notes
 
 <!-- This section is promoted into the published GitHub release body when this PR ships. -->

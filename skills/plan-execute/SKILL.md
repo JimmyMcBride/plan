@@ -72,13 +72,20 @@ Use this sequence unless repo instructions require a stricter flow:
 8. Commit:
    - stage only intentional changes
    - use a clear message referencing the spec when useful
-9. Push and PR:
+9. Brain pre-PR closeout:
+   - run `brain session finish` before the PR is marked ready or merged when a
+     Brain session is active
+   - if Brain requires durable notes, apply them, commit them on the same branch,
+     and retry `brain session finish`
+   - do not leave `.brain/`, docs, or contract note changes uncommitted when
+     switching back to the integration branch, and do not commit them directly
+     on the integration branch outside the PR
+10. Push and PR:
    - push `codex/<spec-slug>`
    - open a ready PR to the repo's integration branch
    - include summary, spec link, slice list, tests run, migration/seed notes,
      manual QA, and screenshots when relevant
-10. Finish:
-   - finish the Brain session when one is active
+11. Finish:
    - report PR URL, tests, and any documented risk
 
 ## Stop Conditions

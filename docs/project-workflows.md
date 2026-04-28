@@ -26,17 +26,19 @@ Use this file for agent operating workflow inside the repo.
 3. Run the required full checks through `brain session run -- go test ./...` and `brain session run -- go build ./...`.
 4. Review the diff against the task goal and user-facing behavior.
 5. If review finds issues, patch the work and repeat the test and review steps.
-6. When the task is clean, commit it, push it, and only then move to the next task.
+6. When the task is clean, commit it and only then move to the next task.
+7. If an early PR helps collaboration, push and open it as draft or not-ready. Before the PR is marked ready or merged, run `brain session finish`; if Brain requires durable notes, apply them, commit them on the same branch, retry finish, and include that commit in the final pushed PR state.
 
 ## Close-Out
 
 - Refresh or update durable notes for meaningful behavior, config, or architecture changes.
 - If `brain session finish` blocks, inspect the promotion suggestions first; run `brain distill --session --dry-run` only when you need the full review without creating a proposal note.
 - Before switching away from a working branch or back to `develop`, run `git status --short` and resolve repo-owned leftovers. If `.brain/resources/changes/*`, `.brain/`, `docs/`, or contract files belong to the task, keep them in the same branch/PR; otherwise review and intentionally remove them instead of carrying them onto `develop`, `release/*`, or `main`.
+- Treat `brain session finish` as a PR-readiness gate, not a post-merge cleanup step. Do not mark ready or merge the PR until required Brain durable notes are committed in that PR branch or an explicit forced finish records why no note was kept.
 - If `skills/brain/` changed, reinstall the local Brain skill for Codex and OpenClaw with `brain skills install --scope local --agent codex --agent openclaw --project .`.
 - When opening a PR, make the title and body release-note friendly because GitHub release notes are generated from merged PR metadata.
 - Summarize shipped behavior in the PR, not just implementation steps, so future changelogs stay human-readable.
-- Finish with `brain session finish`.
+- Finish with `brain session finish` before marking the PR ready, before merging it, and before the final push that makes the PR ready.
 - If you must bypass enforcement, use `brain session finish --force --reason "..."` so the override is recorded.
 <!-- brain:end project-doc-workflows -->
 
@@ -52,6 +54,9 @@ Use this file for agent operating workflow inside the repo.
 - Implement one slice at a time.
 - Review and verify each slice before committing that slice.
 - Repeat until the current spec is done, then move to the next queued spec.
+- Run `brain session finish` before the PR is marked ready or merged; commit any
+  required Brain durable notes on the same branch and retry finish before pushing
+  the final PR state.
 - Open one PR after the queued specs for the branch are complete.
 - If legacy epic/story material is still active, archive it with `plan update --project . --archive-legacy`.
 - If GitHub story mode is enabled, run `plan update --project .` and `plan github reconcile --project . --update-visible` after merge before taking more queue work.
