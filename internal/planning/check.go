@@ -237,19 +237,32 @@ func (m *Manager) checkGitHubPlanningDrift(info *workspace.Info) ([]CheckFinding
 		if displayTitle == "" {
 			displayTitle = title
 		}
-		if hasProjectDecisionForMilestone(state, number, title) {
+		decision, ok := projectDecisionForMilestone(state, number, title)
+		if !ok {
+			findings = append(findings, CheckFinding{
+				Severity:      "error",
+				Rule:          "github_planning.missing_project_decision",
+				ArtifactType:  "github_milestone",
+				ArtifactPath:  displayTitle,
+				ArtifactTitle: displayTitle,
+				Section:       "GitHub Planning",
+				Message:       fmt.Sprintf("Milestone %q has %d promoted specs but no project prompt decision record.", displayTitle, count),
+				Suggestion:    "Rerun promotion/adoption with `--project-decision create|skip|connect` so coordination intent is explicit.",
+			})
 			continue
 		}
-		findings = append(findings, CheckFinding{
-			Severity:      "error",
-			Rule:          "github_planning.missing_project_decision",
-			ArtifactType:  "github_milestone",
-			ArtifactPath:  displayTitle,
-			ArtifactTitle: displayTitle,
-			Section:       "GitHub Planning",
-			Message:       fmt.Sprintf("Milestone %q has %d promoted specs but no project prompt decision record.", displayTitle, count),
-			Suggestion:    "Rerun promotion/adoption with `--project-decision create|skip` so coordination intent is explicit.",
-		})
+		if reason := incompleteProjectDecisionReason(decision); reason != "" {
+			findings = append(findings, CheckFinding{
+				Severity:      "error",
+				Rule:          "github_planning.incomplete_project_decision",
+				ArtifactType:  "github_milestone",
+				ArtifactPath:  displayTitle,
+				ArtifactTitle: displayTitle,
+				Section:       "GitHub Planning",
+				Message:       fmt.Sprintf("Milestone %q has incomplete project decision metadata: %s.", displayTitle, reason),
+				Suggestion:    "Rerun promotion/adoption with a supported `--project-decision` value, or repair the project decision metadata before project automation continues.",
+			})
+		}
 	}
 	return findings, nil
 }
@@ -305,16 +318,37 @@ func splitMilestoneKey(key string) (int, string) {
 	return number, parts[1]
 }
 
-func hasProjectDecisionForMilestone(state *workspace.GitHubState, number int, title string) bool {
+func projectDecisionForMilestone(state *workspace.GitHubState, number int, title string) (workspace.GitHubProjectDecisionRecord, bool) {
 	for _, decision := range state.ProjectDecisions {
 		if number > 0 && decision.MilestoneNumber == number {
-			return true
+			return decision, true
 		}
 		if strings.EqualFold(strings.TrimSpace(decision.MilestoneTitle), strings.TrimSpace(title)) && strings.TrimSpace(title) != "" {
-			return true
+			return decision, true
 		}
 	}
-	return false
+	return workspace.GitHubProjectDecisionRecord{}, false
+}
+
+func incompleteProjectDecisionReason(decision workspace.GitHubProjectDecisionRecord) string {
+	switch normalizeProjectDecision(decision.Decision) {
+	case projectDecisionSkip:
+		return ""
+	case projectDecisionCreate, projectDecisionConnect:
+		if strings.TrimSpace(decision.ProjectID) == "" && decision.ProjectNumber == 0 && strings.TrimSpace(decision.ProjectURL) == "" {
+			return fmt.Sprintf("%s decisions require a project id, number, or url", normalizeProjectDecision(decision.Decision))
+		}
+		for _, field := range projectWorkspaceFieldInputs() {
+			if strings.TrimSpace(decision.FieldIDs[field.Name]) == "" {
+				return fmt.Sprintf("%s decisions require project field id %q", normalizeProjectDecision(decision.Decision), field.Name)
+			}
+		}
+		return ""
+	case "":
+		return "decision is empty"
+	default:
+		return fmt.Sprintf("decision %q is not supported", decision.Decision)
+	}
 }
 
 func (m *Manager) readStoriesByFilter(info *workspace.Info, keep func(StoryInfo) bool) ([]*notes.Note, error) {

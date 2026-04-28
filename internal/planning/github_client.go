@@ -24,6 +24,11 @@ type GitHubClient interface {
 	UpdateDiscussionBody(projectDir, repo string, number int, body string) (*GitHubDiscussion, error)
 	AddSubIssue(projectDir, repo string, issueNumber, subIssueNumber int) error
 	AddBlockedBy(projectDir, repo string, issueNumber, blockingIssueNumber int) error
+	CreateProjectWorkspace(projectDir, repo string, input GitHubProjectWorkspaceInput) (*GitHubProjectWorkspace, error)
+	GetProjectWorkspace(projectDir, repo string, ref GitHubProjectReference) (*GitHubProjectWorkspace, error)
+	EnsureProjectField(projectDir string, project GitHubProjectWorkspace, input GitHubProjectFieldInput) (*GitHubProjectField, error)
+	AddProjectItemByIssue(projectDir, repo, projectID string, issueNumber int) (*GitHubProjectItem, error)
+	SetProjectItemField(projectDir, projectID, itemID string, field GitHubProjectField, value string) error
 }
 
 type GitHubRepoInfo struct {
@@ -63,6 +68,7 @@ type GitHubIssueInput struct {
 
 type GitHubIssue struct {
 	Number    int
+	NodeID    string
 	URL       string
 	Title     string
 	Body      string
@@ -99,6 +105,45 @@ type GitHubDiscussionComment struct {
 	Body string
 }
 
+type GitHubProjectReference struct {
+	Owner  string
+	Number int
+	ID     string
+	URL    string
+}
+
+type GitHubProjectWorkspaceInput struct {
+	Owner string
+	Title string
+}
+
+type GitHubProjectWorkspace struct {
+	Owner  string
+	Number int
+	ID     string
+	URL    string
+	Title  string
+	Fields []GitHubProjectField
+}
+
+type GitHubProjectFieldInput struct {
+	Name     string
+	DataType string
+	Options  []string
+}
+
+type GitHubProjectField struct {
+	ID       string
+	Name     string
+	DataType string
+	Options  map[string]string
+}
+
+type GitHubProjectItem struct {
+	ID          string
+	IssueNumber int
+}
+
 var newGitHubClient = func() GitHubClient {
 	return &cliGitHubClient{}
 }
@@ -111,7 +156,9 @@ func SetGitHubClientFactoryForTesting(factory func() GitHubClient) func() {
 	}
 }
 
-type cliGitHubClient struct{}
+type cliGitHubClient struct {
+	issueNodeIDs map[string]string
+}
 
 const gitHubIssueListLimit = 1000
 
@@ -248,7 +295,12 @@ func (c *cliGitHubClient) upsertIssue(projectDir, apiPath string, input GitHubIs
 	if err != nil {
 		return nil, err
 	}
-	return parseGitHubIssue(out)
+	issue, err := parseGitHubIssue(out)
+	if err != nil {
+		return nil, err
+	}
+	c.cacheIssueNodeID(repoFromIssueAPIPath(apiPath), issue)
+	return issue, nil
 }
 
 func (c *cliGitHubClient) GetIssue(projectDir, repo string, issueNumber int) (*GitHubIssue, error) {
@@ -256,11 +308,16 @@ func (c *cliGitHubClient) GetIssue(projectDir, repo string, issueNumber int) (*G
 	if err != nil {
 		return nil, err
 	}
-	return parseGitHubIssue(out)
+	issue, err := parseGitHubIssue(out)
+	if err != nil {
+		return nil, err
+	}
+	c.cacheIssueNodeID(repo, issue)
+	return issue, nil
 }
 
 func (c *cliGitHubClient) ListIssuesByLabel(projectDir, repo string, labels []string) ([]GitHubIssue, error) {
-	args := []string{"issue", "list", "--repo", repo, "--state", "all", "--limit", strconv.Itoa(gitHubIssueListLimit), "--json", "number,url,title,body,state,labels,milestone"}
+	args := []string{"issue", "list", "--repo", repo, "--state", "all", "--limit", strconv.Itoa(gitHubIssueListLimit), "--json", "id,number,url,title,body,state,labels,milestone"}
 	for _, label := range labels {
 		if strings.TrimSpace(label) == "" {
 			continue
@@ -277,6 +334,9 @@ func (c *cliGitHubClient) ListIssuesByLabel(projectDir, repo string, labels []st
 	}
 	if len(issues) >= gitHubIssueListLimit {
 		return nil, fmt.Errorf("GitHub issue listing for labels %s reached the %d issue safety limit; rerun with a narrower Plan label or add pagination before relying on drift checks", strings.Join(labels, ","), gitHubIssueListLimit)
+	}
+	for i := range issues {
+		c.cacheIssueNodeID(repo, &issues[i])
 	}
 	return issues, nil
 }
@@ -546,6 +606,406 @@ func (c *cliGitHubClient) AddBlockedBy(projectDir, repo string, issueNumber, blo
 	return c.graphql(projectDir, payload, nil)
 }
 
+func (c *cliGitHubClient) CreateProjectWorkspace(projectDir, repo string, input GitHubProjectWorkspaceInput) (*GitHubProjectWorkspace, error) {
+	owner := strings.TrimSpace(input.Owner)
+	if owner == "" {
+		repoOwner, _, err := splitRepo(repo)
+		if err != nil {
+			return nil, err
+		}
+		owner = repoOwner
+	}
+	title := strings.TrimSpace(input.Title)
+	if title == "" {
+		return nil, fmt.Errorf("project title is required")
+	}
+	ownerID, repoID, err := c.projectOwnerAndRepositoryIDs(projectDir, repo, owner)
+	if err != nil {
+		return nil, err
+	}
+	payload := map[string]any{
+		"query": `mutation($ownerId:ID!, $repositoryId:ID!, $title:String!) {
+  createProjectV2(input:{ownerId:$ownerId, repositoryId:$repositoryId, title:$title}) {
+    projectV2 {
+      id
+      number
+      url
+      title
+      fields(first:100) {
+        nodes {
+          __typename
+          ... on ProjectV2Field {
+            id
+            name
+            dataType
+          }
+          ... on ProjectV2SingleSelectField {
+            id
+            name
+            dataType
+            options {
+              id
+              name
+            }
+          }
+        }
+      }
+    }
+  }
+}`,
+		"variables": map[string]any{
+			"ownerId":      ownerID,
+			"repositoryId": repoID,
+			"title":        title,
+		},
+	}
+	var response struct {
+		Data struct {
+			CreateProjectV2 struct {
+				ProjectV2 projectV2Payload `json:"projectV2"`
+			} `json:"createProjectV2"`
+		} `json:"data"`
+	}
+	if err := c.graphql(projectDir, payload, &response); err != nil {
+		return nil, err
+	}
+	project := projectWorkspaceFromPayload(owner, response.Data.CreateProjectV2.ProjectV2)
+	if strings.TrimSpace(project.ID) == "" {
+		return nil, fmt.Errorf("created GitHub Project did not include an id")
+	}
+	return project, nil
+}
+
+func (c *cliGitHubClient) GetProjectWorkspace(projectDir, repo string, ref GitHubProjectReference) (*GitHubProjectWorkspace, error) {
+	if strings.TrimSpace(ref.ID) != "" {
+		return c.getProjectWorkspaceByID(projectDir, strings.TrimSpace(ref.ID), strings.TrimSpace(ref.Owner))
+	}
+	owner := strings.TrimSpace(ref.Owner)
+	if owner == "" {
+		return nil, fmt.Errorf("project owner is required to connect an existing GitHub Project")
+	}
+	if ref.Number <= 0 {
+		return nil, fmt.Errorf("project number is required to connect an existing GitHub Project")
+	}
+	payload := map[string]any{
+		"query": `query($owner:String!, $number:Int!) {
+  repositoryOwner(login:$owner) {
+    login
+    ... on User {
+      projectV2(number:$number) {
+        id
+        number
+        url
+        title
+        fields(first:100) {
+          nodes {
+            __typename
+            ... on ProjectV2Field {
+              id
+              name
+              dataType
+            }
+            ... on ProjectV2SingleSelectField {
+              id
+              name
+              dataType
+              options {
+                id
+                name
+              }
+            }
+          }
+        }
+      }
+    }
+    ... on Organization {
+      projectV2(number:$number) {
+        id
+        number
+        url
+        title
+        fields(first:100) {
+          nodes {
+            __typename
+            ... on ProjectV2Field {
+              id
+              name
+              dataType
+            }
+            ... on ProjectV2SingleSelectField {
+              id
+              name
+              dataType
+              options {
+                id
+                name
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}`,
+		"variables": map[string]any{
+			"owner":  owner,
+			"number": ref.Number,
+		},
+	}
+	var response struct {
+		Data struct {
+			RepositoryOwner *struct {
+				Login   string           `json:"login"`
+				Project projectV2Payload `json:"projectV2"`
+			} `json:"repositoryOwner"`
+		} `json:"data"`
+	}
+	if err := c.graphql(projectDir, payload, &response); err != nil {
+		return nil, err
+	}
+	if response.Data.RepositoryOwner == nil {
+		return nil, fmt.Errorf("GitHub Project owner %q not found", owner)
+	}
+	project := projectWorkspaceFromPayload(owner, response.Data.RepositoryOwner.Project)
+	if strings.TrimSpace(project.ID) == "" {
+		return nil, fmt.Errorf("GitHub Project %s/%d not found", owner, ref.Number)
+	}
+	return project, nil
+}
+
+func (c *cliGitHubClient) EnsureProjectField(projectDir string, project GitHubProjectWorkspace, input GitHubProjectFieldInput) (*GitHubProjectField, error) {
+	name := strings.TrimSpace(input.Name)
+	dataType := strings.TrimSpace(input.DataType)
+	if name == "" || dataType == "" {
+		return nil, fmt.Errorf("project field name and data type are required")
+	}
+	for _, field := range project.Fields {
+		if !strings.EqualFold(strings.TrimSpace(field.Name), name) {
+			continue
+		}
+		if !strings.EqualFold(strings.TrimSpace(field.DataType), dataType) {
+			return nil, fmt.Errorf("GitHub Project field %q has type %q; expected %q", field.Name, field.DataType, dataType)
+		}
+		missing := missingProjectFieldOptions(field, input.Options)
+		if len(missing) > 0 {
+			return nil, fmt.Errorf("GitHub Project field %q is missing options %s; add them manually or use a new Project because Plan does not edit existing single-select options without restoring affected item selections", field.Name, strings.Join(missing, ", "))
+		}
+		copy := field
+		copy.Options = copyStringMap(field.Options)
+		return &copy, nil
+	}
+	variables := map[string]any{
+		"projectId": project.ID,
+		"name":      name,
+		"dataType":  dataType,
+	}
+	if strings.EqualFold(dataType, "SINGLE_SELECT") {
+		options := make([]map[string]string, 0, len(input.Options))
+		for _, option := range input.Options {
+			option = strings.TrimSpace(option)
+			if option == "" {
+				continue
+			}
+			options = append(options, map[string]string{
+				"name":        option,
+				"color":       "GRAY",
+				"description": "",
+			})
+		}
+		variables["singleSelectOptions"] = options
+	}
+	payload := map[string]any{
+		"query": `mutation($projectId:ID!, $name:String!, $dataType:ProjectV2CustomFieldType!, $singleSelectOptions:[ProjectV2SingleSelectFieldOptionInput!]) {
+  createProjectV2Field(input:{projectId:$projectId, name:$name, dataType:$dataType, singleSelectOptions:$singleSelectOptions}) {
+    projectV2Field {
+      __typename
+      ... on ProjectV2Field {
+        id
+        name
+        dataType
+      }
+      ... on ProjectV2SingleSelectField {
+        id
+        name
+        dataType
+        options {
+          id
+          name
+        }
+      }
+    }
+  }
+}`,
+		"variables": variables,
+	}
+	var response struct {
+		Data struct {
+			CreateProjectV2Field struct {
+				ProjectV2Field projectV2FieldPayload `json:"projectV2Field"`
+			} `json:"createProjectV2Field"`
+		} `json:"data"`
+	}
+	if err := c.graphql(projectDir, payload, &response); err != nil {
+		return nil, err
+	}
+	field := projectFieldFromPayload(response.Data.CreateProjectV2Field.ProjectV2Field)
+	if strings.TrimSpace(field.ID) == "" {
+		return nil, fmt.Errorf("created GitHub Project field %q did not include an id", name)
+	}
+	return &field, nil
+}
+
+func (c *cliGitHubClient) AddProjectItemByIssue(projectDir, repo, projectID string, issueNumber int) (*GitHubProjectItem, error) {
+	issueID := c.cachedIssueNodeID(repo, issueNumber)
+	if strings.TrimSpace(issueID) == "" {
+		var err error
+		issueID, err = c.issueID(projectDir, repo, issueNumber)
+		if err != nil {
+			return nil, err
+		}
+		c.cacheIssueNodeIDValue(repo, issueNumber, issueID)
+	}
+	payload := map[string]any{
+		"query": `mutation($projectId:ID!, $contentId:ID!) {
+  addProjectV2ItemById(input:{projectId:$projectId, contentId:$contentId}) {
+    item {
+      id
+    }
+  }
+}`,
+		"variables": map[string]any{
+			"projectId": projectID,
+			"contentId": issueID,
+		},
+	}
+	var response struct {
+		Data struct {
+			AddProjectV2ItemByID struct {
+				Item struct {
+					ID string `json:"id"`
+				} `json:"item"`
+			} `json:"addProjectV2ItemById"`
+		} `json:"data"`
+	}
+	if err := c.graphql(projectDir, payload, &response); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(response.Data.AddProjectV2ItemByID.Item.ID) == "" {
+		return nil, fmt.Errorf("GitHub Project item for issue #%d did not include an id", issueNumber)
+	}
+	return &GitHubProjectItem{ID: response.Data.AddProjectV2ItemByID.Item.ID, IssueNumber: issueNumber}, nil
+}
+
+func (c *cliGitHubClient) SetProjectItemField(projectDir, projectID, itemID string, field GitHubProjectField, value string) error {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	fieldValue := map[string]any{}
+	switch strings.ToUpper(strings.TrimSpace(field.DataType)) {
+	case "SINGLE_SELECT":
+		optionID := field.Options[value]
+		if strings.TrimSpace(optionID) == "" {
+			return fmt.Errorf("GitHub Project field %q does not have option %q", field.Name, value)
+		}
+		fieldValue["singleSelectOptionId"] = optionID
+	case "TEXT":
+		fieldValue["text"] = value
+	default:
+		return fmt.Errorf("unsupported GitHub Project field type %q for field %q", field.DataType, field.Name)
+	}
+	payload := map[string]any{
+		"query": `mutation($projectId:ID!, $itemId:ID!, $fieldId:ID!, $value:ProjectV2FieldValue!) {
+  updateProjectV2ItemFieldValue(input:{projectId:$projectId, itemId:$itemId, fieldId:$fieldId, value:$value}) {
+    projectV2Item {
+      id
+    }
+  }
+}`,
+		"variables": map[string]any{
+			"projectId": projectID,
+			"itemId":    itemID,
+			"fieldId":   field.ID,
+			"value":     fieldValue,
+		},
+	}
+	return c.graphql(projectDir, payload, nil)
+}
+
+type projectV2Payload struct {
+	ID     string `json:"id"`
+	Number int    `json:"number"`
+	URL    string `json:"url"`
+	Title  string `json:"title"`
+	Fields struct {
+		Nodes []projectV2FieldPayload `json:"nodes"`
+	} `json:"fields"`
+}
+
+type projectV2FieldPayload struct {
+	Typename string `json:"__typename"`
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	DataType string `json:"dataType"`
+	Options  []struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	} `json:"options"`
+}
+
+func projectWorkspaceFromPayload(owner string, payload projectV2Payload) *GitHubProjectWorkspace {
+	project := &GitHubProjectWorkspace{
+		Owner:  strings.TrimSpace(owner),
+		Number: payload.Number,
+		ID:     payload.ID,
+		URL:    payload.URL,
+		Title:  payload.Title,
+	}
+	for _, node := range payload.Fields.Nodes {
+		field := projectFieldFromPayload(node)
+		if strings.TrimSpace(field.ID) == "" {
+			continue
+		}
+		project.Fields = append(project.Fields, field)
+	}
+	return project
+}
+
+func projectFieldFromPayload(payload projectV2FieldPayload) GitHubProjectField {
+	field := GitHubProjectField{
+		ID:       payload.ID,
+		Name:     payload.Name,
+		DataType: payload.DataType,
+	}
+	if len(payload.Options) > 0 {
+		field.Options = map[string]string{}
+		for _, option := range payload.Options {
+			if strings.TrimSpace(option.Name) == "" || strings.TrimSpace(option.ID) == "" {
+				continue
+			}
+			field.Options[option.Name] = option.ID
+		}
+	}
+	return field
+}
+
+func missingProjectFieldOptions(field GitHubProjectField, required []string) []string {
+	if len(required) == 0 {
+		return nil
+	}
+	var missing []string
+	for _, option := range required {
+		option = strings.TrimSpace(option)
+		if option == "" {
+			continue
+		}
+		if strings.TrimSpace(field.Options[option]) == "" {
+			missing = append(missing, option)
+		}
+	}
+	return missing
+}
+
 func (c *cliGitHubClient) api(projectDir, method, apiPath string, payload any) ([]byte, error) {
 	args := []string{"api", "--method", method, apiPath}
 	var stdin []byte
@@ -573,6 +1033,190 @@ func (c *cliGitHubClient) graphql(projectDir string, payload any, target any) er
 		return err
 	}
 	return nil
+}
+
+func (c *cliGitHubClient) projectOwnerAndRepositoryIDs(projectDir, repo, projectOwner string) (string, string, error) {
+	repoOwner, repoName, err := splitRepo(repo)
+	if err != nil {
+		return "", "", err
+	}
+	payload := map[string]any{
+		"query": `query($projectOwner:String!, $repoOwner:String!, $repoName:String!) {
+  owner: repositoryOwner(login:$projectOwner) {
+    id
+  }
+  repository(owner:$repoOwner, name:$repoName) {
+    id
+  }
+}`,
+		"variables": map[string]any{
+			"projectOwner": projectOwner,
+			"repoOwner":    repoOwner,
+			"repoName":     repoName,
+		},
+	}
+	var response struct {
+		Data struct {
+			Owner *struct {
+				ID string `json:"id"`
+			} `json:"owner"`
+			Repository *struct {
+				ID string `json:"id"`
+			} `json:"repository"`
+		} `json:"data"`
+	}
+	if err := c.graphql(projectDir, payload, &response); err != nil {
+		return "", "", err
+	}
+	if response.Data.Owner == nil || strings.TrimSpace(response.Data.Owner.ID) == "" {
+		return "", "", fmt.Errorf("GitHub Project owner %q not found", projectOwner)
+	}
+	if response.Data.Repository == nil || strings.TrimSpace(response.Data.Repository.ID) == "" {
+		return "", "", fmt.Errorf("repository %q not found", repo)
+	}
+	return response.Data.Owner.ID, response.Data.Repository.ID, nil
+}
+
+func (c *cliGitHubClient) getProjectWorkspaceByID(projectDir, projectID, fallbackOwner string) (*GitHubProjectWorkspace, error) {
+	payload := map[string]any{
+		"query": `query($projectId:ID!) {
+  node(id:$projectId) {
+    ... on ProjectV2 {
+      id
+      number
+      url
+      title
+      owner {
+        ... on User {
+          login
+        }
+        ... on Organization {
+          login
+        }
+      }
+      fields(first:100) {
+        nodes {
+          __typename
+          ... on ProjectV2Field {
+            id
+            name
+            dataType
+          }
+          ... on ProjectV2SingleSelectField {
+            id
+            name
+            dataType
+            options {
+              id
+              name
+            }
+          }
+        }
+      }
+    }
+  }
+}`,
+		"variables": map[string]any{
+			"projectId": projectID,
+		},
+	}
+	var response struct {
+		Data struct {
+			Node *struct {
+				projectV2Payload
+				Owner struct {
+					Login string `json:"login"`
+				} `json:"owner"`
+			} `json:"node"`
+		} `json:"data"`
+	}
+	if err := c.graphql(projectDir, payload, &response); err != nil {
+		return nil, err
+	}
+	if response.Data.Node == nil || strings.TrimSpace(response.Data.Node.ID) == "" {
+		return nil, fmt.Errorf("GitHub Project id %q not found", projectID)
+	}
+	owner := strings.TrimSpace(response.Data.Node.Owner.Login)
+	if owner == "" {
+		owner = fallbackOwner
+	}
+	return projectWorkspaceFromPayload(owner, response.Data.Node.projectV2Payload), nil
+}
+
+func (c *cliGitHubClient) issueID(projectDir, repo string, issueNumber int) (string, error) {
+	owner, name, err := splitRepo(repo)
+	if err != nil {
+		return "", err
+	}
+	payload := map[string]any{
+		"query": `query($owner:String!, $name:String!, $issueNumber:Int!) {
+  repository(owner:$owner, name:$name) {
+    issue(number:$issueNumber) {
+      id
+    }
+  }
+}`,
+		"variables": map[string]any{
+			"owner":       owner,
+			"name":        name,
+			"issueNumber": issueNumber,
+		},
+	}
+	var response struct {
+		Data struct {
+			Repository struct {
+				Issue struct {
+					ID string `json:"id"`
+				} `json:"issue"`
+			} `json:"repository"`
+		} `json:"data"`
+	}
+	if err := c.graphql(projectDir, payload, &response); err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(response.Data.Repository.Issue.ID) == "" {
+		return "", fmt.Errorf("could not resolve issue node id for #%d", issueNumber)
+	}
+	return response.Data.Repository.Issue.ID, nil
+}
+
+func (c *cliGitHubClient) cacheIssueNodeID(repo string, issue *GitHubIssue) {
+	if issue == nil {
+		return
+	}
+	c.cacheIssueNodeIDValue(repo, issue.Number, issue.NodeID)
+}
+
+func (c *cliGitHubClient) cacheIssueNodeIDValue(repo string, issueNumber int, nodeID string) {
+	repo = strings.TrimSpace(repo)
+	nodeID = strings.TrimSpace(nodeID)
+	if repo == "" || issueNumber <= 0 || nodeID == "" {
+		return
+	}
+	if c.issueNodeIDs == nil {
+		c.issueNodeIDs = map[string]string{}
+	}
+	c.issueNodeIDs[issueNodeCacheKey(repo, issueNumber)] = nodeID
+}
+
+func (c *cliGitHubClient) cachedIssueNodeID(repo string, issueNumber int) string {
+	if c.issueNodeIDs == nil {
+		return ""
+	}
+	return c.issueNodeIDs[issueNodeCacheKey(repo, issueNumber)]
+}
+
+func issueNodeCacheKey(repo string, issueNumber int) string {
+	return fmt.Sprintf("%s#%d", strings.TrimSpace(repo), issueNumber)
+}
+
+func repoFromIssueAPIPath(apiPath string) string {
+	trimmed := strings.TrimPrefix(strings.TrimSpace(apiPath), "repos/")
+	parts := strings.Split(trimmed, "/")
+	if len(parts) < 3 || parts[0] == "" || parts[1] == "" || parts[2] != "issues" {
+		return ""
+	}
+	return parts[0] + "/" + parts[1]
 }
 
 func (c *cliGitHubClient) issueIDs(projectDir, repo string, issueNumber, otherIssueNumber int) (string, string, error) {
@@ -677,6 +1321,7 @@ func parseGitHubIssue(raw []byte) (*GitHubIssue, error) {
 	}
 	type payload struct {
 		Number    int     `json:"number"`
+		NodeID    string  `json:"node_id"`
 		URL       string  `json:"html_url"`
 		Title     string  `json:"title"`
 		Body      string  `json:"body"`
@@ -693,6 +1338,7 @@ func parseGitHubIssue(raw []byte) (*GitHubIssue, error) {
 	}
 	issue := &GitHubIssue{
 		Number: item.Number,
+		NodeID: item.NodeID,
 		URL:    item.URL,
 		Title:  item.Title,
 		Body:   item.Body,
@@ -719,6 +1365,7 @@ func parseGitHubIssueList(raw []byte) ([]GitHubIssue, error) {
 	}
 	type payload struct {
 		Number    int     `json:"number"`
+		NodeID    string  `json:"id"`
 		URL       string  `json:"url"`
 		Title     string  `json:"title"`
 		Body      string  `json:"body"`
@@ -737,6 +1384,7 @@ func parseGitHubIssueList(raw []byte) ([]GitHubIssue, error) {
 	for _, item := range items {
 		issue := GitHubIssue{
 			Number: item.Number,
+			NodeID: item.NodeID,
 			URL:    item.URL,
 			Title:  item.Title,
 			Body:   item.Body,

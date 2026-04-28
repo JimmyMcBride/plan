@@ -49,6 +49,10 @@ func newDiscussCommand() *cobra.Command {
 		promoteConfirm         bool
 		promoteTarget          string
 		promoteProjectDecision string
+		promoteProjectOwner    string
+		promoteProjectNumber   int
+		promoteProjectID       string
+		promoteProjectURL      string
 	)
 	promote := &cobra.Command{
 		Use:   "promote",
@@ -71,6 +75,10 @@ func newDiscussCommand() *cobra.Command {
 				Confirm:         promoteConfirm,
 				TargetMode:      planning.SourceOfTruthMode(strings.TrimSpace(promoteTarget)),
 				ProjectDecision: strings.TrimSpace(promoteProjectDecision),
+				ProjectOwner:    strings.TrimSpace(promoteProjectOwner),
+				ProjectNumber:   promoteProjectNumber,
+				ProjectID:       strings.TrimSpace(promoteProjectID),
+				ProjectURL:      strings.TrimSpace(promoteProjectURL),
 			})
 			if err != nil {
 				var fallback *planning.PromotionApplyManualFallbackError
@@ -90,7 +98,11 @@ func newDiscussCommand() *cobra.Command {
 	promote.Flags().BoolVar(&promoteApply, "apply", false, "create the promoted GitHub issue set after review")
 	promote.Flags().BoolVar(&promoteConfirm, "confirm", false, "required acknowledgement before apply mutates GitHub")
 	promote.Flags().StringVar(&promoteTarget, "target", "", "promotion ownership target: local, github, or hybrid")
-	promote.Flags().StringVar(&promoteProjectDecision, "project-decision", "", "project prompt decision for 5+ spec promotions: create or skip")
+	promote.Flags().StringVar(&promoteProjectDecision, "project-decision", "", "project prompt decision for 5+ spec promotions: create, skip, or connect")
+	promote.Flags().StringVar(&promoteProjectOwner, "project-owner", "", "GitHub Project owner for create/connect; defaults to repo owner for create")
+	promote.Flags().IntVar(&promoteProjectNumber, "project-number", 0, "existing GitHub Project number when --project-decision connect")
+	promote.Flags().StringVar(&promoteProjectID, "project-id", "", "existing GitHub Project node id when --project-decision connect")
+	promote.Flags().StringVar(&promoteProjectURL, "project-url", "", "existing GitHub Project URL when --project-decision connect")
 
 	var (
 		repairBrainstorm string

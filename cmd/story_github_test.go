@@ -108,6 +108,26 @@ func (s *stubGitHubStoryClient) AddBlockedBy(projectDir, repo string, issueNumbe
 	return nil
 }
 
+func (s *stubGitHubStoryClient) CreateProjectWorkspace(projectDir, repo string, input planning.GitHubProjectWorkspaceInput) (*planning.GitHubProjectWorkspace, error) {
+	return nil, fmt.Errorf("unexpected CreateProjectWorkspace call")
+}
+
+func (s *stubGitHubStoryClient) GetProjectWorkspace(projectDir, repo string, ref planning.GitHubProjectReference) (*planning.GitHubProjectWorkspace, error) {
+	return nil, fmt.Errorf("unexpected GetProjectWorkspace call")
+}
+
+func (s *stubGitHubStoryClient) EnsureProjectField(projectDir string, project planning.GitHubProjectWorkspace, input planning.GitHubProjectFieldInput) (*planning.GitHubProjectField, error) {
+	return nil, fmt.Errorf("unexpected EnsureProjectField call")
+}
+
+func (s *stubGitHubStoryClient) AddProjectItemByIssue(projectDir, repo, projectID string, issueNumber int) (*planning.GitHubProjectItem, error) {
+	return nil, fmt.Errorf("unexpected AddProjectItemByIssue call")
+}
+
+func (s *stubGitHubStoryClient) SetProjectItemField(projectDir, projectID, itemID string, field planning.GitHubProjectField, value string) error {
+	return fmt.Errorf("unexpected SetProjectItemField call")
+}
+
 func TestStoryCommandsSupportGitHubBackedStories(t *testing.T) {
 	client := &stubGitHubStoryClient{
 		preflight: &planning.GitHubRepoInfo{

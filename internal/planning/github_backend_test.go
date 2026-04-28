@@ -22,11 +22,22 @@ type stubGitHubClient struct {
 	discussions      map[int]*GitHubDiscussion
 	subIssues        [][2]int
 	blockedByEdges   [][2]int
+	projects         map[int]*GitHubProjectWorkspace
+	createdProjects  []GitHubProjectWorkspaceInput
+	projectItems     []GitHubProjectItemResult
+	projectValues    []stubProjectValue
 	nextIssue        int
+	nextProject      int
 	lastCreate       GitHubIssueInput
 	lastUpdate       GitHubIssueInput
 	createIssueErr   error
 	ensureLabelErr   error
+}
+
+type stubProjectValue struct {
+	ItemID string
+	Field  string
+	Value  string
 }
 
 func (s *stubGitHubClient) Preflight(projectDir string) (*GitHubRepoInfo, error) {
@@ -204,6 +215,112 @@ func (s *stubGitHubClient) AddSubIssue(projectDir, repo string, issueNumber, sub
 func (s *stubGitHubClient) AddBlockedBy(projectDir, repo string, issueNumber, blockingIssueNumber int) error {
 	s.blockedByEdges = append(s.blockedByEdges, [2]int{issueNumber, blockingIssueNumber})
 	return nil
+}
+
+func (s *stubGitHubClient) CreateProjectWorkspace(projectDir, repo string, input GitHubProjectWorkspaceInput) (*GitHubProjectWorkspace, error) {
+	s.createdProjects = append(s.createdProjects, input)
+	if s.projects == nil {
+		s.projects = map[int]*GitHubProjectWorkspace{}
+	}
+	if s.nextProject == 0 {
+		s.nextProject = 1
+	}
+	owner := strings.TrimSpace(input.Owner)
+	if owner == "" {
+		owner = strings.Split(repo, "/")[0]
+	}
+	project := &GitHubProjectWorkspace{
+		Owner:  owner,
+		Number: s.nextProject,
+		ID:     fmt.Sprintf("PVT_%d", s.nextProject),
+		URL:    fmt.Sprintf("https://github.com/users/%s/projects/%d", owner, s.nextProject),
+		Title:  input.Title,
+	}
+	s.projects[project.Number] = project
+	s.nextProject++
+	copy := copyStubProject(project)
+	return copy, nil
+}
+
+func (s *stubGitHubClient) GetProjectWorkspace(projectDir, repo string, ref GitHubProjectReference) (*GitHubProjectWorkspace, error) {
+	if s.projects == nil {
+		return nil, fmt.Errorf("project not found")
+	}
+	for _, project := range s.projects {
+		if strings.TrimSpace(ref.ID) != "" && project.ID == ref.ID {
+			return copyStubProject(project), nil
+		}
+		if strings.EqualFold(project.Owner, ref.Owner) && project.Number == ref.Number {
+			return copyStubProject(project), nil
+		}
+	}
+	return nil, fmt.Errorf("project not found")
+}
+
+func (s *stubGitHubClient) EnsureProjectField(projectDir string, project GitHubProjectWorkspace, input GitHubProjectFieldInput) (*GitHubProjectField, error) {
+	stored := s.projects[project.Number]
+	if stored == nil {
+		stored = &project
+		if s.projects == nil {
+			s.projects = map[int]*GitHubProjectWorkspace{}
+		}
+		s.projects[project.Number] = stored
+	}
+	for _, field := range stored.Fields {
+		if strings.EqualFold(field.Name, input.Name) {
+			copy := field
+			copy.Options = copyStringMap(field.Options)
+			return &copy, nil
+		}
+	}
+	field := GitHubProjectField{
+		ID:       fmt.Sprintf("PVTF_%s", slugify(input.Name)),
+		Name:     input.Name,
+		DataType: input.DataType,
+	}
+	if len(input.Options) > 0 {
+		field.Options = map[string]string{}
+		for _, option := range input.Options {
+			field.Options[option] = fmt.Sprintf("PVTO_%s_%s", slugify(input.Name), slugify(option))
+		}
+	}
+	stored.Fields = append(stored.Fields, field)
+	copy := field
+	copy.Options = copyStringMap(field.Options)
+	return &copy, nil
+}
+
+func (s *stubGitHubClient) AddProjectItemByIssue(projectDir, repo, projectID string, issueNumber int) (*GitHubProjectItem, error) {
+	item := GitHubProjectItem{
+		ID:          fmt.Sprintf("PVTI_%d", issueNumber),
+		IssueNumber: issueNumber,
+	}
+	s.projectItems = append(s.projectItems, GitHubProjectItemResult{
+		IssueNumber: issueNumber,
+		ItemID:      item.ID,
+	})
+	return &item, nil
+}
+
+func (s *stubGitHubClient) SetProjectItemField(projectDir, projectID, itemID string, field GitHubProjectField, value string) error {
+	s.projectValues = append(s.projectValues, stubProjectValue{
+		ItemID: itemID,
+		Field:  field.Name,
+		Value:  value,
+	})
+	return nil
+}
+
+func copyStubProject(project *GitHubProjectWorkspace) *GitHubProjectWorkspace {
+	if project == nil {
+		return nil
+	}
+	copy := *project
+	copy.Fields = append([]GitHubProjectField(nil), project.Fields...)
+	for i := range copy.Fields {
+		copy.Fields[i].Options = copyStringMap(project.Fields[i].Options)
+	}
+	return &copy
 }
 
 func TestEnableGitHubBackendPersistsRepoConfigAfterPreflight(t *testing.T) {

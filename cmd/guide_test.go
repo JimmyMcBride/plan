@@ -482,3 +482,23 @@ func (s *stubGuideGitHubClient) AddSubIssue(projectDir, repo string, issueNumber
 func (s *stubGuideGitHubClient) AddBlockedBy(projectDir, repo string, issueNumber, blockingIssueNumber int) error {
 	return nil
 }
+
+func (s *stubGuideGitHubClient) CreateProjectWorkspace(projectDir, repo string, input planning.GitHubProjectWorkspaceInput) (*planning.GitHubProjectWorkspace, error) {
+	return nil, nil
+}
+
+func (s *stubGuideGitHubClient) GetProjectWorkspace(projectDir, repo string, ref planning.GitHubProjectReference) (*planning.GitHubProjectWorkspace, error) {
+	return nil, nil
+}
+
+func (s *stubGuideGitHubClient) EnsureProjectField(projectDir string, project planning.GitHubProjectWorkspace, input planning.GitHubProjectFieldInput) (*planning.GitHubProjectField, error) {
+	return nil, nil
+}
+
+func (s *stubGuideGitHubClient) AddProjectItemByIssue(projectDir, repo, projectID string, issueNumber int) (*planning.GitHubProjectItem, error) {
+	return nil, nil
+}
+
+func (s *stubGuideGitHubClient) SetProjectItemField(projectDir, projectID, itemID string, field planning.GitHubProjectField, value string) error {
+	return nil
+}
