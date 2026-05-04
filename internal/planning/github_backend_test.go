@@ -294,12 +294,34 @@ func (s *stubGitHubClient) AddProjectItemByIssue(projectDir, repo, projectID str
 	item := GitHubProjectItem{
 		ID:          fmt.Sprintf("PVTI_%d", issueNumber),
 		IssueNumber: issueNumber,
+		ProjectID:   projectID,
+		Values:      map[string]string{},
 	}
 	s.projectItems = append(s.projectItems, GitHubProjectItemResult{
 		IssueNumber: issueNumber,
 		ItemID:      item.ID,
 	})
 	return &item, nil
+}
+
+func (s *stubGitHubClient) GetProjectItemByIssue(projectDir, repo, projectID string, issueNumber int) (*GitHubProjectItem, error) {
+	itemID := fmt.Sprintf("PVTI_%d", issueNumber)
+	for _, item := range s.projectItems {
+		if item.IssueNumber != issueNumber {
+			continue
+		}
+		if item.ItemID != "" {
+			itemID = item.ItemID
+		}
+		values := map[string]string{}
+		for _, value := range s.projectValues {
+			if value.ItemID == itemID {
+				values[value.Field] = value.Value
+			}
+		}
+		return &GitHubProjectItem{ID: itemID, IssueNumber: issueNumber, ProjectID: projectID, Values: values}, nil
+	}
+	return nil, nil
 }
 
 func (s *stubGitHubClient) SetProjectItemField(projectDir, projectID, itemID string, field GitHubProjectField, value string) error {

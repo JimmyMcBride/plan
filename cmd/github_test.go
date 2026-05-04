@@ -86,6 +86,10 @@ func (s *stubGitHubEnableClient) AddProjectItemByIssue(projectDir, repo, project
 	panic("unexpected AddProjectItemByIssue call")
 }
 
+func (s *stubGitHubEnableClient) GetProjectItemByIssue(projectDir, repo, projectID string, issueNumber int) (*planning.GitHubProjectItem, error) {
+	panic("unexpected GetProjectItemByIssue call")
+}
+
 func (s *stubGitHubEnableClient) SetProjectItemField(projectDir, projectID, itemID string, field planning.GitHubProjectField, value string) error {
 	panic("unexpected SetProjectItemField call")
 }
@@ -196,6 +200,96 @@ func TestGitHubAdoptCommandPrintsJSON(t *testing.T) {
 	}
 	if payload.Initiative == nil || len(payload.Specs) != 2 {
 		t.Fatalf("unexpected adopt payload: %+v", payload)
+	}
+}
+
+func TestGitHubProjectStatusCommandMovesIssueCard(t *testing.T) {
+	client := &stubGitHubStoryClient{
+		preflight: &planning.GitHubRepoInfo{Repo: "JimmyMcBride/plan", RepoURL: "https://github.com/JimmyMcBride/plan", DefaultBranch: "develop"},
+		context: &planning.GitHubContext{
+			Repo:          planning.GitHubRepoInfo{Repo: "JimmyMcBride/plan", RepoURL: "https://github.com/JimmyMcBride/plan", DefaultBranch: "develop"},
+			CurrentBranch: "codex/status",
+			CurrentSHA:    "abc123",
+		},
+		issues: map[int]*planning.GitHubIssue{
+			68: {Number: 68, URL: "https://github.com/JimmyMcBride/plan/issues/68", Title: "Status", State: "open"},
+		},
+		projects: map[int]*planning.GitHubProjectWorkspace{
+			12: {
+				Owner:  "JimmyMcBride",
+				Number: 12,
+				ID:     "PVT_workspace",
+				URL:    "https://github.com/users/JimmyMcBride/projects/12",
+				Title:  "Workspace",
+				Fields: []planning.GitHubProjectField{
+					{ID: "PVTF_status", Name: "Status", DataType: "SINGLE_SELECT", Options: map[string]string{"Todo": "todo", "In Progress": "progress", "In Review": "review", "Done": "done"}},
+				},
+			},
+		},
+		projectItems: map[int]*planning.GitHubProjectItem{
+			68: {ID: "PVTI_68", IssueNumber: 68, ProjectID: "PVT_workspace", Values: map[string]string{"Status": "Todo"}},
+		},
+	}
+	reset := planning.SetGitHubClientFactoryForTesting(func() planning.GitHubClient { return client })
+	t.Cleanup(reset)
+
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	manager := planning.New(ws)
+	if _, err := manager.SetSourceMode(workspace.SourceOfTruthGitHub); err != nil {
+		t.Fatal(err)
+	}
+	state, err := ws.ReadGitHubState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	state.Repo = "JimmyMcBride/plan"
+	state.Planning["status"] = workspace.GitHubPlanningRecord{
+		Slug:            "status",
+		Kind:            "spec",
+		Title:           "Status",
+		IssueNumber:     68,
+		Readiness:       "ready",
+		MilestoneNumber: 7,
+		MilestoneTitle:  "Workspace",
+	}
+	state.ProjectDecisions["workspace"] = workspace.GitHubProjectDecisionRecord{
+		Slug:            "workspace",
+		Decision:        "connect",
+		MilestoneNumber: 7,
+		MilestoneTitle:  "Workspace",
+		ProjectOwner:    "JimmyMcBride",
+		ProjectNumber:   12,
+		ProjectID:       "PVT_workspace",
+		ProjectURL:      "https://github.com/users/JimmyMcBride/projects/12",
+		FieldIDs: map[string]string{
+			"Type":   "PVTF_type",
+			"Stage":  "PVTF_stage",
+			"Ready":  "PVTF_ready",
+			"Status": "PVTF_status",
+			"Area":   "PVTF_area",
+		},
+	}
+	if err := ws.WriteGitHubState(*state); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	command := newRootCmd()
+	command.SetOut(&buf)
+	command.SetErr(&buf)
+	command.SetArgs([]string{"--project", root, "github", "project", "status", "--issue", "68", "--set", "in-progress"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("expected project status command to succeed: %v\n%s", err, buf.String())
+	}
+	if !strings.Contains(buf.String(), "status: In Progress") {
+		t.Fatalf("unexpected output:\n%s", buf.String())
+	}
+	if len(client.projectValues) != 1 || client.projectValues[0] != "Status=In Progress" {
+		t.Fatalf("expected status update, got %+v", client.projectValues)
 	}
 }
 
