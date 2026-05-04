@@ -12,11 +12,14 @@ import (
 )
 
 type stubGitHubStoryClient struct {
-	preflight   *planning.GitHubRepoInfo
-	context     *planning.GitHubContext
-	issues      map[int]*planning.GitHubIssue
-	discussions map[int]*planning.GitHubDiscussion
-	nextIssue   int
+	preflight     *planning.GitHubRepoInfo
+	context       *planning.GitHubContext
+	issues        map[int]*planning.GitHubIssue
+	discussions   map[int]*planning.GitHubDiscussion
+	projects      map[int]*planning.GitHubProjectWorkspace
+	projectItems  map[int]*planning.GitHubProjectItem
+	projectValues []string
+	nextIssue     int
 }
 
 func (s *stubGitHubStoryClient) Preflight(projectDir string) (*planning.GitHubRepoInfo, error) {
@@ -113,6 +116,13 @@ func (s *stubGitHubStoryClient) CreateProjectWorkspace(projectDir, repo string, 
 }
 
 func (s *stubGitHubStoryClient) GetProjectWorkspace(projectDir, repo string, ref planning.GitHubProjectReference) (*planning.GitHubProjectWorkspace, error) {
+	for _, project := range s.projects {
+		if project.ID == ref.ID || (project.Number == ref.Number && strings.EqualFold(project.Owner, ref.Owner)) {
+			copy := *project
+			copy.Fields = append([]planning.GitHubProjectField(nil), project.Fields...)
+			return &copy, nil
+		}
+	}
 	return nil, fmt.Errorf("unexpected GetProjectWorkspace call")
 }
 
@@ -124,8 +134,21 @@ func (s *stubGitHubStoryClient) AddProjectItemByIssue(projectDir, repo, projectI
 	return nil, fmt.Errorf("unexpected AddProjectItemByIssue call")
 }
 
+func (s *stubGitHubStoryClient) GetProjectItemByIssue(projectDir, repo, projectID string, issueNumber int) (*planning.GitHubProjectItem, error) {
+	if item := s.projectItems[issueNumber]; item != nil {
+		copy := *item
+		copy.Values = map[string]string{}
+		for key, value := range item.Values {
+			copy.Values[key] = value
+		}
+		return &copy, nil
+	}
+	return nil, nil
+}
+
 func (s *stubGitHubStoryClient) SetProjectItemField(projectDir, projectID, itemID string, field planning.GitHubProjectField, value string) error {
-	return fmt.Errorf("unexpected SetProjectItemField call")
+	s.projectValues = append(s.projectValues, field.Name+"="+value)
+	return nil
 }
 
 func TestStoryCommandsSupportGitHubBackedStories(t *testing.T) {

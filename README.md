@@ -179,6 +179,7 @@ Full guide:
 - `plan spec show|edit|status|analyze|checklist|initiative|execute|handoff`
 - `plan story create|update|list|show|slice|critique` for legacy compatibility during migration
 - `plan github enable|reconcile|adopt`
+- `plan github project status --issue <number> --set <todo|in-progress|in-review|done>`
 - `plan roadmap show|edit`
 - `plan check`
 - `plan status`

@@ -632,6 +632,15 @@ plan github reconcile --project . --update-visible
 plan status --project .
 ```
 
+When a promoted spec is tracked in a GitHub Project, move its issue card through
+execution explicitly:
+
+```bash
+plan github project status --project . --issue <number> --set in-progress
+plan github project status --project . --issue <number> --set in-review
+plan github project status --project . --issue <number> --set done
+```
+
 If GitHub integration is not enabled, use the same refresh without reconcile:
 
 ```bash
@@ -792,4 +801,5 @@ plan epic --help
 plan spec --help
 plan story --help
 plan github --help
+plan github project status --help
 ```
