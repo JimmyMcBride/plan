@@ -28,15 +28,12 @@ func (m *Manager) checkGitHubProjectWorkspaceDrift(info *workspace.Info, state *
 		}
 		findings = append(findings, checkProjectFields(project)...)
 		for _, record := range projectPlanningRecords(state, decision) {
-			issue, err := m.github.GetIssue(info.ProjectDir, repo, record.IssueNumber)
-			if err != nil {
-				return nil, err
-			}
 			item, err := m.github.GetProjectItemByIssue(info.ProjectDir, repo, project.ID, record.IssueNumber)
 			if err != nil {
 				return nil, err
 			}
-			if item == nil {
+			issue := issueFromProjectItem(record, item)
+			if !hasProjectItem(item) {
 				findings = append(findings, projectDriftFinding("github_project.missing_item", issue.URL, issue.Title, fmt.Sprintf("Issue #%d is missing from GitHub Project %s.", record.IssueNumber, projectLabel(project)), "Run `plan github reconcile --update-visible` to add safe missing issue cards."))
 				continue
 			}
@@ -74,12 +71,12 @@ func (m *Manager) reconcileGitHubProjectWorkspaceDrift(info *workspace.Info, sta
 		fieldIDs := copyStringMap(decision.FieldIDs)
 		decisionChanged := false
 		for _, input := range projectWorkspaceFieldInputs() {
-			field, err := m.github.EnsureProjectField(info.ProjectDir, *project, input)
+			field, err := m.projectFieldForReconcile(info.ProjectDir, project, input)
 			if err != nil {
 				return nil, false, err
 			}
-			fields[input.Name] = *field
-			project.Fields = upsertProjectField(project.Fields, *field)
+			fields[input.Name] = field
+			project.Fields = upsertProjectField(project.Fields, field)
 			if fieldIDs[input.Name] != field.ID {
 				fieldIDs[input.Name] = field.ID
 				decisionChanged = true
@@ -92,20 +89,20 @@ func (m *Manager) reconcileGitHubProjectWorkspaceDrift(info *workspace.Info, sta
 			stateChanged = true
 		}
 		for _, record := range projectPlanningRecords(state, decision) {
-			issue, err := m.github.GetIssue(info.ProjectDir, repo, record.IssueNumber)
-			if err != nil {
-				return nil, false, err
-			}
 			item, err := m.github.GetProjectItemByIssue(info.ProjectDir, repo, project.ID, record.IssueNumber)
 			if err != nil {
 				return nil, false, err
 			}
-			if item == nil {
-				item, err = m.github.AddProjectItemByIssue(info.ProjectDir, repo, project.ID, record.IssueNumber)
+			issue := issueFromProjectItem(record, item)
+			if !hasProjectItem(item) {
+				added, err := m.github.AddProjectItemByIssue(info.ProjectDir, repo, project.ID, record.IssueNumber)
 				if err != nil {
 					return nil, false, err
 				}
+				item = added
+				copyIssueFieldsToProjectItem(item, issue)
 			}
+			ensureProjectItemValues(item)
 			itemChanged := false
 			for fieldName, expected := range expectedProjectValues(record, decision, issue, item) {
 				if strings.TrimSpace(expected) == "" || strings.TrimSpace(item.Values[fieldName]) == expected {
@@ -114,6 +111,9 @@ func (m *Manager) reconcileGitHubProjectWorkspaceDrift(info *workspace.Info, sta
 				field, ok := fields[fieldName]
 				if !ok {
 					return nil, false, fmt.Errorf("project field %q was not prepared", fieldName)
+				}
+				if !projectFieldCanSetValue(field, expected) {
+					continue
 				}
 				if err := m.github.SetProjectItemField(info.ProjectDir, project.ID, item.ID, field, expected); err != nil {
 					return nil, false, err
@@ -127,6 +127,23 @@ func (m *Manager) reconcileGitHubProjectWorkspaceDrift(info *workspace.Info, sta
 		}
 	}
 	return updated, stateChanged, nil
+}
+
+func (m *Manager) projectFieldForReconcile(projectDir string, project *GitHubProjectWorkspace, input GitHubProjectFieldInput) (GitHubProjectField, error) {
+	if project == nil {
+		return GitHubProjectField{}, fmt.Errorf("project workspace is required")
+	}
+	if field, ok := projectFieldByName(project.Fields, input.Name); ok {
+		if !strings.EqualFold(strings.TrimSpace(field.DataType), strings.TrimSpace(input.DataType)) {
+			return GitHubProjectField{}, fmt.Errorf("GitHub Project field %q has type %q; expected %q", field.Name, field.DataType, input.DataType)
+		}
+		return field, nil
+	}
+	field, err := m.github.EnsureProjectField(projectDir, *project, input)
+	if err != nil {
+		return GitHubProjectField{}, err
+	}
+	return *field, nil
 }
 
 func sortedProjectDecisions(state *workspace.GitHubState) []workspace.GitHubProjectDecisionRecord {
@@ -204,6 +221,46 @@ func expectedProjectValues(record workspace.GitHubPlanningRecord, decision works
 		}
 	}
 	return values
+}
+
+func hasProjectItem(item *GitHubProjectItem) bool {
+	return item != nil && strings.TrimSpace(item.ID) != ""
+}
+
+func ensureProjectItemValues(item *GitHubProjectItem) {
+	if item != nil && item.Values == nil {
+		item.Values = map[string]string{}
+	}
+}
+
+func issueFromProjectItem(record workspace.GitHubPlanningRecord, item *GitHubProjectItem) *GitHubIssue {
+	issue := &GitHubIssue{
+		Number: record.IssueNumber,
+		Title:  strings.TrimSpace(record.Title),
+	}
+	if item != nil {
+		issue.URL = strings.TrimSpace(item.IssueURL)
+		issue.Title = defaultString(strings.TrimSpace(item.IssueTitle), issue.Title)
+		issue.State = strings.TrimSpace(item.IssueState)
+	}
+	return issue
+}
+
+func copyIssueFieldsToProjectItem(item *GitHubProjectItem, issue *GitHubIssue) {
+	if item == nil || issue == nil {
+		return
+	}
+	item.IssueURL = strings.TrimSpace(issue.URL)
+	item.IssueTitle = strings.TrimSpace(issue.Title)
+	item.IssueState = strings.TrimSpace(issue.State)
+}
+
+func projectFieldCanSetValue(field GitHubProjectField, value string) bool {
+	value = strings.TrimSpace(value)
+	if value == "" || !strings.EqualFold(strings.TrimSpace(field.DataType), "SINGLE_SELECT") {
+		return true
+	}
+	return strings.TrimSpace(field.Options[value]) != ""
 }
 
 func projectDriftFinding(rule, path, title, message, suggestion string) CheckFinding {

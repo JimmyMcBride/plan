@@ -69,7 +69,7 @@ func (m *Manager) SetGitHubProjectIssueStatus(input GitHubProjectStatusInput) (*
 	if err != nil {
 		return nil, err
 	}
-	if item == nil {
+	if !hasProjectItem(item) {
 		return nil, fmt.Errorf("issue #%d is missing from GitHub Project %s; run `plan github reconcile --update-visible` to add safe missing issue cards", input.IssueNumber, projectLabel(project))
 	}
 	if err := m.github.SetProjectItemField(info.ProjectDir, project.ID, item.ID, statusField, status); err != nil {

@@ -87,10 +87,14 @@ func TestCheckFlagsProjectMissingItemAndStaleField(t *testing.T) {
 	}
 	assertHasFinding(t, report.Findings, "github_project.missing_item", "GitHub Project")
 	assertHasFinding(t, report.Findings, "github_project.stale_item_field", "GitHub Project")
+	if client.getIssueCalls != 0 {
+		t.Fatalf("expected project item lookup to carry issue metadata, got %d GetIssue calls", client.getIssueCalls)
+	}
 }
 
 func TestReconcileRepairsSafeProjectDrift(t *testing.T) {
 	client := projectAutomationClient()
+	client.projectAddNilValues = true
 	reset := SetGitHubClientFactoryForTesting(func() GitHubClient { return client })
 	t.Cleanup(reset)
 	manager := setupProjectAutomationManager(t)
@@ -108,6 +112,28 @@ func TestReconcileRepairsSafeProjectDrift(t *testing.T) {
 	if !stubHasProjectValue(client.projectValues, 68, projectFieldType, projectValueSpec) ||
 		!stubHasProjectValue(client.projectValues, 68, projectFieldStatus, projectValueTodo) {
 		t.Fatalf("expected project item values to be repaired: %+v", client.projectValues)
+	}
+	if client.getIssueCalls != 0 {
+		t.Fatalf("expected reconcile to reuse project item issue metadata, got %d GetIssue calls", client.getIssueCalls)
+	}
+}
+
+func TestReconcileContinuesWhenExistingStatusFieldHasUnusedMissingOptions(t *testing.T) {
+	client := projectAutomationClient()
+	trimProjectFieldOptions(client.projects[12], projectFieldStatus, []string{projectValueTodo})
+	reset := SetGitHubClientFactoryForTesting(func() GitHubClient { return client })
+	t.Cleanup(reset)
+	manager := setupProjectAutomationManager(t)
+
+	result, err := manager.ReconcileGitHubStories(GitHubReconcileOptions{UpdateVisible: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.UpdatedProjectItems) != 1 || result.UpdatedProjectItems[0] != "#68" {
+		t.Fatalf("expected one repaired project item: %+v", result)
+	}
+	if !stubHasProjectValue(client.projectValues, 68, projectFieldStatus, projectValueTodo) {
+		t.Fatalf("expected reconcile to set safe available status option: %+v", client.projectValues)
 	}
 }
 
@@ -207,4 +233,27 @@ func projectFieldIDsForTest() map[string]string {
 		ids[field.Name] = field.ID
 	}
 	return ids
+}
+
+func trimProjectFieldOptions(project *GitHubProjectWorkspace, fieldName string, keep []string) {
+	if project == nil {
+		return
+	}
+	allowed := map[string]bool{}
+	for _, value := range keep {
+		allowed[value] = true
+	}
+	for i := range project.Fields {
+		if !strings.EqualFold(project.Fields[i].Name, fieldName) {
+			continue
+		}
+		options := map[string]string{}
+		for name, id := range project.Fields[i].Options {
+			if allowed[name] {
+				options[name] = id
+			}
+		}
+		project.Fields[i].Options = options
+		return
+	}
 }
