@@ -1,6 +1,6 @@
 # plan
 
-![plan project planning breakdown](docs/assets/plan-project-planning-breakdown.png)
+[Project planning breakdown diagram](docs/assets/plan-project-planning-breakdown.png)
 
 `plan` is a local-first-by-default, backend-flexible planning CLI for
 AI-assisted software work.
