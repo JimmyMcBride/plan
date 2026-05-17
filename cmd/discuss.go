@@ -97,7 +97,7 @@ func newDiscussCommand() *cobra.Command {
 	promote.Flags().StringVar(&promoteFormat, "format", "json", "output format: json")
 	promote.Flags().BoolVar(&promoteApply, "apply", false, "create the promoted GitHub issue set after review")
 	promote.Flags().BoolVar(&promoteConfirm, "confirm", false, "required acknowledgement before apply mutates GitHub")
-	promote.Flags().StringVar(&promoteTarget, "target", "", "promotion ownership target: local, github, or hybrid")
+	promote.Flags().StringVar(&promoteTarget, "target", "", "promotion ownership target: local, github, hybrid, or linear")
 	promote.Flags().StringVar(&promoteProjectDecision, "project-decision", "", "project prompt decision for 5+ spec promotions: create, skip, or connect")
 	promote.Flags().StringVar(&promoteProjectOwner, "project-owner", "", "GitHub Project owner for create/connect; defaults to repo owner for create")
 	promote.Flags().IntVar(&promoteProjectNumber, "project-number", 0, "existing GitHub Project number when --project-decision connect")
