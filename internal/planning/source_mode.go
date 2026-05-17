@@ -19,7 +19,7 @@ func (m *Manager) SourceMode() (workspace.SourceOfTruthMode, error) {
 }
 
 func (m *Manager) SetSourceMode(mode workspace.SourceOfTruthMode) (*workspace.WorkspaceMeta, error) {
-	if mode != workspace.SourceOfTruthLocal && mode != workspace.SourceOfTruthGitHub && mode != workspace.SourceOfTruthHybrid {
+	if mode != workspace.SourceOfTruthLocal && mode != workspace.SourceOfTruthGitHub && mode != workspace.SourceOfTruthHybrid && mode != workspace.SourceOfTruthLinear {
 		return nil, fmt.Errorf("unsupported source mode %q", mode)
 	}
 	meta, err := m.workspace.ReadWorkspaceMeta()
@@ -32,4 +32,19 @@ func (m *Manager) SetSourceMode(mode workspace.SourceOfTruthMode) (*workspace.Wo
 		return nil, err
 	}
 	return meta, nil
+}
+
+func (m *Manager) LinearConfig() (*workspace.LinearState, error) {
+	return m.workspace.ReadLinearState()
+}
+
+func (m *Manager) RequireLinearTeamConfigured() (*workspace.LinearState, error) {
+	state, err := m.workspace.ReadLinearState()
+	if err != nil {
+		return nil, err
+	}
+	if state.TeamID == "" && state.TeamKey == "" {
+		return nil, fmt.Errorf("linear promotion requires a selected Linear team; configure .plan/.meta/linear.json with team_id or team_key before applying Linear-owned planning")
+	}
+	return state, nil
 }

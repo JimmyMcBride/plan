@@ -46,6 +46,7 @@ Add repo-specific notes here. `brain context refresh` preserves content outside 
 - Do not store planning artifacts in Brain.
 - Use `develop` as the default PR target for routine work.
 - Never push directly to protected branches: `develop`, `release/*`, `main`.
+- Linear source mode stores MVP integration identity in `.plan/.meta/linear.json`; Linear promotion requires `team_id` or `team_key` and remains agent/MCP-mediated unless a future spec adds direct API ownership.
 
 ### Karpathy Guidelines
 

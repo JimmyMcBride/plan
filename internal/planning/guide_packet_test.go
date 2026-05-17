@@ -249,6 +249,23 @@ func TestCollaborationSourceCommandTrimsSelectorValues(t *testing.T) {
 	}
 }
 
+func TestCollaborationApplyActionsMarksLinearApplyBlocked(t *testing.T) {
+	actions := collaborationApplyActions(SourceOfTruthLinear, "--brainstorm linear", &PromotionDraft{})
+	if len(actions) != 1 {
+		t.Fatalf("expected one Linear apply action: %+v", actions)
+	}
+	action := actions[0]
+	if action.ID != "apply_linear" {
+		t.Fatalf("expected Linear apply action: %+v", action)
+	}
+	if action.Available {
+		t.Fatalf("expected Linear apply action to be blocked until handoff is implemented: %+v", action)
+	}
+	if action.BlockedReason == "" {
+		t.Fatalf("expected blocked reason for Linear apply action: %+v", action)
+	}
+}
+
 func TestGuidePacketForDiscussionSourceSupportsInitiativeDraftStage(t *testing.T) {
 	client := &stubGitHubClient{
 		preflight: &GitHubRepoInfo{

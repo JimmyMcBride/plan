@@ -796,6 +796,8 @@ func collaborationApplyActions(mode SourceOfTruthMode, sourceArg string, draft *
 		return []GuidePacketAction{makeAction("apply_github", "Apply to GitHub", "promotion_apply", SourceOfTruthGitHub, true, "")}
 	case SourceOfTruthHybrid:
 		return []GuidePacketAction{makeAction("apply_hybrid", "Apply to Hybrid", "promotion_apply", SourceOfTruthHybrid, true, "")}
+	case SourceOfTruthLinear:
+		return []GuidePacketAction{makeAction("apply_linear", "Apply to Linear", "promotion_apply", SourceOfTruthLinear, false, "Linear promotion apply is not implemented yet; use this packet as MCP handoff guidance until the Linear handoff flow lands.")}
 	default:
 		return []GuidePacketAction{
 			makeAction("apply_github", "Apply to GitHub", "promotion_apply", SourceOfTruthGitHub, true, ""),
@@ -822,6 +824,8 @@ func nextApplyAction(mode SourceOfTruthMode, draft *PromotionDraft) string {
 		return "Review the draft and confirm `plan discuss promote --apply --confirm --target github` when it is ready."
 	case SourceOfTruthHybrid:
 		return "Review the draft and confirm `plan discuss promote --apply --confirm --target hybrid` when it is ready."
+	case SourceOfTruthLinear:
+		return "Review the draft, confirm a Linear team is configured, then use `plan discuss promote --apply --confirm --target linear` when the Linear MCP handoff flow is available."
 	default:
 		return "Review the draft and choose whether to apply it to `github` or `hybrid` ownership."
 	}

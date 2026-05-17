@@ -1,5 +1,21 @@
 {
   "schema_version": 2,
-  "last_updated_at": "2026-04-20T04:03:30Z",
-  "sessions": {}
+  "last_active_chain": "brainstorm/linear-integration",
+  "last_updated_at": "2026-05-14T03:53:42Z",
+  "sessions": {
+    "brainstorm/linear-integration": {
+      "chain_id": "brainstorm/linear-integration",
+      "brainstorm": "linear-integration",
+      "current_stage": "brainstorm",
+      "current_cluster": 5,
+      "current_cluster_label": "handoff-epic",
+      "stage_statuses": {
+        "brainstorm": "in_progress"
+      },
+      "summary": "Recap:\nCurrent understanding: Teams already using Linear need Plan-shaped work to land where their collaboration, assignment, status, and execution conversations already happen, instead of forcing work through local files or GitHub issues. / Collaborators can review, assign, discuss, and execute Plan-created work in Linear, while agents can consume Linear Project and Issue data through the connected Linear MCP. The value is less translation between planning and team execution.\nKey decisions: appetite captured.\nUnresolved risks or questions: there are still open questions to review.\nParked items: none.\nRecommended next stage: Review recap and continue into the epic stage when ready.",
+      "next_action": "Review recap and continue into the epic stage when ready.",
+      "created_at": "2026-05-14T02:45:24Z",
+      "updated_at": "2026-05-14T03:53:42Z"
+    }
+  }
 }

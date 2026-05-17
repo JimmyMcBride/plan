@@ -3,7 +3,7 @@
   "repo_url": "https://github.com/JimmyMcBride/plan",
   "default_branch": "develop",
   "last_enabled_at": "2026-04-20T03:04:26Z",
-  "last_updated_at": "2026-04-22T19:49:22Z",
+  "last_updated_at": "2026-05-17T01:44:08Z",
   "last_reconciled_at": "2026-04-22T19:49:22Z",
   "stories": {
     "add-brainstorm-stage-recap-and-stop-flow": {
@@ -439,6 +439,91 @@
       "doc_ref_mode": "main",
       "doc_ref": "develop",
       "updated_at": "2026-04-20T06:05:20Z"
+    }
+  },
+  "planning": {
+    "linear-integration": {
+      "slug": "linear-integration",
+      "kind": "initiative",
+      "title": "Linear integration",
+      "issue_number": 78,
+      "issue_url": "https://github.com/JimmyMcBride/plan/issues/78",
+      "remote_state": "open",
+      "readiness": "ready",
+      "ownership_mode": "github",
+      "entry_mode": "local_promotion",
+      "source_mode": "local",
+      "milestone_number": 6,
+      "milestone_title": "Linear integration",
+      "updated_at": "2026-05-17T01:44:01Z"
+    },
+    "linear-integration-docs-guide-packets-and-validation-tests": {
+      "slug": "linear-integration-docs-guide-packets-and-validation-tests",
+      "kind": "spec",
+      "title": "Linear integration docs, guide packets, and validation tests",
+      "issue_number": 81,
+      "issue_url": "https://github.com/JimmyMcBride/plan/issues/81",
+      "remote_state": "open",
+      "readiness": "blocked",
+      "ownership_mode": "github",
+      "entry_mode": "local_promotion",
+      "source_mode": "local",
+      "parent_issue_number": 78,
+      "milestone_number": 6,
+      "milestone_title": "Linear integration",
+      "blocked_by": [
+        "linear-promotion-packet-mcp-handoff-and-metadata-recording"
+      ],
+      "updated_at": "2026-05-17T01:44:08Z"
+    },
+    "linear-promotion-packet-mcp-handoff-and-metadata-recording": {
+      "slug": "linear-promotion-packet-mcp-handoff-and-metadata-recording",
+      "kind": "spec",
+      "title": "Linear promotion packet, MCP handoff, and metadata recording",
+      "issue_number": 80,
+      "issue_url": "https://github.com/JimmyMcBride/plan/issues/80",
+      "remote_state": "open",
+      "readiness": "blocked",
+      "ownership_mode": "github",
+      "entry_mode": "local_promotion",
+      "source_mode": "local",
+      "parent_issue_number": 78,
+      "milestone_number": 6,
+      "milestone_title": "Linear integration",
+      "blocked_by": [
+        "linear-source-mode-and-team-configuration"
+      ],
+      "updated_at": "2026-05-17T01:44:08Z"
+    },
+    "linear-source-mode-and-team-configuration": {
+      "slug": "linear-source-mode-and-team-configuration",
+      "kind": "spec",
+      "title": "Linear source mode and team configuration",
+      "issue_number": 79,
+      "issue_url": "https://github.com/JimmyMcBride/plan/issues/79",
+      "remote_state": "open",
+      "readiness": "ready",
+      "ownership_mode": "github",
+      "entry_mode": "local_promotion",
+      "source_mode": "local",
+      "parent_issue_number": 78,
+      "milestone_number": 6,
+      "milestone_title": "Linear integration",
+      "updated_at": "2026-05-17T01:44:08Z"
+    }
+  },
+  "project_decisions": {
+    "linear-integration": {
+      "slug": "linear-integration",
+      "decision": "skip",
+      "reason": "This promotion crosses the coordination threshold for project tracking.",
+      "initiative_slug": "linear-integration",
+      "spec_count": 3,
+      "milestone_number": 6,
+      "milestone_title": "Linear integration",
+      "source_mode": "local",
+      "entry_mode": "local_promotion",
+      "updated_at": "2026-05-17T01:44:01Z"
     }
   }
 }

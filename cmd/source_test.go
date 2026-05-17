@@ -37,4 +37,35 @@ func TestSourceCommandShowsAndSetsMode(t *testing.T) {
 	if setBuf.String() != "source_mode: hybrid\n" {
 		t.Fatalf("unexpected source set output:\n%s", setBuf.String())
 	}
+
+	var linearBuf bytes.Buffer
+	command = newRootCmd()
+	command.SetOut(&linearBuf)
+	command.SetErr(&linearBuf)
+	command.SetArgs([]string{"--project", root, "source", "set", "linear"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("expected source set linear to succeed: %v\n%s", err, linearBuf.String())
+	}
+	if linearBuf.String() != "source_mode: linear\n" {
+		t.Fatalf("unexpected source set linear output:\n%s", linearBuf.String())
+	}
+
+	var linearShow bytes.Buffer
+	command = newRootCmd()
+	command.SetOut(&linearShow)
+	command.SetErr(&linearShow)
+	command.SetArgs([]string{"--project", root, "source", "show"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("expected source show linear to succeed: %v\n%s", err, linearShow.String())
+	}
+	for _, want := range []string{
+		"source_mode: linear\n",
+		"linear_team: not_configured\n",
+		"linear_ownership: durable planning data lives in Linear after promotion\n",
+		"linear_guidance: configure .plan/.meta/linear.json with team_id or team_key before Linear promotion\n",
+	} {
+		if !bytes.Contains(linearShow.Bytes(), []byte(want)) {
+			t.Fatalf("expected source show linear output to contain %q:\n%s", want, linearShow.String())
+		}
+	}
 }

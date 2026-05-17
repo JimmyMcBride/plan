@@ -31,6 +31,7 @@ const (
 	SourceOfTruthLocal  SourceOfTruthMode = "local"
 	SourceOfTruthGitHub SourceOfTruthMode = "github"
 	SourceOfTruthHybrid SourceOfTruthMode = "hybrid"
+	SourceOfTruthLinear SourceOfTruthMode = "linear"
 )
 
 type WorkspaceMeta struct {
@@ -52,6 +53,19 @@ type GitHubState struct {
 	Stories          map[string]GitHubStoryRecord           `json:"stories"`
 	Planning         map[string]GitHubPlanningRecord        `json:"planning"`
 	ProjectDecisions map[string]GitHubProjectDecisionRecord `json:"project_decisions,omitempty"`
+}
+
+type LinearState struct {
+	WorkspaceID     string `json:"workspace_id,omitempty"`
+	WorkspaceName   string `json:"workspace_name,omitempty"`
+	TeamID          string `json:"team_id,omitempty"`
+	TeamKey         string `json:"team_key,omitempty"`
+	TeamName        string `json:"team_name,omitempty"`
+	LastEnabledAt   string `json:"last_enabled_at,omitempty"`
+	LastUpdatedAt   string `json:"last_updated_at,omitempty"`
+	LastReconciled  string `json:"last_reconciled_at,omitempty"`
+	SourceOfTruth   string `json:"source_of_truth,omitempty"`
+	PromotionTarget string `json:"promotion_target,omitempty"`
 }
 
 type GitHubPlanningRecord struct {
@@ -196,6 +210,7 @@ type Info struct {
 	WorkspaceFile  string
 	MigrationsFile string
 	GitHubFile     string
+	LinearFile     string
 	SessionsFile   string
 }
 
@@ -264,6 +279,7 @@ func (m *Manager) Resolve() (*Info, error) {
 		WorkspaceFile:  filepath.Join(metaDir, "workspace.json"),
 		MigrationsFile: filepath.Join(metaDir, "migrations.json"),
 		GitHubFile:     filepath.Join(metaDir, "github.json"),
+		LinearFile:     filepath.Join(metaDir, "linear.json"),
 		SessionsFile:   filepath.Join(metaDir, "guided_sessions.json"),
 	}, nil
 }
@@ -292,6 +308,7 @@ func (i *Info) ToolManagedSurfaces() []Surface {
 		i.newSurface("workspace.json", i.WorkspaceFile, "tool_managed", "file"),
 		i.newSurface("migrations.json", i.MigrationsFile, "tool_managed", "file"),
 		i.newSurface("github.json", i.GitHubFile, "tool_managed", "file"),
+		i.newSurface("linear.json", i.LinearFile, "tool_managed", "file"),
 		i.newSurface("guided_sessions.json", i.SessionsFile, "tool_managed", "file"),
 	}
 }
@@ -361,6 +378,11 @@ func (m *Manager) Init() (*InitResult, error) {
 		return nil, err
 	} else if created {
 		result.Created = append(result.Created, rel(info.ProjectDir, info.GitHubFile))
+	}
+	if created, err := ensureLinearState(info.LinearFile, now); err != nil {
+		return nil, err
+	} else if created {
+		result.Created = append(result.Created, rel(info.ProjectDir, info.LinearFile))
 	}
 	if created, err := ensureGuidedSessionState(info.SessionsFile, now); err != nil {
 		return nil, err
@@ -451,6 +473,14 @@ func (m *Manager) ReadGitHubState() (*GitHubState, error) {
 	return readGitHubStateFile(info.GitHubFile)
 }
 
+func (m *Manager) ReadLinearState() (*LinearState, error) {
+	info, err := m.Resolve()
+	if err != nil {
+		return nil, err
+	}
+	return readLinearStateFile(info.LinearFile)
+}
+
 func readMigrationStateFile(path string) (*MigrationState, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -480,6 +510,18 @@ func readGitHubStateFile(path string) (*GitHubState, error) {
 	}
 	if state.ProjectDecisions == nil {
 		state.ProjectDecisions = map[string]GitHubProjectDecisionRecord{}
+	}
+	return &state, nil
+}
+
+func readLinearStateFile(path string) (*LinearState, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read linear state: %w", err)
+	}
+	var state LinearState
+	if err := json.Unmarshal(raw, &state); err != nil {
+		return nil, fmt.Errorf("parse linear state: %w", err)
 	}
 	return &state, nil
 }
@@ -549,6 +591,17 @@ func (m *Manager) Doctor() (*DoctorReport, error) {
 	} else if err := validateGitHubState(githubState); err != nil {
 		if !contains(report.Broken, "github.json") {
 			report.Broken = append(report.Broken, "github.json")
+		}
+	}
+
+	linearState, err := readLinearStateFile(info.LinearFile)
+	if err != nil {
+		if !contains(report.Missing, "linear.json") {
+			report.Broken = append(report.Broken, "linear.json")
+		}
+	} else if err := validateLinearState(linearState); err != nil {
+		if !contains(report.Broken, "linear.json") {
+			report.Broken = append(report.Broken, "linear.json")
 		}
 	}
 
@@ -677,6 +730,19 @@ func (m *Manager) repairWorkspace(info *Info, operation string, opts UpdateOptio
 			result.Updated = append(result.Updated, rel(info.ProjectDir, info.GitHubFile))
 		}
 	}
+	if created, err := ensureLinearState(info.LinearFile, now); err != nil {
+		return nil, err
+	} else if created {
+		result.Created = append(result.Created, rel(info.ProjectDir, info.LinearFile))
+	} else {
+		updated, err := reconcileLinearState(info.LinearFile, now)
+		if err != nil {
+			return nil, err
+		}
+		if updated {
+			result.Updated = append(result.Updated, rel(info.ProjectDir, info.LinearFile))
+		}
+	}
 	if created, err := ensureGuidedSessionState(info.SessionsFile, now); err != nil {
 		return nil, err
 	} else if created {
@@ -795,6 +861,16 @@ func ensureGitHubState(path, now string) (bool, error) {
 	return true, writeJSON(path, state)
 }
 
+func ensureLinearState(path, now string) (bool, error) {
+	if _, err := os.Stat(path); err == nil {
+		return false, nil
+	} else if !os.IsNotExist(err) {
+		return false, err
+	}
+	state := defaultLinearState(now)
+	return true, writeJSON(path, state)
+}
+
 func reconcileMigrationState(path, now string) (bool, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -824,6 +900,25 @@ func reconcileGitHubState(path, now string) (bool, error) {
 		return true, writeJSON(path, defaultGitHubState(now))
 	}
 	normalized, changed, err := normalizeGitHubState(state, now)
+	if err != nil {
+		return false, err
+	}
+	if !changed {
+		return false, nil
+	}
+	return true, writeJSON(path, normalized)
+}
+
+func reconcileLinearState(path, now string) (bool, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return false, err
+	}
+	var state LinearState
+	if err := json.Unmarshal(raw, &state); err != nil {
+		return true, writeJSON(path, defaultLinearState(now))
+	}
+	normalized, changed, err := normalizeLinearState(state, now)
 	if err != nil {
 		return false, err
 	}
@@ -990,6 +1085,14 @@ func defaultGitHubState(now string) GitHubState {
 	}
 }
 
+func defaultLinearState(now string) LinearState {
+	return LinearState{
+		LastUpdatedAt:   now,
+		SourceOfTruth:   "linear",
+		PromotionTarget: "linear_issue",
+	}
+}
+
 func normalizeWorkspaceMeta(meta WorkspaceMeta, now string) (WorkspaceMeta, bool, error) {
 	if meta.SchemaVersion > CurrentSchemaVersion {
 		return WorkspaceMeta{}, false, fmt.Errorf("workspace schema version %d is newer than supported version %d", meta.SchemaVersion, CurrentSchemaVersion)
@@ -1067,6 +1170,27 @@ func normalizeGitHubState(state GitHubState, now string) (GitHubState, bool, err
 	return normalized, changed, nil
 }
 
+func normalizeLinearState(state LinearState, now string) (LinearState, bool, error) {
+	normalized := state
+	changed := false
+	if normalized.LastUpdatedAt == "" {
+		normalized.LastUpdatedAt = now
+		changed = true
+	}
+	if normalized.SourceOfTruth == "" {
+		normalized.SourceOfTruth = "linear"
+		changed = true
+	}
+	if normalized.PromotionTarget == "" {
+		normalized.PromotionTarget = "linear_issue"
+		changed = true
+	}
+	if changed {
+		normalized.LastUpdatedAt = now
+	}
+	return normalized, changed, nil
+}
+
 func validateWorkspaceMeta(meta *WorkspaceMeta) error {
 	switch {
 	case meta.SchemaVersion == 0:
@@ -1077,7 +1201,7 @@ func validateWorkspaceMeta(meta *WorkspaceMeta) error {
 		return fmt.Errorf("planning_model is required")
 	case meta.PlanningModel != PlanningModel:
 		return fmt.Errorf("planning_model %q is not supported", meta.PlanningModel)
-	case meta.SourceMode != "" && meta.SourceMode != SourceOfTruthLocal && meta.SourceMode != SourceOfTruthGitHub && meta.SourceMode != SourceOfTruthHybrid:
+	case meta.SourceMode != "" && meta.SourceMode != SourceOfTruthLocal && meta.SourceMode != SourceOfTruthGitHub && meta.SourceMode != SourceOfTruthHybrid && meta.SourceMode != SourceOfTruthLinear:
 		return fmt.Errorf("source_mode %q is not supported", meta.SourceMode)
 	case meta.StoryBackend != "" && meta.StoryBackend != StoryBackendLocal && meta.StoryBackend != StoryBackendGitHub:
 		return fmt.Errorf("story_backend %q is not supported", meta.StoryBackend)
@@ -1093,6 +1217,13 @@ func validateWorkspaceMeta(meta *WorkspaceMeta) error {
 func validateGitHubState(state *GitHubState) error {
 	if state == nil {
 		return fmt.Errorf("github state is required")
+	}
+	return nil
+}
+
+func validateLinearState(state *LinearState) error {
+	if state == nil {
+		return fmt.Errorf("linear state is required")
 	}
 	return nil
 }
@@ -1157,6 +1288,18 @@ func (m *Manager) WriteGitHubState(state GitHubState) error {
 	return writeJSON(info.GitHubFile, normalized)
 }
 
+func (m *Manager) WriteLinearState(state LinearState) error {
+	info, err := m.Resolve()
+	if err != nil {
+		return err
+	}
+	normalized, _, err := normalizeLinearState(state, time.Now().UTC().Format(time.RFC3339))
+	if err != nil {
+		return err
+	}
+	return writeJSON(info.LinearFile, normalized)
+}
+
 func writeJSON(path string, v any) error {
 	raw, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
@@ -1200,11 +1343,11 @@ func classifyDoctorWorkspace(missing, broken []string) string {
 }
 
 func isPartialWorkspace(missing []string) bool {
-	return contains(missing, ".meta/") || contains(missing, "workspace.json") || contains(missing, "migrations.json") || contains(missing, "github.json") || contains(missing, "guided_sessions.json")
+	return contains(missing, ".meta/") || contains(missing, "workspace.json") || contains(missing, "migrations.json") || contains(missing, "github.json") || contains(missing, "linear.json") || contains(missing, "guided_sessions.json")
 }
 
 func isBrokenWorkspace(broken []string) bool {
-	return contains(broken, "workspace.json") || contains(broken, "migrations.json") || contains(broken, "github.json") || contains(broken, "guided_sessions.json")
+	return contains(broken, "workspace.json") || contains(broken, "migrations.json") || contains(broken, "github.json") || contains(broken, "linear.json") || contains(broken, "guided_sessions.json")
 }
 
 func guidanceForWorkspaceStatus(status string) []string {
