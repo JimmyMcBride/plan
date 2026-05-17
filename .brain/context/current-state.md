@@ -1,5 +1,5 @@
 ---
-updated: "2026-05-17T02:04:14Z"
+updated: "2026-05-17T02:16:59Z"
 ---
 # Current State
 
@@ -41,3 +41,4 @@ Add repo-specific notes here. `brain context refresh` preserves content outside 
 - On April 27, 2026, PR `#71` merged GitHub project workspace provisioning and item field setup into `develop`; review follow-up touched `internal/planning/collaboration.go`, `internal/planning/collaboration_test.go`, `internal/planning/github_client.go`, `internal/planning/github_client_test.go`, and `internal/planning/github_project_workspace.go` to require explicit project decisions for project references, accept `www.github.com` project URLs with trailing view paths, and cache issue node IDs from CLI issue payloads before falling back to GraphQL lookups.
 - On May 16, 2026, the Linear integration brainstorm promoted into GitHub planning issue `#78` with spec issues `#79`-`#81` and milestone `Linear integration`; MVP direction is Linear source mode plus agent-mediated MCP promotion packets, with direct Linear API/auth, Linear Initiatives, status sync, reconcile, milestones, and sub-issues deferred.
 - On May 16, 2026, spec `#79` added the Linear source/config foundation: `linear` is a first-class source mode, `.plan/.meta/linear.json` stores minimum Linear workspace/team metadata, `plan source show` surfaces missing team guidance, and Linear promotion apply fails before handoff when no `team_id` or `team_key` is configured.
+- On May 16, 2026, PR `#82` review follow-up made Linear guide-packet apply actions explicitly blocked until the Linear MCP handoff flow lands and made `plan discuss promote --apply/--confirm` help text backend-neutral.

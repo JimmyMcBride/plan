@@ -797,7 +797,7 @@ func collaborationApplyActions(mode SourceOfTruthMode, sourceArg string, draft *
 	case SourceOfTruthHybrid:
 		return []GuidePacketAction{makeAction("apply_hybrid", "Apply to Hybrid", "promotion_apply", SourceOfTruthHybrid, true, "")}
 	case SourceOfTruthLinear:
-		return []GuidePacketAction{makeAction("apply_linear", "Apply to Linear", "promotion_apply", SourceOfTruthLinear, true, "")}
+		return []GuidePacketAction{makeAction("apply_linear", "Apply to Linear", "promotion_apply", SourceOfTruthLinear, false, "Linear promotion apply is not implemented yet; use this packet as MCP handoff guidance until the Linear handoff flow lands.")}
 	default:
 		return []GuidePacketAction{
 			makeAction("apply_github", "Apply to GitHub", "promotion_apply", SourceOfTruthGitHub, true, ""),
