@@ -47,6 +47,69 @@ Add repo-specific notes here. `brain context refresh` preserves content outside 
 - Use `develop` as the default PR target for routine work.
 - Never push directly to protected branches: `develop`, `release/*`, `main`.
 
+### Karpathy Guidelines
+
+Use these behavioral guidelines when writing, reviewing, or refactoring code to
+reduce common LLM coding mistakes. They are derived from
+[Andrej Karpathy's observations](https://x.com/karpathy/status/2015883857489522876)
+on LLM coding pitfalls.
+
+Tradeoff: these guidelines bias toward caution over speed. For trivial tasks,
+use judgment.
+
+#### Think Before Coding
+
+Do not assume or hide confusion. Surface tradeoffs before implementing:
+
+- State assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them instead of picking silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop, name what is confusing, and ask.
+
+#### Simplicity First
+
+Write the minimum code that solves the problem. Nothing speculative:
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No flexibility or configurability that was not requested.
+- No error handling for impossible scenarios.
+- If 200 lines could be 50, rewrite it.
+
+Ask: would a senior engineer say this is overcomplicated? If yes, simplify.
+
+#### Surgical Changes
+
+Touch only what is required. Clean up only your own mess:
+
+- Do not improve adjacent code, comments, or formatting.
+- Do not refactor things that are not broken.
+- Match existing style, even if you would do it differently.
+- If you notice unrelated dead code, mention it instead of deleting it.
+- Remove imports, variables, or functions that your changes made unused.
+- Do not remove pre-existing dead code unless asked.
+
+Every changed line should trace directly to the user's request.
+
+#### Goal-Driven Execution
+
+Turn tasks into verifiable goals and loop until verified:
+
+- "Add validation" means write tests for invalid inputs, then make them pass.
+- "Fix the bug" means write a test that reproduces it, then make it pass.
+- "Refactor X" means ensure tests pass before and after.
+
+For multi-step tasks, state a brief plan:
+
+```text
+1. [Step] -> verify: [check]
+2. [Step] -> verify: [check]
+3. [Step] -> verify: [check]
+```
+
+Strong success criteria allow independent progress. Weak criteria such as
+"make it work" require clarification.
+
 ### Optional Brain Setup
 
 For Codex cloud environments, run:
