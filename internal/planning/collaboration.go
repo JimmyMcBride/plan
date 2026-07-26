@@ -27,6 +27,7 @@ const (
 	SourceOfTruthLocal  = workspace.SourceOfTruthLocal
 	SourceOfTruthGitHub = workspace.SourceOfTruthGitHub
 	SourceOfTruthHybrid = workspace.SourceOfTruthHybrid
+	SourceOfTruthLinear = workspace.SourceOfTruthLinear
 )
 
 type CollaborationSourceMode string
@@ -516,6 +517,12 @@ func (m *Manager) ApplyPromotionDraft(input PromotionApplyInput) (*PromotionAppl
 	if mode == SourceOfTruthLocal {
 		return nil, fmt.Errorf("local promotion apply is not implemented yet; use `plan discuss promote --format json` or target github/hybrid")
 	}
+	if mode == SourceOfTruthLinear {
+		if _, err := m.RequireLinearTeamConfigured(); err != nil {
+			return nil, err
+		}
+		return nil, fmt.Errorf("linear promotion apply is not implemented yet; use the Linear MCP handoff flow when available")
+	}
 	if mode != SourceOfTruthGitHub && mode != SourceOfTruthHybrid {
 		return nil, fmt.Errorf("unsupported promotion target mode %q", mode)
 	}
@@ -975,6 +982,10 @@ func buildOwnership(mode SourceOfTruthMode, entry CollaborationEntryMode) Collab
 		ownership.CanonicalPlanningArtifact = "mixed"
 		ownership.ReadinessSource = "github_issue"
 		ownership.WriteTargets = []string{"local_meta", "github_issue", "github_milestone"}
+	case SourceOfTruthLinear:
+		ownership.CanonicalPlanningArtifact = "linear_issue"
+		ownership.ReadinessSource = "linear_issue"
+		ownership.WriteTargets = []string{"linear_issue"}
 	default:
 		ownership.CanonicalPlanningArtifact = "local_spec"
 		ownership.ReadinessSource = "local_spec"

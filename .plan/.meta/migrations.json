@@ -1,15 +1,11 @@
 {
   "schema_version": 1,
   "known": [],
-  "last_run_at": "2026-04-22T04:17:54Z",
+  "last_run_at": "2026-05-17T02:01:18Z",
   "status": "current",
   "last_operation": "update",
   "last_created": [
-    ".plan/ideas",
-    ".plan/archive"
-  ],
-  "last_updated": [
-    ".plan/.meta/workspace.json"
+    ".plan/.meta/linear.json"
   ],
   "history": [
     {
@@ -46,6 +42,14 @@
       ],
       "updated": [
         ".plan/.meta/workspace.json"
+      ]
+    },
+    {
+      "operation": "update",
+      "at": "2026-05-17T02:01:18Z",
+      "status": "current",
+      "created": [
+        ".plan/.meta/linear.json"
       ]
     }
   ]
