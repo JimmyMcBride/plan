@@ -3,6 +3,8 @@ package planning
 import (
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -152,6 +154,12 @@ func TestAssessAndPromoteGitHubDiscussion(t *testing.T) {
 	}
 	if draft.MilestonePlan == nil || !draft.MilestonePlan.Create {
 		t.Fatalf("expected milestone plan: %+v", draft)
+	}
+	if draft.ProposedInitiativeIssue.Action != PromotionActionCreate ||
+		draft.ProposedSpecIssues[0].Action != PromotionActionCreate ||
+		draft.ProposedSpecIssues[1].Action != PromotionActionCreate ||
+		draft.MilestonePlan.Action != PromotionActionCreate {
+		t.Fatalf("expected fresh promotion to classify every artifact as create: %+v", draft)
 	}
 	if !draft.ConfirmationRequired {
 		t.Fatalf("expected explicit confirmation requirement: %+v", draft)
@@ -847,4 +855,319 @@ func TestExtractSpecCandidatesSupportsExplicitSpecIssuePatterns(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestVoltPromotionPreviewReconcilesExistingInitiativeSpecsAndMilestone(t *testing.T) {
+	manager, _, client := newVoltPromotionFixture(t)
+
+	draft, err := manager.BuildPromotionDraft(PromotionDraftInput{DiscussionRef: "1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !draft.ConfirmationRequired || draft.ManualFallbackAllowed {
+		t.Fatalf("unexpected preview safety flags: %+v", draft)
+	}
+	if draft.ProposedInitiativeIssue == nil {
+		t.Fatalf("expected reconciled initiative: %+v", draft)
+	}
+	if draft.ProposedInitiativeIssue.IssueNumber != 2 || draft.ProposedInitiativeIssue.Action != PromotionActionUpdate {
+		t.Fatalf("expected initiative #2 update: %+v", draft.ProposedInitiativeIssue)
+	}
+	if draft.MilestonePlan == nil ||
+		draft.MilestonePlan.Action != PromotionActionReuse ||
+		draft.MilestonePlan.Create ||
+		draft.MilestonePlan.Number != 1 ||
+		draft.MilestonePlan.Title != "Volt v0 — Evidence-Ready Research Prototype" {
+		t.Fatalf("expected milestone #1 reuse: %+v", draft.MilestonePlan)
+	}
+
+	expected := []struct {
+		number  int
+		title   string
+		blocked []string
+	}{
+		{3, "Research evidence and evaluation protocol", nil},
+		{4, "Volt v0 language kernel and canonical syntax", []string{"Research evidence and evaluation protocol"}},
+		{5, "Reference interpreter, program graph, and DiagnosticV1 protocol", []string{"Research evidence and evaluation protocol", "Volt v0 language kernel and canonical syntax"}},
+		{6, "Benchmark corpus and controlled agent study", []string{"Research evidence and evaluation protocol", "Volt v0 language kernel and canonical syntax", "Reference interpreter, program graph, and DiagnosticV1 protocol"}},
+	}
+	if len(draft.ProposedSpecIssues) != len(expected) {
+		t.Fatalf("expected four specs: %+v", draft.ProposedSpecIssues)
+	}
+	bodies := map[string]struct{}{}
+	for i, want := range expected {
+		got := draft.ProposedSpecIssues[i]
+		if got.IssueNumber != want.number || got.Title != want.title || got.Action != PromotionActionUpdate {
+			t.Fatalf("unexpected spec %d reconciliation: %+v", i+1, got)
+		}
+		if !sameStrings(got.BlockedBy, want.blocked) {
+			t.Fatalf("unexpected dependencies for #%d: got=%v want=%v", got.IssueNumber, got.BlockedBy, want.blocked)
+		}
+		if !strings.Contains(got.Body, "## Acceptance Criteria") || !strings.Contains(got.Body, "## Verification") {
+			t.Fatalf("expected acceptance criteria and verification in #%d body:\n%s", got.IssueNumber, got.Body)
+		}
+		if _, duplicate := bodies[got.Body]; duplicate {
+			t.Fatalf("expected materially distinct spec bodies; duplicate body for #%d", got.IssueNumber)
+		}
+		bodies[got.Body] = struct{}{}
+	}
+	if !strings.Contains(draft.ProposedSpecIssues[0].Body, "Safe evolution remains explicitly unvalidated.") ||
+		!strings.Contains(draft.ProposedSpecIssues[3].Body, "Runs are reproducible from content-addressed pinned inputs.") {
+		t.Fatalf("expected per-spec acceptance criteria to survive rendering")
+	}
+	for _, relationship := range draft.RelationshipPlan {
+		if relationship.Action != PromotionActionReuse {
+			t.Fatalf("expected existing relationship reuse, got %+v", relationship)
+		}
+	}
+	if client.createIssueCalls != 0 || client.updateIssueCalls != 0 || len(client.labels) != 0 {
+		t.Fatalf("preview mutated GitHub stub: creates=%d updates=%d labels=%v", client.createIssueCalls, client.updateIssueCalls, client.labels)
+	}
+	if len(client.milestones) != 1 || len(client.subIssues) != 4 || len(client.blockedByEdges) != 6 {
+		t.Fatalf("preview changed existing artifacts or relationships")
+	}
+}
+
+func TestVoltPromotionApplyIsIdempotentAndPreservesDependencies(t *testing.T) {
+	manager, ws, client := newVoltPromotionFixture(t)
+
+	result, err := manager.ApplyPromotionDraft(PromotionApplyInput{
+		DiscussionRef: "1",
+		Confirm:       true,
+		TargetMode:    SourceOfTruthGitHub,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Initiative == nil || result.Initiative.Number != 2 || len(result.Specs) != 4 {
+		t.Fatalf("unexpected reconciliation apply result: %+v", result)
+	}
+	if client.createIssueCalls != 0 || client.updateIssueCalls != 5 {
+		t.Fatalf("expected five existing issue updates and no creates: creates=%d updates=%d", client.createIssueCalls, client.updateIssueCalls)
+	}
+	if len(client.milestones) != 1 || len(client.subIssues) != 4 || len(client.blockedByEdges) != 6 {
+		t.Fatalf("apply duplicated milestone or relationships")
+	}
+	state, err := ws.ReadGitHubState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedBlocked := map[string][]string{
+		"research-evidence-and-evaluation-protocol":                     nil,
+		"volt-v0-language-kernel-and-canonical-syntax":                  {"research-evidence-and-evaluation-protocol"},
+		"reference-interpreter-program-graph-and-diagnosticv1-protocol": {"research-evidence-and-evaluation-protocol", "volt-v0-language-kernel-and-canonical-syntax"},
+		"benchmark-corpus-and-controlled-agent-study":                   {"research-evidence-and-evaluation-protocol", "volt-v0-language-kernel-and-canonical-syntax", "reference-interpreter-program-graph-and-diagnosticv1-protocol"},
+	}
+	for slug, blocked := range expectedBlocked {
+		if !sameStrings(state.Planning[slug].BlockedBy, blocked) {
+			t.Fatalf("unexpected mirrored dependencies for %s: got=%v want=%v", slug, state.Planning[slug].BlockedBy, blocked)
+		}
+	}
+
+	second, err := manager.ApplyPromotionDraft(PromotionApplyInput{
+		DiscussionRef: "1",
+		Confirm:       true,
+		TargetMode:    SourceOfTruthGitHub,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if client.createIssueCalls != 0 || client.updateIssueCalls != 5 {
+		t.Fatalf("repeated apply should not create or update unchanged issues: creates=%d updates=%d", client.createIssueCalls, client.updateIssueCalls)
+	}
+	if len(client.milestones) != 1 || len(client.subIssues) != 4 || len(client.blockedByEdges) != 6 {
+		t.Fatalf("repeated apply duplicated milestone or relationships")
+	}
+	if second.Draft.ProposedInitiativeIssue.Action != PromotionActionUnchanged {
+		t.Fatalf("expected second apply preview to classify initiative unchanged: %+v", second.Draft.ProposedInitiativeIssue)
+	}
+	for _, spec := range second.Draft.ProposedSpecIssues {
+		if spec.Action != PromotionActionUnchanged {
+			t.Fatalf("expected second apply preview to classify specs unchanged: %+v", spec)
+		}
+	}
+}
+
+func TestPromotionPreviewBlocksAmbiguousPlanIdentity(t *testing.T) {
+	manager, ws, client := newVoltPromotionFixture(t)
+	duplicate := *client.issues[2]
+	duplicate.Number = 20
+	duplicate.URL = "https://github.com/JimmyMcBride/volt/issues/20"
+	client.issues[20] = &duplicate
+	state, err := ws.ReadGitHubState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	delete(state.Planning, "volt-language-thesis-and-minimum-semantic-core")
+	if err := ws.WriteGitHubState(*state); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = manager.BuildPromotionDraft(PromotionDraftInput{DiscussionRef: "1"})
+	if err == nil || !strings.Contains(err.Error(), "ambiguous Plan identity") {
+		t.Fatalf("expected blocking ambiguity error, got %v", err)
+	}
+	if client.createIssueCalls != 0 || client.updateIssueCalls != 0 {
+		t.Fatalf("ambiguous preview must not mutate GitHub")
+	}
+}
+
+func TestParsePromotionMapPreservesExplicitVerification(t *testing.T) {
+	content := strings.Join([]string{
+		"## Promotion map",
+		"",
+		"Target milestone: **Example milestone**",
+		"",
+		"### Spec 1 — Independent parser",
+		"",
+		"Parse one independent brief.",
+		"",
+		"Scope:",
+		"",
+		"Only this parser.",
+		"",
+		"Acceptance criteria:",
+		"",
+		"- Parser keeps the brief.",
+		"",
+		"Verification:",
+		"",
+		"- Run the parser fixture.",
+		"",
+		"Dependencies: none.",
+		"",
+		"Readiness: ready.",
+	}, "\n")
+	briefs, titles, milestone := parsePromotionMap(content)
+	if len(titles) != 1 || milestone != "Example milestone" {
+		t.Fatalf("unexpected promotion map parse: titles=%v milestone=%q", titles, milestone)
+	}
+	brief := briefs[normalizePromotionTitle(titles[0])]
+	if !sameStrings(brief.AcceptanceCriteria, []string{"Parser keeps the brief."}) ||
+		!sameStrings(brief.Verification, []string{"Run the parser fixture."}) ||
+		brief.Scope != "Only this parser." ||
+		brief.Readiness != ReadinessReady {
+		t.Fatalf("unexpected parsed brief: %+v", brief)
+	}
+}
+
+func newVoltPromotionFixture(t *testing.T) (*Manager, *workspace.Manager, *stubGitHubClient) {
+	t.Helper()
+	body, err := os.ReadFile(filepath.Join("..", "..", "testdata", "collaboration", "volt-discussion-1.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	milestone := &GitHubMilestone{Number: 1, Title: "Volt v0 — Evidence-Ready Research Prototype"}
+	sourceURL := "https://github.com/JimmyMcBride/volt/discussions/1"
+	issue := func(number int, title, kind string, labels ...string) *GitHubIssue {
+		return &GitHubIssue{
+			Number:    number,
+			URL:       "https://github.com/JimmyMcBride/volt/issues/" + strconv.Itoa(number),
+			Title:     title,
+			Body:      "## Existing " + kind + "\n\n## Source\n\n- [" + sourceURL + "](" + sourceURL + ")",
+			State:     "open",
+			Labels:    append([]string{"enhancement"}, labels...),
+			Milestone: &GitHubMilestone{Number: milestone.Number, Title: milestone.Title},
+		}
+	}
+	client := &stubGitHubClient{
+		preflight: &GitHubRepoInfo{
+			Repo:          "JimmyMcBride/volt",
+			RepoURL:       "https://github.com/JimmyMcBride/volt",
+			DefaultBranch: "main",
+		},
+		context: &GitHubContext{
+			Repo: GitHubRepoInfo{
+				Repo:          "JimmyMcBride/volt",
+				RepoURL:       "https://github.com/JimmyMcBride/volt",
+				DefaultBranch: "main",
+			},
+			CurrentBranch: "main",
+			CurrentSHA:    "abc123",
+		},
+		issues: map[int]*GitHubIssue{
+			2: issue(2, "Volt language thesis and minimum semantic core", "initiative", planIssueInitiativeLabel),
+			3: issue(3, "Research evidence and evaluation protocol", "spec", planIssueSpecLabel, planIssueReadyLabel),
+			4: issue(4, "Volt v0 language kernel and canonical syntax", "spec", planIssueSpecLabel),
+			5: issue(5, "Reference interpreter and DiagnosticV1 protocol", "spec", planIssueSpecLabel),
+			6: issue(6, "Benchmark corpus and controlled agent study", "spec", planIssueSpecLabel),
+		},
+		milestones: map[string]*GitHubMilestone{
+			milestone.Title: milestone,
+		},
+		discussions: map[int]*GitHubDiscussion{
+			1: {
+				Number: 1,
+				URL:    sourceURL,
+				Title:  "Volt language thesis and minimum semantic core",
+				Body:   string(body),
+			},
+		},
+		subIssues:      [][2]int{{2, 3}, {2, 4}, {2, 5}, {2, 6}},
+		blockedByEdges: [][2]int{{4, 3}, {5, 3}, {5, 4}, {6, 3}, {6, 4}, {6, 5}},
+		nextIssue:      7,
+	}
+	reset := SetGitHubClientFactoryForTesting(func() GitHubClient { return client })
+	t.Cleanup(reset)
+
+	root := t.TempDir()
+	ws := workspace.New(root)
+	if _, err := ws.Init(); err != nil {
+		t.Fatal(err)
+	}
+	meta, err := ws.ReadWorkspaceMeta()
+	if err != nil {
+		t.Fatal(err)
+	}
+	meta.SourceMode = workspace.SourceOfTruthGitHub
+	if err := ws.WriteWorkspaceMeta(*meta); err != nil {
+		t.Fatal(err)
+	}
+	planning := map[string]workspace.GitHubPlanningRecord{}
+	addRecord := func(slug, kind, title string, number, parent int) {
+		planning[slug] = workspace.GitHubPlanningRecord{
+			Slug:              slug,
+			Kind:              kind,
+			Title:             title,
+			IssueNumber:       number,
+			IssueURL:          "https://github.com/JimmyMcBride/volt/issues/" + strconv.Itoa(number),
+			RemoteState:       "open",
+			Readiness:         "ready",
+			OwnershipMode:     "github",
+			EntryMode:         "github_collaborative",
+			SourceMode:        "github_discussion",
+			DiscussionNumber:  1,
+			DiscussionURL:     sourceURL,
+			ParentIssueNumber: parent,
+			MilestoneNumber:   1,
+			MilestoneTitle:    milestone.Title,
+		}
+	}
+	addRecord("volt-language-thesis-and-minimum-semantic-core", "initiative", "Volt language thesis and minimum semantic core", 2, 0)
+	addRecord("research-evidence-and-evaluation-protocol", "spec", "Research evidence and evaluation protocol", 3, 2)
+	addRecord("volt-v0-language-kernel-and-canonical-syntax", "spec", "Volt v0 language kernel and canonical syntax", 4, 2)
+	addRecord("reference-interpreter-and-diagnosticv1-protocol", "spec", "Reference interpreter and DiagnosticV1 protocol", 5, 2)
+	addRecord("benchmark-corpus-and-controlled-agent-study", "spec", "Benchmark corpus and controlled agent study", 6, 2)
+	if err := ws.WriteGitHubState(workspace.GitHubState{
+		Repo:          "JimmyMcBride/volt",
+		RepoURL:       "https://github.com/JimmyMcBride/volt",
+		DefaultBranch: "main",
+		Stories:       map[string]workspace.GitHubStoryRecord{},
+		Planning:      planning,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return New(ws), ws, client
+}
+
+func sameStrings(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
 }

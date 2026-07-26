@@ -78,6 +78,11 @@ type GitHubIssue struct {
 	Milestone *GitHubMilestone
 }
 
+type GitHubIssueRelationships struct {
+	SubIssues []int
+	BlockedBy []int
+}
+
 type GitHubLabelInput struct {
 	Name        string
 	Color       string
@@ -347,6 +352,54 @@ func (c *cliGitHubClient) ListIssuesByLabel(projectDir, repo string, labels []st
 	return issues, nil
 }
 
+func (c *cliGitHubClient) GetIssueRelationships(projectDir, repo string, issueNumber int) (*GitHubIssueRelationships, error) {
+	readNumbers := func(path, relationship string) ([]int, error) {
+		out, err := c.api(projectDir, "GET", path, nil)
+		if err != nil {
+			return nil, err
+		}
+		var issues []struct {
+			Number  int    `json:"number"`
+			NodeID  string `json:"node_id"`
+			HTMLURL string `json:"html_url"`
+		}
+		if err := json.Unmarshal(out, &issues); err != nil {
+			return nil, fmt.Errorf("parse GitHub %s relationships for issue #%d: %w", relationship, issueNumber, err)
+		}
+		if len(issues) >= 100 {
+			return nil, fmt.Errorf("GitHub %s listing for issue #%d reached the 100-item safety limit; refusing to reconcile an incomplete relationship set", relationship, issueNumber)
+		}
+		numbers := make([]int, 0, len(issues))
+		for i := range issues {
+			c.cacheIssueNodeID(repo, &GitHubIssue{
+				Number: issues[i].Number,
+				NodeID: issues[i].NodeID,
+				URL:    issues[i].HTMLURL,
+			})
+			numbers = append(numbers, issues[i].Number)
+		}
+		return numbers, nil
+	}
+	subIssues, err := readNumbers(
+		fmt.Sprintf("repos/%s/issues/%d/sub_issues?per_page=100", repo, issueNumber),
+		"sub-issue",
+	)
+	if err != nil {
+		return nil, err
+	}
+	blockedBy, err := readNumbers(
+		fmt.Sprintf("repos/%s/issues/%d/dependencies/blocked_by?per_page=100", repo, issueNumber),
+		"blocked-by",
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &GitHubIssueRelationships{
+		SubIssues: subIssues,
+		BlockedBy: blockedBy,
+	}, nil
+}
+
 func (c *cliGitHubClient) EnsureLabel(projectDir, repo string, input GitHubLabelInput) error {
 	args := []string{"label", "create", input.Name, "--repo", repo, "--force"}
 	if strings.TrimSpace(input.Color) != "" {
@@ -374,12 +427,16 @@ func (c *cliGitHubClient) FindMilestone(projectDir, repo, title string) (*GitHub
 	if err := json.Unmarshal(out, &milestones); err != nil {
 		return nil, fmt.Errorf("parse milestones: %w", err)
 	}
+	var match *GitHubMilestone
 	for _, milestone := range milestones {
 		if strings.EqualFold(strings.TrimSpace(milestone.Title), strings.TrimSpace(title)) {
-			return &GitHubMilestone{Number: milestone.Number, Title: milestone.Title}, nil
+			if match != nil {
+				return nil, fmt.Errorf("ambiguous GitHub milestone title %q matches milestones #%d and #%d", title, match.Number, milestone.Number)
+			}
+			match = &GitHubMilestone{Number: milestone.Number, Title: milestone.Title}
 		}
 	}
-	return nil, nil
+	return match, nil
 }
 
 func (c *cliGitHubClient) CreateMilestone(projectDir, repo string, input GitHubMilestoneInput) (*GitHubMilestone, error) {

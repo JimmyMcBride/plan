@@ -68,6 +68,15 @@ const (
 	PromotionMultiSpec  PromotionPath = "multi_spec"
 )
 
+type PromotionAction string
+
+const (
+	PromotionActionCreate    PromotionAction = "create"
+	PromotionActionUpdate    PromotionAction = "update"
+	PromotionActionReuse     PromotionAction = "reuse"
+	PromotionActionUnchanged PromotionAction = "unchanged"
+)
+
 type ReadinessState string
 
 const (
@@ -151,6 +160,7 @@ type PromotionDraft struct {
 	ProposedSpecIssues        []PromotionIssueDraft          `json:"proposed_spec_issues"`
 	ParentSubIssuePlan        []string                       `json:"parent_sub_issue_plan,omitempty"`
 	DependencyPlan            []PromotionDependencyPlan      `json:"dependency_plan,omitempty"`
+	RelationshipPlan          []PromotionRelationshipPlan    `json:"relationship_plan,omitempty"`
 	MilestonePlan             *PromotionMilestonePlan        `json:"milestone_plan,omitempty"`
 	ProjectPrompt             *PromotionProjectPrompt        `json:"project_prompt,omitempty"`
 	AgentPolicy               PromotionAgentPolicy           `json:"agent_policy"`
@@ -166,15 +176,20 @@ type PromotionAgentPolicy struct {
 }
 
 type PromotionIssueDraft struct {
-	Kind           string         `json:"kind"`
-	Title          string         `json:"title"`
-	Body           string         `json:"body"`
-	Slug           string         `json:"slug"`
-	Readiness      ReadinessState `json:"readiness"`
-	Labels         []string       `json:"labels,omitempty"`
-	SourceLinks    []string       `json:"source_links,omitempty"`
-	BlockedBy      []string       `json:"blocked_by,omitempty"`
-	ReadyByDefault bool           `json:"ready_by_default"`
+	Kind           string          `json:"kind"`
+	Title          string          `json:"title"`
+	Body           string          `json:"body"`
+	Slug           string          `json:"slug"`
+	Action         PromotionAction `json:"action"`
+	IssueNumber    int             `json:"issue_number,omitempty"`
+	IssueURL       string          `json:"issue_url,omitempty"`
+	Identity       string          `json:"identity,omitempty"`
+	Readiness      ReadinessState  `json:"readiness"`
+	Labels         []string        `json:"labels,omitempty"`
+	SourceLinks    []string        `json:"source_links,omitempty"`
+	BlockedBy      []string        `json:"blocked_by,omitempty"`
+	ReadyByDefault bool            `json:"ready_by_default"`
+	existing       *GitHubIssue
 }
 
 type PromotionDependencyPlan struct {
@@ -183,9 +198,23 @@ type PromotionDependencyPlan struct {
 }
 
 type PromotionMilestonePlan struct {
-	Create bool   `json:"create"`
-	Title  string `json:"title,omitempty"`
-	Why    string `json:"why,omitempty"`
+	Create   bool            `json:"create"`
+	Action   PromotionAction `json:"action"`
+	Title    string          `json:"title,omitempty"`
+	Number   int             `json:"number,omitempty"`
+	URL      string          `json:"url,omitempty"`
+	Identity string          `json:"identity,omitempty"`
+	Why      string          `json:"why,omitempty"`
+	existing *GitHubMilestone
+}
+
+type PromotionRelationshipPlan struct {
+	Kind               string          `json:"kind"`
+	Action             PromotionAction `json:"action"`
+	IssueTitle         string          `json:"issue_title"`
+	IssueNumber        int             `json:"issue_number,omitempty"`
+	RelatedTitle       string          `json:"related_title"`
+	RelatedIssueNumber int             `json:"related_issue_number,omitempty"`
 }
 
 type PromotionProjectPrompt struct {
@@ -320,6 +349,8 @@ type collaborationSourceData struct {
 	openQs                  string
 	suggested               []string
 	deps                    []MaturityDependencyGuess
+	specBriefs              map[string]promotionSpecBrief
+	milestoneTitle          string
 	explicitMultiSpecIntent bool
 	repairCandidates        []string
 }
@@ -373,6 +404,9 @@ func (m *Manager) BuildPromotionDraft(input PromotionDraftInput) (*PromotionDraf
 			draft.NeedsRefinementExceptions = append(draft.NeedsRefinementExceptions, exception)
 		}
 		draft.ProposedSpecIssues = []PromotionIssueDraft{specDraft}
+		if err := m.reconcilePromotionDraft(data, draft); err != nil {
+			return nil, err
+		}
 		return draft, nil
 	}
 	initiativeTitle := strings.TrimSpace(decision.SuggestedTitles.Initiative)
@@ -400,10 +434,12 @@ func (m *Manager) BuildPromotionDraft(input PromotionDraftInput) (*PromotionDraf
 			draft.NeedsRefinementExceptions = append(draft.NeedsRefinementExceptions, exception)
 		}
 	}
+	milestoneTitle := defaultString(data.milestoneTitle, initiativeTitle)
 	draft.MilestonePlan = &PromotionMilestonePlan{
 		Create: true,
-		Title:  initiativeTitle,
-		Why:    "Multi-spec promotion always gets a milestone.",
+		Action: PromotionActionCreate,
+		Title:  milestoneTitle,
+		Why:    "Multi-spec promotion gets one milestone; source and existing initiative metadata take precedence over the Discussion title.",
 	}
 	if shouldRecommendProject(len(specTitles), draft.DependencyPlan) {
 		draft.ProjectPrompt = &PromotionProjectPrompt{
@@ -415,6 +451,9 @@ func (m *Manager) BuildPromotionDraft(input PromotionDraftInput) (*PromotionDraf
 			Recommended: false,
 			Reason:      "Milestone tracking is enough for this spec count and dependency shape.",
 		}
+	}
+	if err := m.reconcilePromotionDraft(data, draft); err != nil {
+		return nil, err
 	}
 	return draft, nil
 }
@@ -570,10 +609,17 @@ func (m *Manager) ApplyPromotionDraft(input PromotionApplyInput) (*PromotionAppl
 		return fallback(err)
 	}
 	var milestone *GitHubMilestone
-	if draft.MilestonePlan != nil && draft.MilestonePlan.Create {
-		milestone, err = m.ensureMilestone(info.ProjectDir, state.Repo, draft.MilestonePlan.Title)
-		if err != nil {
-			return fallback(err)
+	if draft.MilestonePlan != nil {
+		switch draft.MilestonePlan.Action {
+		case PromotionActionReuse, PromotionActionUnchanged:
+			milestone = draft.MilestonePlan.existing
+		default:
+			if draft.MilestonePlan.Create {
+				milestone, err = m.ensureMilestone(info.ProjectDir, state.Repo, draft.MilestonePlan.Title)
+				if err != nil {
+					return fallback(err)
+				}
+			}
 		}
 		result.Milestone = milestone
 	}
@@ -594,16 +640,7 @@ func (m *Manager) ApplyPromotionDraft(input PromotionApplyInput) (*PromotionAppl
 	}
 	var initiativeIssue *GitHubIssue
 	if draft.ProposedInitiativeIssue != nil {
-		initInput := GitHubIssueInput{
-			Title:  draft.ProposedInitiativeIssue.Title,
-			Body:   draft.ProposedInitiativeIssue.Body,
-			State:  "open",
-			Labels: append([]string(nil), draft.ProposedInitiativeIssue.Labels...),
-		}
-		if milestone != nil {
-			initInput.Milestone = &milestone.Number
-		}
-		initIssue, err := m.github.CreateIssue(info.ProjectDir, state.Repo, initInput)
+		initIssue, err := m.applyPromotionIssue(info.ProjectDir, state.Repo, draft.ProposedInitiativeIssue, milestone)
 		if err != nil {
 			return fallback(err)
 		}
@@ -632,34 +669,38 @@ func (m *Manager) ApplyPromotionDraft(input PromotionApplyInput) (*PromotionAppl
 	specIssuesBySlug := make(map[string]*GitHubIssue, len(draft.ProposedSpecIssues))
 	specDraftsBySlug := make(map[string]PromotionIssueDraft, len(draft.ProposedSpecIssues))
 	for _, specDraft := range draft.ProposedSpecIssues {
-		specInput := GitHubIssueInput{
-			Title:  specDraft.Title,
-			Body:   specDraft.Body,
-			State:  "open",
-			Labels: append([]string(nil), specDraft.Labels...),
-		}
-		if milestone != nil {
-			specInput.Milestone = &milestone.Number
-		}
-		specIssue, err := m.github.CreateIssue(info.ProjectDir, state.Repo, specInput)
+		specIssue, err := m.applyPromotionIssue(info.ProjectDir, state.Repo, &specDraft, milestone)
 		if err != nil {
 			return fallback(err)
-		}
-		if initiativeIssue != nil {
-			if err := m.github.AddSubIssue(info.ProjectDir, state.Repo, initiativeIssue.Number, specIssue.Number); err != nil {
-				return fallback(err)
-			}
 		}
 		specIssuesBySlug[specDraft.Slug] = specIssue
 		specDraftsBySlug[specDraft.Slug] = specDraft
 		result.Specs = append(result.Specs, *specIssue)
 	}
-	for slug, specIssue := range specIssuesBySlug {
-		specDraft := specDraftsBySlug[slug]
-		for _, dep := range specDraft.BlockedBy {
-			depIssue, ok := specIssuesBySlug[slugify(dep)]
+	for _, relationship := range draft.RelationshipPlan {
+		if relationship.Action != PromotionActionCreate {
+			continue
+		}
+		switch relationship.Kind {
+		case "parent_sub_issue":
+			if initiativeIssue == nil {
+				return nil, fmt.Errorf("promotion parent relationship for %q has no initiative issue", relationship.RelatedTitle)
+			}
+			specIssue, ok := specIssuesBySlug[slugify(relationship.RelatedTitle)]
 			if !ok {
-				return nil, fmt.Errorf("promotion dependency %q for %q was not created in this promotion set", dep, specDraft.Title)
+				return nil, fmt.Errorf("promotion sub-issue %q was not resolved in this promotion set", relationship.RelatedTitle)
+			}
+			if err := m.github.AddSubIssue(info.ProjectDir, state.Repo, initiativeIssue.Number, specIssue.Number); err != nil {
+				return fallback(err)
+			}
+		case "blocked_by":
+			specIssue, ok := specIssuesBySlug[slugify(relationship.IssueTitle)]
+			if !ok {
+				return nil, fmt.Errorf("promotion dependency target %q was not resolved in this promotion set", relationship.IssueTitle)
+			}
+			depIssue, ok := specIssuesBySlug[slugify(relationship.RelatedTitle)]
+			if !ok {
+				return nil, fmt.Errorf("promotion dependency %q for %q was not resolved in this promotion set", relationship.RelatedTitle, relationship.IssueTitle)
 			}
 			if err := m.github.AddBlockedBy(info.ProjectDir, state.Repo, specIssue.Number, depIssue.Number); err != nil {
 				return fallback(err)
@@ -1016,6 +1057,16 @@ func (m *Manager) loadLocalBrainstormSource(info *workspace.Info, slug string) (
 		CanonicalSource: "local_brainstorm",
 	}
 	specParse := extractSpecCandidateParse(content)
+	specBriefs, briefTitles, milestoneTitle := parsePromotionMap(content)
+	if len(briefTitles) > 0 {
+		specParse.Titles = briefTitles
+		specParse.RepairCandidates = briefTitles
+		specParse.ExplicitMultiSpecIntent = len(briefTitles) > 1
+	}
+	deps := buildDependencyGuess(specParse.Titles, content)
+	if len(specBriefs) > 0 {
+		deps = promotionBriefDependencyGuesses(specParse.Titles, specBriefs)
+	}
 	return &collaborationSourceData{
 		source:                  source,
 		title:                   defaultString(title, slugify(slug)),
@@ -1027,7 +1078,9 @@ func (m *Manager) loadLocalBrainstormSource(info *workspace.Info, slug string) (
 		shape:                   firstNonEmpty(refinement.DecisionSnapshot, refinement.CandidateApproaches, challenge.SimplerAlternative),
 		openQs:                  firstNonEmpty(refinement.RemainingOpenQuestions, notes.ExtractSection(content, "Open Questions")),
 		suggested:               specParse.Titles,
-		deps:                    buildDependencyGuess(specParse.Titles, content),
+		deps:                    deps,
+		specBriefs:              specBriefs,
+		milestoneTitle:          milestoneTitle,
 		explicitMultiSpecIntent: specParse.ExplicitMultiSpecIntent,
 		repairCandidates:        specParse.RepairCandidates,
 	}, nil
@@ -1065,6 +1118,16 @@ func (m *Manager) loadGitHubDiscussionSource(info *workspace.Info, discussionRef
 		CanonicalSource: "github_discussion",
 	}
 	specParse := extractSpecCandidateParse(content)
+	specBriefs, briefTitles, milestoneTitle := parsePromotionMap(content)
+	if len(briefTitles) > 0 {
+		specParse.Titles = briefTitles
+		specParse.RepairCandidates = briefTitles
+		specParse.ExplicitMultiSpecIntent = len(briefTitles) > 1
+	}
+	deps := buildDependencyGuess(specParse.Titles, content)
+	if len(specBriefs) > 0 {
+		deps = promotionBriefDependencyGuesses(specParse.Titles, specBriefs)
+	}
 	return &collaborationSourceData{
 		source:                  source,
 		title:                   discussion.Title,
@@ -1076,7 +1139,9 @@ func (m *Manager) loadGitHubDiscussionSource(info *workspace.Info, discussionRef
 		shape:                   firstNonEmpty(firstSectionOrKeyword(content, "Proposed Shape", "shape"), firstSectionOrKeyword(content, "Decision Snapshot", "decision"), firstSectionOrKeyword(content, "Candidate Approaches", "approach")),
 		openQs:                  firstNonEmpty(firstSectionOrKeyword(content, "Open Questions", "open question"), firstSectionOrKeyword(content, "Remaining Open Questions", "remaining open question")),
 		suggested:               specParse.Titles,
-		deps:                    buildDependencyGuess(specParse.Titles, content),
+		deps:                    deps,
+		specBriefs:              specBriefs,
+		milestoneTitle:          milestoneTitle,
 		explicitMultiSpecIntent: specParse.ExplicitMultiSpecIntent,
 		repairCandidates:        specParse.RepairCandidates,
 	}, nil
@@ -1165,6 +1230,7 @@ func assessCollaborationData(data *collaborationSourceData) CollaborationMaturit
 }
 
 func buildPromotionInitiativeDraft(data *collaborationSourceData, title string, specs []string) PromotionIssueDraft {
+	milestoneTitle := defaultString(data.milestoneTitle, title)
 	lines := []string{
 		"## Initiative",
 		data.problem,
@@ -1190,7 +1256,7 @@ func buildPromotionInitiativeDraft(data *collaborationSourceData, title string, 
 		"- Follow the promoted spec dependency plan.",
 		"",
 		"## Milestone",
-		"- "+title,
+		"- "+milestoneTitle,
 		"",
 		"## Source",
 	)
@@ -1202,6 +1268,7 @@ func buildPromotionInitiativeDraft(data *collaborationSourceData, title string, 
 		Title:          title,
 		Body:           strings.TrimSpace(strings.Join(lines, "\n")),
 		Slug:           slugify(title),
+		Action:         PromotionActionCreate,
 		Readiness:      ReadinessReady,
 		Labels:         []string{"enhancement", planIssueInitiativeLabel},
 		SourceLinks:    append([]string(nil), data.source.SourceLinks...),
@@ -1217,8 +1284,12 @@ func buildPromotionSpecDraft(data *collaborationSourceData, title string, blocke
 	body := renderPromotionSpecBody(title, data, blockedBy, exceptionPtr)
 	readiness := ReadinessReady
 	labels := []string{"enhancement", planIssueSpecLabel, planIssueReadyLabel}
+	brief, hasBrief := data.specBriefs[normalizePromotionTitle(title)]
 	if exceptionPtr != nil {
 		readiness = ReadinessNeedsRefinement
+		labels = []string{"enhancement", planIssueSpecLabel}
+	} else if hasBrief && (brief.Readiness == ReadinessNeedsRefinement || brief.Readiness == ReadinessClarifying) {
+		readiness = brief.Readiness
 		labels = []string{"enhancement", planIssueSpecLabel}
 	} else if len(blockedBy) > 0 {
 		readiness = ReadinessBlocked
@@ -1229,11 +1300,12 @@ func buildPromotionSpecDraft(data *collaborationSourceData, title string, blocke
 		Title:          title,
 		Body:           body,
 		Slug:           slugify(title),
+		Action:         PromotionActionCreate,
 		Readiness:      readiness,
 		Labels:         labels,
 		SourceLinks:    append([]string(nil), data.source.SourceLinks...),
 		BlockedBy:      append([]string(nil), blockedBy...),
-		ReadyByDefault: len(blockedBy) == 0 && exceptionPtr == nil,
+		ReadyByDefault: readiness == ReadinessReady,
 	}
 }
 
@@ -1277,6 +1349,9 @@ func buildRefinementExceptions(data *collaborationSourceData, specTitles []strin
 }
 
 func renderPromotionSpecBody(title string, data *collaborationSourceData, blockedBy []string, exception *PromotionRefinementException) string {
+	if brief, ok := data.specBriefs[normalizePromotionTitle(title)]; ok {
+		return renderPromotionSpecBriefBody(brief, data.source.SourceLinks, blockedBy, exception)
+	}
 	lines := []string{
 		"## Spec",
 		defaultString(data.problem, title),
@@ -1341,6 +1416,103 @@ func renderPromotionSpecBody(title string, data *collaborationSourceData, blocke
 		"## Source",
 	)
 	for _, link := range data.source.SourceLinks {
+		lines = append(lines, "- "+link)
+	}
+	return strings.TrimSpace(strings.Join(lines, "\n"))
+}
+
+func renderPromotionSpecBriefBody(brief promotionSpecBrief, sourceLinks, blockedBy []string, exception *PromotionRefinementException) string {
+	lines := []string{
+		"## Spec",
+		brief.Title,
+		"",
+	}
+	if strings.TrimSpace(brief.Problem) != "" {
+		lines = append(lines,
+			"## Problem",
+			brief.Problem,
+			"",
+		)
+	} else {
+		lines = append(lines,
+			"## Purpose",
+			defaultString(brief.Purpose, brief.Title),
+			"",
+		)
+	}
+	lines = append(lines,
+		"## Scope",
+		defaultString(brief.Scope, brief.Purpose),
+		"",
+		"## Acceptance Criteria",
+	)
+	if len(brief.AcceptanceCriteria) == 0 {
+		lines = append(lines, "- Clarify acceptance criteria before execution.")
+	} else {
+		for _, item := range brief.AcceptanceCriteria {
+			lines = append(lines, "- "+item)
+		}
+	}
+	lines = append(lines,
+		"",
+		"## Verification",
+	)
+	if len(brief.Verification) == 0 {
+		lines = append(lines, "- Verify every acceptance criterion above.")
+	} else {
+		for _, item := range brief.Verification {
+			lines = append(lines, "- "+item)
+		}
+	}
+	lines = append(lines,
+		"",
+		"## Dependencies",
+	)
+	if len(blockedBy) == 0 {
+		lines = append(lines, "- blocked by: none")
+	} else {
+		lines = append(lines, "- blocked by: "+strings.Join(blockedBy, ", "))
+	}
+	lines = append(lines,
+		"",
+		"## Readiness",
+	)
+	switch {
+	case exception != nil:
+		lines = append(lines, "- status: needs-refinement")
+	case brief.Readiness == ReadinessNeedsRefinement || brief.Readiness == ReadinessClarifying:
+		lines = append(lines, "- status: "+string(brief.Readiness))
+	case len(blockedBy) > 0:
+		lines = append(lines, "- status: blocked")
+	default:
+		lines = append(lines, "- status: ready")
+	}
+	if strings.TrimSpace(brief.ReadinessNote) != "" {
+		lines = append(lines, "- note: "+strings.TrimSpace(brief.ReadinessNote))
+	}
+	if exception != nil {
+		lines = append(lines,
+			"",
+			"## Refinement Gap",
+			exception.Gap,
+			"",
+			"## Why Not Ready",
+			exception.WhyNotReady,
+			"",
+			"## Recommended Clarification",
+			exception.RecommendedClarification,
+			"",
+			"## Exit Criteria",
+		)
+		for _, item := range exception.ExitCriteria {
+			lines = append(lines, "- "+item)
+		}
+	}
+	lines = append(lines,
+		"",
+		"## Source",
+	)
+	for _, link := range sourceLinks {
 		lines = append(lines, "- "+link)
 	}
 	return strings.TrimSpace(strings.Join(lines, "\n"))
