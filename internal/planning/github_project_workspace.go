@@ -17,12 +17,15 @@ const (
 	projectFieldStatus = "Status"
 	projectFieldArea   = "Area"
 
-	projectValueTracking = "Tracking"
-	projectValueSpec     = "Spec"
-	projectValueApproved = "Approved"
-	projectValueYes      = "Yes"
-	projectValueNo       = "No"
-	projectValueTodo     = "Todo"
+	projectValueTracking   = "Tracking"
+	projectValueSpec       = "Spec"
+	projectValueApproved   = "Approved"
+	projectValueYes        = "Yes"
+	projectValueNo         = "No"
+	projectValueTodo       = "Todo"
+	projectValueInProgress = "In Progress"
+	projectValueInReview   = "In Review"
+	projectValueDone       = "Done"
 )
 
 type GitHubProjectWorkspaceResult struct {
@@ -204,7 +207,7 @@ func projectWorkspaceFieldInputs() []GitHubProjectFieldInput {
 		{Name: projectFieldType, DataType: "SINGLE_SELECT", Options: []string{projectValueTracking, projectValueSpec}},
 		{Name: projectFieldStage, DataType: "SINGLE_SELECT", Options: []string{projectValueApproved}},
 		{Name: projectFieldReady, DataType: "SINGLE_SELECT", Options: []string{projectValueYes, projectValueNo}},
-		{Name: projectFieldStatus, DataType: "SINGLE_SELECT", Options: []string{projectValueTodo}},
+		{Name: projectFieldStatus, DataType: "SINGLE_SELECT", Options: []string{projectValueTodo, projectValueInProgress, projectValueInReview, projectValueDone}},
 		{Name: projectFieldArea, DataType: "TEXT"},
 	}
 }

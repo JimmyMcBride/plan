@@ -12,26 +12,28 @@ import (
 )
 
 type stubGitHubClient struct {
-	preflight        *GitHubRepoInfo
-	preflightErr     error
-	context          *GitHubContext
-	issues           map[int]*GitHubIssue
-	milestones       map[string]*GitHubMilestone
-	labels           map[string]GitHubLabelInput
-	milestoneLookups []string
-	discussions      map[int]*GitHubDiscussion
-	subIssues        [][2]int
-	blockedByEdges   [][2]int
-	projects         map[int]*GitHubProjectWorkspace
-	createdProjects  []GitHubProjectWorkspaceInput
-	projectItems     []GitHubProjectItemResult
-	projectValues    []stubProjectValue
-	nextIssue        int
-	nextProject      int
-	lastCreate       GitHubIssueInput
-	lastUpdate       GitHubIssueInput
-	createIssueErr   error
-	ensureLabelErr   error
+	preflight           *GitHubRepoInfo
+	preflightErr        error
+	context             *GitHubContext
+	issues              map[int]*GitHubIssue
+	milestones          map[string]*GitHubMilestone
+	labels              map[string]GitHubLabelInput
+	milestoneLookups    []string
+	discussions         map[int]*GitHubDiscussion
+	subIssues           [][2]int
+	blockedByEdges      [][2]int
+	projects            map[int]*GitHubProjectWorkspace
+	createdProjects     []GitHubProjectWorkspaceInput
+	projectItems        []GitHubProjectItemResult
+	projectValues       []stubProjectValue
+	projectAddNilValues bool
+	nextIssue           int
+	nextProject         int
+	lastCreate          GitHubIssueInput
+	lastUpdate          GitHubIssueInput
+	createIssueErr      error
+	ensureLabelErr      error
+	getIssueCalls       int
 }
 
 type stubProjectValue struct {
@@ -121,6 +123,7 @@ func (s *stubGitHubClient) UpdateIssue(projectDir, repo string, issueNumber int,
 }
 
 func (s *stubGitHubClient) GetIssue(projectDir, repo string, issueNumber int) (*GitHubIssue, error) {
+	s.getIssueCalls++
 	issue, ok := s.issues[issueNumber]
 	if !ok {
 		panic("unexpected GetIssue call")
@@ -268,6 +271,12 @@ func (s *stubGitHubClient) EnsureProjectField(projectDir string, project GitHubP
 	}
 	for _, field := range stored.Fields {
 		if strings.EqualFold(field.Name, input.Name) {
+			if !strings.EqualFold(strings.TrimSpace(field.DataType), strings.TrimSpace(input.DataType)) {
+				return nil, fmt.Errorf("GitHub Project field %q has type %q; expected %q", field.Name, field.DataType, input.DataType)
+			}
+			if missing := missingProjectFieldOptions(field, input.Options); len(missing) > 0 {
+				return nil, fmt.Errorf("GitHub Project field %q is missing options %s", field.Name, strings.Join(missing, ", "))
+			}
 			copy := field
 			copy.Options = copyStringMap(field.Options)
 			return &copy, nil
@@ -294,12 +303,40 @@ func (s *stubGitHubClient) AddProjectItemByIssue(projectDir, repo, projectID str
 	item := GitHubProjectItem{
 		ID:          fmt.Sprintf("PVTI_%d", issueNumber),
 		IssueNumber: issueNumber,
+		ProjectID:   projectID,
+	}
+	if !s.projectAddNilValues {
+		item.Values = map[string]string{}
 	}
 	s.projectItems = append(s.projectItems, GitHubProjectItemResult{
 		IssueNumber: issueNumber,
 		ItemID:      item.ID,
 	})
 	return &item, nil
+}
+
+func (s *stubGitHubClient) GetProjectItemByIssue(projectDir, repo, projectID string, issueNumber int) (*GitHubProjectItem, error) {
+	issue, ok := s.issues[issueNumber]
+	if !ok {
+		panic("unexpected GetProjectItemByIssue call")
+	}
+	itemID := fmt.Sprintf("PVTI_%d", issueNumber)
+	for _, item := range s.projectItems {
+		if item.IssueNumber != issueNumber {
+			continue
+		}
+		if item.ItemID != "" {
+			itemID = item.ItemID
+		}
+		values := map[string]string{}
+		for _, value := range s.projectValues {
+			if value.ItemID == itemID {
+				values[value.Field] = value.Value
+			}
+		}
+		return &GitHubProjectItem{ID: itemID, IssueNumber: issueNumber, ProjectID: projectID, IssueURL: issue.URL, IssueTitle: issue.Title, IssueState: issue.State, Values: values}, nil
+	}
+	return &GitHubProjectItem{IssueNumber: issueNumber, ProjectID: projectID, IssueURL: issue.URL, IssueTitle: issue.Title, IssueState: issue.State, Values: map[string]string{}}, nil
 }
 
 func (s *stubGitHubClient) SetProjectItemField(projectDir, projectID, itemID string, field GitHubProjectField, value string) error {
