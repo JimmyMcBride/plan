@@ -16,13 +16,14 @@ type GitHubReconcileOptions struct {
 }
 
 type GitHubReconcileResult struct {
-	Repo            string
-	CurrentBranch   string
-	DefaultBranch   string
-	UpdatedIssues   []string
-	ReadyStories    []string
-	BlockedStories  []string
-	PlanningPromote bool
+	Repo                string
+	CurrentBranch       string
+	DefaultBranch       string
+	UpdatedIssues       []string
+	UpdatedProjectItems []string
+	ReadyStories        []string
+	BlockedStories      []string
+	PlanningPromote     bool
 }
 
 func (m *Manager) ReconcileGitHubStories(options GitHubReconcileOptions) (*GitHubReconcileResult, error) {
@@ -30,17 +31,20 @@ func (m *Manager) ReconcileGitHubStories(options GitHubReconcileOptions) (*GitHu
 	if err != nil {
 		return nil, err
 	}
+	meta, err := m.workspace.ReadWorkspaceMeta()
+	if err != nil {
+		return nil, err
+	}
 	backend, err := m.storyBackendForInfo()
 	if err != nil {
 		return nil, err
 	}
-	if backend != workspace.StoryBackendGitHub {
-		return nil, fmt.Errorf("GitHub reconcile is only available when the story backend is set to github")
-	}
-
-	state, err := m.readGitHubStateForStories()
+	state, err := m.workspace.ReadGitHubState()
 	if err != nil {
 		return nil, err
+	}
+	if backend != workspace.StoryBackendGitHub && meta.SourceMode != workspace.SourceOfTruthGitHub && meta.SourceMode != workspace.SourceOfTruthHybrid && len(state.ProjectDecisions) == 0 {
+		return nil, fmt.Errorf("GitHub reconcile is only available when the story backend is github or GitHub planning metadata is present")
 	}
 	context, err := m.github.CurrentContext(info.ProjectDir)
 	if err != nil {
@@ -56,6 +60,7 @@ func (m *Manager) ReconcileGitHubStories(options GitHubReconcileOptions) (*GitHu
 		state.Repo = context.Repo.Repo
 		stateChanged = true
 	}
+	result.Repo = state.Repo
 	if state.RepoURL != context.Repo.RepoURL {
 		state.RepoURL = context.Repo.RepoURL
 		stateChanged = true
@@ -72,73 +77,83 @@ func (m *Manager) ReconcileGitHubStories(options GitHubReconcileOptions) (*GitHu
 		state.LastUpdatedAt = now
 	}
 
-	slugs := make([]string, 0, len(state.Stories))
-	for slug := range state.Stories {
-		slugs = append(slugs, slug)
-	}
-	sort.Strings(slugs)
-	milestoneCache := map[string]*int{}
+	if backend == workspace.StoryBackendGitHub {
+		slugs := make([]string, 0, len(state.Stories))
+		for slug := range state.Stories {
+			slugs = append(slugs, slug)
+		}
+		sort.Strings(slugs)
+		milestoneCache := map[string]*int{}
 
-	for _, slug := range slugs {
-		record := state.Stories[slug]
-		previous := record
-		spec, err := notes.Read(filepath.Join(info.SpecsDir, record.Spec+".md"))
-		if err != nil {
-			return nil, err
-		}
-		issue, err := m.github.GetIssue(info.ProjectDir, state.Repo, record.IssueNumber)
-		if err != nil {
-			return nil, err
-		}
-		record.IssueURL = issue.URL
-		record.RemoteState = issue.State
-		record.VisibleReadyMarkerSet = containsString(issue.Labels, planIssueReadyLabel) || containsString(issue.Labels, planIssueBlockedLabel)
-		if result.PlanningPromote {
-			record.PlanningPRMerged = true
-			record.DocRefMode = "main"
-			record.DocRef = context.Repo.DefaultBranch
-		}
-
-		status, ready, _, _, _ := deriveGitHubStoryState(record, state)
-		if ready {
-			result.ReadyStories = append(result.ReadyStories, slug)
-		}
-		if status == "blocked" {
-			result.BlockedStories = append(result.BlockedStories, slug)
-		}
-
-		body := mergeManagedIssueBody(issue.Body, renderGitHubStoryIssueBody(state, &context.Repo, spec, record))
-		milestoneNumber, err := m.resolveSpecInitiativeMilestoneCached(info, state.Repo, spec, milestoneCache)
-		if err != nil {
-			return nil, err
-		}
-		milestoneChanged, desiredMilestone, clearMilestone := milestoneUpdate(issue.Milestone, milestoneNumber)
-		labels := issue.Labels
-		if options.UpdateVisible {
-			labels = applyDerivedReadyLabels(labels, status, ready)
-		}
-		if body != issue.Body || !sameStringSlice(labels, issue.Labels) || milestoneChanged {
-			updatedIssue, err := m.github.UpdateIssue(info.ProjectDir, state.Repo, record.IssueNumber, GitHubIssueInput{
-				Title:          record.Title,
-				Body:           body,
-				State:          issue.State,
-				Labels:         labels,
-				Milestone:      desiredMilestone,
-				ClearMilestone: clearMilestone,
-			})
+		for _, slug := range slugs {
+			record := state.Stories[slug]
+			previous := record
+			spec, err := notes.Read(filepath.Join(info.SpecsDir, record.Spec+".md"))
 			if err != nil {
 				return nil, err
 			}
-			record.IssueURL = updatedIssue.URL
-			record.RemoteState = updatedIssue.State
-			record.VisibleReadyMarkerSet = containsString(labels, planIssueReadyLabel) || containsString(labels, planIssueBlockedLabel)
-			result.UpdatedIssues = append(result.UpdatedIssues, fmt.Sprintf("#%d", record.IssueNumber))
+			issue, err := m.github.GetIssue(info.ProjectDir, state.Repo, record.IssueNumber)
+			if err != nil {
+				return nil, err
+			}
+			record.IssueURL = issue.URL
+			record.RemoteState = issue.State
+			record.VisibleReadyMarkerSet = containsString(issue.Labels, planIssueReadyLabel) || containsString(issue.Labels, planIssueBlockedLabel)
+			if result.PlanningPromote {
+				record.PlanningPRMerged = true
+				record.DocRefMode = "main"
+				record.DocRef = context.Repo.DefaultBranch
+			}
+
+			status, ready, _, _, _ := deriveGitHubStoryState(record, state)
+			if ready {
+				result.ReadyStories = append(result.ReadyStories, slug)
+			}
+			if status == "blocked" {
+				result.BlockedStories = append(result.BlockedStories, slug)
+			}
+
+			body := mergeManagedIssueBody(issue.Body, renderGitHubStoryIssueBody(state, &context.Repo, spec, record))
+			milestoneNumber, err := m.resolveSpecInitiativeMilestoneCached(info, state.Repo, spec, milestoneCache)
+			if err != nil {
+				return nil, err
+			}
+			milestoneChanged, desiredMilestone, clearMilestone := milestoneUpdate(issue.Milestone, milestoneNumber)
+			labels := issue.Labels
+			if options.UpdateVisible {
+				labels = applyDerivedReadyLabels(labels, status, ready)
+			}
+			if body != issue.Body || !sameStringSlice(labels, issue.Labels) || milestoneChanged {
+				updatedIssue, err := m.github.UpdateIssue(info.ProjectDir, state.Repo, record.IssueNumber, GitHubIssueInput{
+					Title:          record.Title,
+					Body:           body,
+					State:          issue.State,
+					Labels:         labels,
+					Milestone:      desiredMilestone,
+					ClearMilestone: clearMilestone,
+				})
+				if err != nil {
+					return nil, err
+				}
+				record.IssueURL = updatedIssue.URL
+				record.RemoteState = updatedIssue.State
+				record.VisibleReadyMarkerSet = containsString(labels, planIssueReadyLabel) || containsString(labels, planIssueBlockedLabel)
+				result.UpdatedIssues = append(result.UpdatedIssues, fmt.Sprintf("#%d", record.IssueNumber))
+			}
+			if gitHubStoryRecordChanged(previous, record) {
+				record.UpdatedAt = now
+				state.Stories[slug] = record
+				stateChanged = true
+			}
 		}
-		if gitHubStoryRecordChanged(previous, record) {
-			record.UpdatedAt = now
-			state.Stories[slug] = record
-			stateChanged = true
-		}
+	}
+	projectItems, projectStateChanged, err := m.reconcileGitHubProjectWorkspaceDrift(info, state, state.Repo, options.UpdateVisible)
+	if err != nil {
+		return nil, err
+	}
+	result.UpdatedProjectItems = projectItems
+	if projectStateChanged {
+		stateChanged = true
 	}
 
 	if stateChanged {

@@ -50,6 +50,7 @@ func newGitHubCommand() *cobra.Command {
 			fmt.Fprintf(out, "branch: %s\n", result.CurrentBranch)
 			fmt.Fprintf(out, "default_branch: %s\n", result.DefaultBranch)
 			fmt.Fprintf(out, "updated_issues: %d\n", len(result.UpdatedIssues))
+			fmt.Fprintf(out, "updated_project_items: %d\n", len(result.UpdatedProjectItems))
 			if len(result.ReadyStories) > 0 {
 				fmt.Fprintf(out, "ready_stories: %s\n", strings.Join(result.ReadyStories, ", "))
 			}
@@ -112,7 +113,40 @@ func newGitHubCommand() *cobra.Command {
 	adopt.Flags().StringVar(&adoptProjectID, "project-id", "", "existing GitHub Project node id when --project-decision connect")
 	adopt.Flags().StringVar(&adoptProjectURL, "project-url", "", "existing GitHub Project URL when --project-decision connect")
 
-	cmd.AddCommand(enable, reconcile, adopt)
+	var (
+		projectStatusIssue int
+		projectStatusSet   string
+	)
+	projectStatus := &cobra.Command{
+		Use:   "status",
+		Short: "Move a tracked issue card through the GitHub Project execution status",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			result, err := planningManager().SetGitHubProjectIssueStatus(planning.GitHubProjectStatusInput{
+				IssueNumber: projectStatusIssue,
+				Status:      projectStatusSet,
+			})
+			if err != nil {
+				return err
+			}
+			out := cmd.OutOrStdout()
+			fmt.Fprintf(out, "repo: %s\n", result.Repo)
+			fmt.Fprintf(out, "issue: #%d\n", result.IssueNumber)
+			fmt.Fprintf(out, "project: %s\n", result.ProjectURL)
+			fmt.Fprintf(out, "item: %s\n", result.ItemID)
+			fmt.Fprintf(out, "status: %s\n", result.Status)
+			return nil
+		},
+	}
+	projectStatus.Flags().IntVar(&projectStatusIssue, "issue", 0, "GitHub issue number to move")
+	projectStatus.Flags().StringVar(&projectStatusSet, "set", "", "execution status: todo, in-progress, in-review, or done")
+	project := &cobra.Command{
+		Use:   "project",
+		Short: "Manage GitHub Project workspace automation",
+	}
+	project.AddCommand(projectStatus)
+
+	cmd.AddCommand(enable, reconcile, adopt, project)
 	return cmd
 }
 

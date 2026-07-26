@@ -264,6 +264,11 @@ func (m *Manager) checkGitHubPlanningDrift(info *workspace.Info) ([]CheckFinding
 			})
 		}
 	}
+	projectFindings, err := m.checkGitHubProjectWorkspaceDrift(info, state, repo)
+	if err != nil {
+		return nil, err
+	}
+	findings = append(findings, projectFindings...)
 	return findings, nil
 }
 

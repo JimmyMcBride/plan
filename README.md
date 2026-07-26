@@ -1,5 +1,7 @@
 # plan
 
+![Plan project planning breakdown diagram](docs/assets/plan-project-planning-breakdown.png)
+
 `plan` is a local-first-by-default, backend-flexible planning CLI for
 AI-assisted software work.
 
@@ -154,6 +156,13 @@ plan discuss promote --project . --discussion 49 --format json
 plan discuss promote --project . --discussion 49 --apply --confirm --target github --format json
 ```
 
+Promotion preview reconciles existing Plan-managed Issues and Milestones before
+classifying every artifact and relationship as `create`, `update`, `reuse`, or
+`unchanged`. Exact Plan/source metadata wins over titles; ambiguous identity
+blocks. Preview is non-mutating, and repeated confirmed apply is idempotent.
+Structured `## Promotion map` spec briefs keep their own scope, acceptance
+criteria, verification, readiness, and dependencies.
+
 If Plan says the source needs repair, use the emitted repair command before
 promotion. In GitHub or hybrid source mode, do not create planning issues,
 labels, or milestones manually unless Plan emitted `manual_fallback_allowed=true`;
@@ -179,6 +188,7 @@ Full guide:
 - `plan spec show|edit|status|analyze|checklist|initiative|execute|handoff`
 - `plan story create|update|list|show|slice|critique` for legacy compatibility during migration
 - `plan github enable|reconcile|adopt`
+- `plan github project status --issue <number> --set <todo|in-progress|in-review|done>`
 - `plan roadmap show|edit`
 - `plan check`
 - `plan status`

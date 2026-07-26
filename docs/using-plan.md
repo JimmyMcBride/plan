@@ -349,7 +349,8 @@ The draft tells you:
 - the proposed spec issues
 - parent/sub-issue grouping
 - `blocked by` dependency suggestions
-- whether a milestone should be created
+- whether the initiative, specs, relationships, and milestone will be created,
+  updated, reused, or left unchanged
 - whether a project should be recommended
 - whether any spec should start with `needs-refinement`
 - the agent policy that forbids manual GitHub planning mutations unless Plan
@@ -357,11 +358,43 @@ The draft tells you:
 
 Rules:
 
-- single-spec promotion creates one spec issue and no initiative issue
-- multi-spec promotion creates an initiative issue plus spec issues
-- multi-spec promotion always creates a milestone
+- single-spec promotion creates or reconciles one spec issue and no initiative
+  issue
+- multi-spec promotion creates or reconciles an initiative issue plus spec
+  issues
+- multi-spec promotion uses one milestone, preferring the source's target
+  milestone and the established initiative milestone over the Discussion title
 - the project prompt appears at `5+` specs or earlier when coordination is
   clearly messy
+- preview is read-only: it may inspect Plan metadata, Plan-labeled Issues,
+  Milestones, sub-issues, and dependencies, but it never mutates GitHub or local
+  planning metadata
+- identity precedence is exact `.plan/.meta/github.json` source metadata,
+  Discussion source links, stable slugs, parent/sub-issue grouping, and then
+  other Plan-managed repository metadata; title similarity only disambiguates
+  stronger identity signals
+- if two existing artifacts remain equally plausible, preview fails with an
+  ambiguity error instead of choosing one
+
+The additive JSON reconciliation fields are:
+
+- `proposed_initiative_issue.action` and each
+  `proposed_spec_issues[].action`: `create`, `update`, or `unchanged`
+- `issue_number`, `issue_url`, and `identity` when an existing Issue is
+  resolved
+- `milestone_plan.action`: `create` or `reuse`, plus `number`, `url`, and
+  `identity` when Plan reuses a Milestone
+- `relationship_plan[]`: one explicit `parent_sub_issue` or `blocked_by`
+  action, classified as `create` or `reuse`
+- `create` remains on `milestone_plan` for compatibility; it is `false` when
+  the action is `reuse`
+
+For structured multi-spec Discussions, `## Promotion map` may contain
+`### Spec N — Title` briefs. Each brief is parsed independently. Supported
+brief fields are problem or purpose, scope, acceptance criteria, verification,
+dependencies, and readiness or approval note. If verification is omitted, the
+spec's own acceptance criteria become its verification checklist; global
+Discussion sections are not copied into every spec.
 
 ### 7. Apply Promotion To GitHub Or Hybrid Ownership
 
@@ -406,14 +439,17 @@ Current shipped boundary:
 
 When a multi-spec promotion is applied, `plan` will:
 
-- create the initiative issue
-- create the spec issues immediately
-- create the milestone
-- wire the initiative as parent of the spec issues
-- add `blocked by` relationships only where the dependency plan says they are
-  real
-- mirror the created issue/milestone/project metadata into
+- create missing initiative/spec Issues and update resolved Plan-managed Issues
+- create a missing milestone or reuse the milestone already established by the
+  source/initiative
+- add only missing parent/sub-issue and `blocked by` relationships
+- leave already-matching Issues and relationships unchanged
+- mirror the resolved issue/milestone/project metadata into
   `.plan/.meta/github.json`
+
+Apply remains gated by both `--apply` and `--confirm`. Repeating the same apply
+is idempotent: it does not create duplicate Issues, Milestones, labels,
+sub-issue relationships, or dependency relationships.
 
 By default, new spec issues are `ready`. A spec starts as `needs-refinement`
 only when the draft identified a concrete execution gap.
@@ -632,6 +668,15 @@ plan github reconcile --project . --update-visible
 plan status --project .
 ```
 
+When a promoted spec is tracked in a GitHub Project, move its issue card through
+execution explicitly:
+
+```bash
+plan github project status --project . --issue <number> --set in-progress
+plan github project status --project . --issue <number> --set in-review
+plan github project status --project . --issue <number> --set done
+```
+
 If GitHub integration is not enabled, use the same refresh without reconcile:
 
 ```bash
@@ -792,4 +837,5 @@ plan epic --help
 plan spec --help
 plan story --help
 plan github --help
+plan github project status --help
 ```

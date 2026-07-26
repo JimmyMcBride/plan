@@ -33,6 +33,7 @@ func TestInitCreatesPlanWorkspace(t *testing.T) {
 		filepath.Join(root, ".plan", ".meta", "workspace.json"),
 		filepath.Join(root, ".plan", ".meta", "migrations.json"),
 		filepath.Join(root, ".plan", ".meta", "github.json"),
+		filepath.Join(root, ".plan", ".meta", "linear.json"),
 		filepath.Join(root, ".plan", ".meta", "guided_sessions.json"),
 	} {
 		if _, err := os.Stat(path); err != nil {
@@ -54,7 +55,7 @@ func TestWorkspaceContractSeparatesUserAuthoredAndToolManagedSurfaces(t *testing
 	if len(contract.UserAuthored) != 6 {
 		t.Fatalf("unexpected user-authored surface count: %d", len(contract.UserAuthored))
 	}
-	if len(contract.ToolManaged) != 5 {
+	if len(contract.ToolManaged) != 6 {
 		t.Fatalf("unexpected tool-managed surface count: %d", len(contract.ToolManaged))
 	}
 
@@ -226,6 +227,9 @@ func TestUpdateRepairsToolManagedStateWithoutTouchingUserNotes(t *testing.T) {
 	if err := os.Remove(filepath.Join(root, ".plan", ".meta", "github.json")); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.Remove(filepath.Join(root, ".plan", ".meta", "linear.json")); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.Remove(filepath.Join(root, ".plan", ".meta", "guided_sessions.json")); err != nil {
 		t.Fatal(err)
 	}
@@ -242,6 +246,9 @@ func TestUpdateRepairsToolManagedStateWithoutTouchingUserNotes(t *testing.T) {
 	}
 	if !contains(result.Created, ".plan/.meta/github.json") {
 		t.Fatalf("expected GitHub state recreation: %+v", result)
+	}
+	if !contains(result.Created, ".plan/.meta/linear.json") {
+		t.Fatalf("expected Linear state recreation: %+v", result)
 	}
 	if !contains(result.Created, ".plan/.meta/guided_sessions.json") {
 		t.Fatalf("expected guided session state recreation: %+v", result)
@@ -578,6 +585,39 @@ func TestReadGitHubStateDefaultsPlanningMapInMemory(t *testing.T) {
 	}
 	if len(state.Planning) != 0 {
 		t.Fatalf("expected empty planning map fallback: %+v", state.Planning)
+	}
+}
+
+func TestLinearStateCapturesTeamConfiguration(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+	if _, err := manager.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	state, err := manager.ReadLinearState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.SourceOfTruth != "linear" || state.PromotionTarget != "linear_issue" {
+		t.Fatalf("expected default Linear ownership metadata: %+v", state)
+	}
+
+	state.WorkspaceID = "workspace-123"
+	state.WorkspaceName = "Acme"
+	state.TeamID = "team-123"
+	state.TeamKey = "PLAN"
+	state.TeamName = "Plan"
+	if err := manager.WriteLinearState(*state); err != nil {
+		t.Fatal(err)
+	}
+
+	roundTrip, err := manager.ReadLinearState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if roundTrip.WorkspaceID != "workspace-123" || roundTrip.TeamID != "team-123" || roundTrip.TeamKey != "PLAN" || roundTrip.TeamName != "Plan" {
+		t.Fatalf("expected Linear team metadata to round-trip: %+v", roundTrip)
 	}
 }
 

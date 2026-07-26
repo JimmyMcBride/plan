@@ -499,6 +499,10 @@ func (s *stubGuideGitHubClient) AddProjectItemByIssue(projectDir, repo, projectI
 	return nil, nil
 }
 
+func (s *stubGuideGitHubClient) GetProjectItemByIssue(projectDir, repo, projectID string, issueNumber int) (*planning.GitHubProjectItem, error) {
+	return nil, nil
+}
+
 func (s *stubGuideGitHubClient) SetProjectItemField(projectDir, projectID, itemID string, field planning.GitHubProjectField, value string) error {
 	return nil
 }
