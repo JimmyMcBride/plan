@@ -27,6 +27,9 @@ type stubGitHubClient struct {
 	projectItems        []GitHubProjectItemResult
 	projectValues       []stubProjectValue
 	projectAddNilValues bool
+	createIssueCalls    int
+	updateIssueCalls    int
+	relationshipReads   int
 	nextIssue           int
 	nextProject         int
 	lastCreate          GitHubIssueInput
@@ -61,6 +64,7 @@ func (s *stubGitHubClient) CreateIssue(projectDir, repo string, input GitHubIssu
 		return nil, s.createIssueErr
 	}
 	s.lastCreate = input
+	s.createIssueCalls++
 	if s.issues == nil {
 		s.issues = map[int]*GitHubIssue{}
 	}
@@ -94,6 +98,7 @@ func (s *stubGitHubClient) CreateIssue(projectDir, repo string, input GitHubIssu
 
 func (s *stubGitHubClient) UpdateIssue(projectDir, repo string, issueNumber int, input GitHubIssueInput) (*GitHubIssue, error) {
 	s.lastUpdate = input
+	s.updateIssueCalls++
 	issue, ok := s.issues[issueNumber]
 	if !ok {
 		panic("unexpected UpdateIssue call")
@@ -143,6 +148,22 @@ func (s *stubGitHubClient) ListIssuesByLabel(projectDir, repo string, labels []s
 				out = append(out, copy)
 				break
 			}
+		}
+	}
+	return out, nil
+}
+
+func (s *stubGitHubClient) GetIssueRelationships(projectDir, repo string, issueNumber int) (*GitHubIssueRelationships, error) {
+	s.relationshipReads++
+	out := &GitHubIssueRelationships{}
+	for _, edge := range s.subIssues {
+		if edge[0] == issueNumber {
+			out.SubIssues = append(out.SubIssues, edge[1])
+		}
+	}
+	for _, edge := range s.blockedByEdges {
+		if edge[0] == issueNumber {
+			out.BlockedBy = append(out.BlockedBy, edge[1])
 		}
 	}
 	return out, nil

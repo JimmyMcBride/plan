@@ -156,6 +156,13 @@ plan discuss promote --project . --discussion 49 --format json
 plan discuss promote --project . --discussion 49 --apply --confirm --target github --format json
 ```
 
+Promotion preview reconciles existing Plan-managed Issues and Milestones before
+classifying every artifact and relationship as `create`, `update`, `reuse`, or
+`unchanged`. Exact Plan/source metadata wins over titles; ambiguous identity
+blocks. Preview is non-mutating, and repeated confirmed apply is idempotent.
+Structured `## Promotion map` spec briefs keep their own scope, acceptance
+criteria, verification, readiness, and dependencies.
+
 If Plan says the source needs repair, use the emitted repair command before
 promotion. In GitHub or hybrid source mode, do not create planning issues,
 labels, or milestones manually unless Plan emitted `manual_fallback_allowed=true`;

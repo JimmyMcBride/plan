@@ -82,6 +82,14 @@ When a repo uses `plan`:
 - `brainstorm challenge` should pressure-test risk, no-gos, and overengineering before promotion.
 - `discuss assess` should produce an explicit maturity decision before a GitHub-backed promotion happens.
 - `discuss promote` should stay draft-first unless the task explicitly calls for `--apply --confirm`.
+- Treat promotion previews as reconciliation plans: inspect Plan metadata,
+  source links, stable slugs, parent/sub-issue grouping, dependencies, and
+  milestone metadata before proposing new artifacts.
+- Require explicit `create`, `update`, `reuse`, or `unchanged` actions in the
+  promotion JSON, and stop on ambiguous identity instead of title guessing.
+- Preserve each structured Promotion map spec brief independently, including
+  scope, acceptance criteria, verification, readiness, and dependencies.
+- Repeated confirmed promotion apply must remain idempotent.
 - In `github` or `hybrid` source mode, never create planning issues, labels, milestones, or project prompts with `gh` unless Plan emitted `manual_fallback_allowed=true`.
 - If Plan output disagrees with user intent, repair the Plan source with `plan discuss repair` and rerun assess/promote instead of filling the gap manually.
 - today, `discuss promote --apply` is implemented for `github` and `hybrid`; repo-backed local promotion still uses the legacy compatibility path
