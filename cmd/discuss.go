@@ -8,6 +8,8 @@ import (
 
 	"plan/internal/planning"
 
+	brainplanning "github.com/JimmyMcBride/brain/planning"
+	brainapp "github.com/JimmyMcBride/brain/planning/application"
 	"github.com/spf13/cobra"
 )
 
@@ -27,6 +29,17 @@ func newDiscussCommand() *cobra.Command {
 		Short: "Assess whether a brainstorm or GitHub Discussion is ready for promotion",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if strings.TrimSpace(assessBrainstorm) != "" && strings.TrimSpace(assessDiscussion) == "" {
+				if handled, err := withSharedPlanning(cmd, "brainstorm assess", true, func(service *brainapp.Service) error {
+					result, err := service.AssessLocalBrainstorm(cmd.Context(), brainplanning.ArtifactID(assessBrainstorm))
+					if err != nil {
+						return err
+					}
+					return writeDiscussJSON(cmd, assessFormat, result)
+				}); handled {
+					return err
+				}
+			}
 			result, err := planningManager().AssessCollaborationSource(planning.CollaborationAssessInput{
 				BrainstormSlug: assessBrainstorm,
 				DiscussionRef:  assessDiscussion,
@@ -59,6 +72,26 @@ func newDiscussCommand() *cobra.Command {
 		Short: "Draft or apply a promotion from a brainstorm or GitHub Discussion",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			localTarget := strings.TrimSpace(promoteTarget) == "" || strings.TrimSpace(promoteTarget) == "local"
+			if strings.TrimSpace(promoteBrainstorm) != "" && strings.TrimSpace(promoteDiscussion) == "" && localTarget {
+				if handled, err := withSharedPlanning(cmd, "brainstorm promote", true, func(service *brainapp.Service) error {
+					id := brainplanning.ArtifactID(promoteBrainstorm)
+					if !promoteApply {
+						draft, err := service.PreviewLocalPromotion(cmd.Context(), id)
+						if err != nil {
+							return err
+						}
+						return writeDiscussJSON(cmd, promoteFormat, draft)
+					}
+					result, err := service.PromoteLocalBrainstorm(cmd.Context(), brainapp.LocalPromotionInput{BrainstormID: id, Confirmed: promoteConfirm}, sharedAuthorizer(), sharedEvents())
+					if err != nil {
+						return err
+					}
+					return writeDiscussJSON(cmd, promoteFormat, result)
+				}); handled {
+					return err
+				}
+			}
 			if !promoteApply {
 				draft, err := planningManager().BuildPromotionDraft(planning.PromotionDraftInput{
 					BrainstormSlug: promoteBrainstorm,
@@ -117,6 +150,19 @@ func newDiscussCommand() *cobra.Command {
 		Short:   "Repair a collaboration source with a canonical Specs section",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if strings.TrimSpace(repairBrainstorm) != "" && strings.TrimSpace(repairDiscussion) == "" {
+				if handled, err := withSharedPlanning(cmd, "brainstorm repair", true, func(service *brainapp.Service) error {
+					result, err := service.RepairLocalPromotionSource(cmd.Context(), brainapp.LocalPromotionRepairInput{
+						BrainstormID: brainplanning.ArtifactID(repairBrainstorm), Specs: repairSpecs, Confirmed: true,
+					}, sharedAuthorizer(), sharedEvents())
+					if err != nil {
+						return err
+					}
+					return writeDiscussJSON(cmd, repairFormat, result)
+				}); handled {
+					return err
+				}
+			}
 			result, err := planningManager().RepairSpecSplit(planning.RepairSpecSplitInput{
 				BrainstormSlug: repairBrainstorm,
 				DiscussionRef:  repairDiscussion,
