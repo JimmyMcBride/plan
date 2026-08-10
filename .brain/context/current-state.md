@@ -1,5 +1,5 @@
 ---
-updated: "2026-05-17T02:16:59Z"
+updated: "2026-08-10T07:23:35Z"
 ---
 # Current State
 
@@ -12,10 +12,10 @@ This file is a deterministic snapshot of the repository state at the last refres
 - Root: `.`
 - Runtime: `go`
 - Go module: `plan`
-- Current branch: `codex/codex-cloud-brain-setup`
+- Current branch: `codex/plan-cli-compatibility-standalone-cutover`
 - Default branch: `main`
 - Remote: `https://github.com/JimmyMcBride/plan.git`
-- Go test files: `561`
+- Go test files: `572`
 
 ## Docs
 
@@ -43,3 +43,8 @@ Add repo-specific notes here. `brain context refresh` preserves content outside 
 - On May 16, 2026, the Linear integration brainstorm promoted into GitHub planning issue `#78` with spec issues `#79`-`#81` and milestone `Linear integration`; MVP direction is Linear source mode plus agent-mediated MCP promotion packets, with direct Linear API/auth, Linear Initiatives, status sync, reconcile, milestones, and sub-issues deferred.
 - On May 16, 2026, spec `#79` added the Linear source/config foundation: `linear` is a first-class source mode, `.plan/.meta/linear.json` stores minimum Linear workspace/team metadata, `plan source show` surfaces missing team guidance, and Linear promotion apply fails before handoff when no `team_id` or `team_key` is configured.
 - On May 16, 2026, PR `#82` review follow-up made Linear guide-packet apply actions explicitly blocked until the Linear MCP handoff flow lands and made `plan discuss promote --apply/--confirm` help text backend-neutral.
+- On August 10, 2026, the standalone compatibility cutover pinned Brain merge
+  `c2c71279030f` and routed compatible schema-v3 local planning commands through
+  Brain's public Planning packages. The standalone host retains presentation,
+  GitHub/hybrid ownership, and legacy repair behavior; its migration warning is
+  interactive-only, stderr-only, and once per process.
