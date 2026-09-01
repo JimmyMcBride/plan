@@ -1,3 +1,6 @@
+---
+updated: "2026-09-01T14:51:24Z"
+---
 # Using `plan`
 
 This guide describes how to use `plan` as it exists right now.
@@ -19,9 +22,25 @@ Right now:
 - `plan source show|set` makes backend ownership explicit
 - legacy `epic` and `story` commands still exist during the transition
 - GitHub integration is the first external backend being actively shaped
+- compatible schema-v3 local commands execute through Brain's shared Planning
+  packages while the standalone CLI preserves its existing output contracts
 
 The top of this guide reflects the active spec-first model. Some later sections
 still document legacy compatibility commands while the migration is in flight.
+
+### Brain Planning compatibility cutover
+
+The standalone CLI pins a stable Brain release and uses Brain's public
+Planning application and local-adapter packages for compatible local `doctor`,
+`status`, `check`, `roadmap`, `brainstorm`, `guide`, `discuss`, and `spec`
+operations. The standalone command layer remains responsible for flags,
+prompts, formatting, and legacy fallbacks. GitHub and hybrid ownership are not
+routed through this bridge.
+
+On an interactive terminal, a delegated command may print one warning per
+process to stderr and name the equivalent `brain plan` command. The warning is
+suppressed for JSON output and noninteractive execution, so scripts keep stable
+stdout and stderr behavior.
 
 ## What `plan` Is
 

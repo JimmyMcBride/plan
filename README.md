@@ -23,6 +23,12 @@ configured integrations can own persistent planning data in `github` or
 companion tool such as [`brain`](https://github.com/JimmyMcBride/brain) if you
 need that layer.
 
+For schema-v3 local workspaces, the standalone CLI now delegates the compatible
+planning command families to Brain's shared Planning packages. GitHub, hybrid,
+legacy, and unsupported command paths remain in the standalone host. Interactive
+terminal use prints a once-per-process migration warning naming the equivalent
+`brain plan` command; JSON and noninteractive use remain quiet.
+
 ## Core Model
 
 Active planning model:

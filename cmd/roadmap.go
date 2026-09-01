@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	brainapp "github.com/JimmyMcBride/brain/planning/application"
 	"github.com/spf13/cobra"
 )
 
@@ -17,6 +18,16 @@ func newRoadmapCommand() *cobra.Command {
 		Use:   "show",
 		Short: "Show ROADMAP.md",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if handled, err := withSharedPlanning(cmd, "roadmap show", false, func(service *brainapp.Service) error {
+				document, err := service.ReadRoadmap(cmd.Context())
+				if err != nil {
+					return err
+				}
+				_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s\n\n%s", document.Path, document.Body)
+				return err
+			}); handled {
+				return err
+			}
 			info, err := workspaceManager().EnsureInitialized()
 			if err != nil {
 				return err
@@ -37,6 +48,30 @@ func newRoadmapCommand() *cobra.Command {
 		Use:   "edit",
 		Short: "Edit ROADMAP.md via --body, --stdin, or $EDITOR",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if handled, err := withSharedPlanning(cmd, "roadmap edit", false, func(service *brainapp.Service) error {
+				current, err := service.ReadRoadmap(cmd.Context())
+				if err != nil {
+					return err
+				}
+				updatedBody, err := readBody(cmd.InOrStdin(), body, useStdin)
+				if err != nil {
+					return err
+				}
+				if updatedBody == "" && !useStdin {
+					updatedBody, err = editTextInEditor(current.Body, editor)
+					if err != nil {
+						return err
+					}
+				}
+				result, err := service.UpdateRoadmap(cmd.Context(), brainapp.UpdateRoadmapInput{Body: updatedBody, Confirmed: true}, sharedAuthorizer(), sharedEvents())
+				if err != nil {
+					return err
+				}
+				_, err = fmt.Fprintf(cmd.OutOrStdout(), "Updated %s\n", result.Document.Path)
+				return err
+			}); handled {
+				return err
+			}
 			info, err := workspaceManager().EnsureInitialized()
 			if err != nil {
 				return err
