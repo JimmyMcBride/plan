@@ -13,7 +13,7 @@ import (
 	"plan/internal/workspace"
 )
 
-const pinnedBrainPlanningVersion = "github.com/JimmyMcBride/brain v0.1.15-0.20260810065410-c2c71279030f"
+const pinnedBrainPlanningVersion = "github.com/JimmyMcBride/brain v0.1.21"
 
 func TestBrainPlanningDependencyIsPinnedWithoutReplace(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join("..", "go.mod"))

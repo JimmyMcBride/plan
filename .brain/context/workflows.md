@@ -1,5 +1,5 @@
 ---
-updated: "2026-08-10T07:23:35Z"
+updated: "2026-09-01T14:51:24Z"
 ---
 # Workflows
 
@@ -70,7 +70,7 @@ After `brain adopt` creates starter context, the AI agent must scan the repo bef
 
 ### Brain Planning Compatibility
 
-- Verify delegated local commands against the pinned merged Brain revision and
+- Verify delegated local commands against the pinned stable Brain release and
   preserve standalone CLI output contracts.
 - Do not add a local `replace` directive for Brain.
 - Test the interactive warning and its JSON/noninteractive suppression before

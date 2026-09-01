@@ -3,7 +3,7 @@ module plan
 go 1.26
 
 require (
-	github.com/JimmyMcBride/brain v0.1.15-0.20260810065410-c2c71279030f
+	github.com/JimmyMcBride/brain v0.1.21
 	github.com/mattn/go-isatty v0.0.20
 	github.com/spf13/cobra v1.10.1
 	gopkg.in/yaml.v3 v3.0.1

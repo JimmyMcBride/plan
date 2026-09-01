@@ -1,5 +1,5 @@
 ---
-updated: "2026-08-10T07:23:35Z"
+updated: "2026-09-01T14:51:24Z"
 ---
 # Project Architecture
 
@@ -33,5 +33,5 @@ Use this file for the structural shape of the repository.
   contract stays unchanged.
 - GitHub, hybrid, legacy epic/story, unsupported guide checkpoints, and invalid
   legacy spec repair paths remain standalone fallbacks.
-- Brain must be pinned to a merged revision in `go.mod`; local `replace`
+- Brain must be pinned to a published stable tag in `go.mod`; local `replace`
   directives are not allowed for the compatibility cutover.
