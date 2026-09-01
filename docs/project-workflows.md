@@ -1,3 +1,6 @@
+---
+updated: "2026-08-10T07:23:35Z"
+---
 # Project Workflows
 
 <!-- brain:begin project-doc-workflows -->
@@ -11,11 +14,22 @@ Use this file for agent operating workflow inside the repo.
 4. Use `brain context compile --task "<task>"` only when you need the lower-level packet compiler directly.
 5. If project memory still matters, run `brain find plan` or `brain search "plan <task>"`.
 
+## Post-Adoption Enrichment
+
+After `brain adopt` creates starter context, the AI agent must scan the repo before treating the templates as complete memory.
+
+1. Treat generated context as starter context, not complete repo memory.
+2. Scan repo structure, docs, manifests, entrypoints, tests, CI, config, and deployment surfaces.
+3. Update AGENTS.md, docs, or .brain notes with durable project-specific findings.
+4. Add focused .brain/resources notes for architecture, workflows, risks, and references that do not belong in top-level templates.
+5. Keep generated managed blocks refreshable; put hand-authored findings in Local Notes or dedicated notes.
+
 ## During Work
 
 - Keep durable discoveries, decisions, and risks in AGENTS.md, /docs, or .brain notes.
 - Update existing durable notes instead of duplicating context.
 - Run required verification commands through `brain session run -- <command>`.
+- Run `brain context audit` after meaningful architecture, config, CI, deploy, test, or docs-surface changes.
 - If you change Brain command behavior or agent-facing workflow guidance, update `skills/brain/SKILL.md` in the same branch.
 - Re-read context before large changes if the task shifts.
 
@@ -26,19 +40,18 @@ Use this file for agent operating workflow inside the repo.
 3. Run the required full checks through `brain session run -- go test ./...` and `brain session run -- go build ./...`.
 4. Review the diff against the task goal and user-facing behavior.
 5. If review finds issues, patch the work and repeat the test and review steps.
-6. When the task is clean, commit it and only then move to the next task.
-7. If an early PR helps collaboration, push and open it as draft or not-ready. Before the PR is marked ready or merged, run `brain session finish`; if Brain requires durable notes, apply them, commit them on the same branch, retry finish, and include that commit in the final pushed PR state.
+6. When the task is clean, commit it, push it, and only then move to the next task.
 
 ## Close-Out
 
 - Refresh or update durable notes for meaningful behavior, config, or architecture changes.
+- Use `brain context audit --proposal` when context coverage findings should become a reviewed durable update proposal.
 - If `brain session finish` blocks, inspect the promotion suggestions first; run `brain distill --session --dry-run` only when you need the full review without creating a proposal note.
 - Before switching away from a working branch or back to `develop`, run `git status --short` and resolve repo-owned leftovers. If `.brain/resources/changes/*`, `.brain/`, `docs/`, or contract files belong to the task, keep them in the same branch/PR; otherwise review and intentionally remove them instead of carrying them onto `develop`, `release/*`, or `main`.
-- Treat `brain session finish` as a PR-readiness gate, not a post-merge cleanup step. Do not mark ready or merge the PR until required Brain durable notes are committed in that PR branch or an explicit forced finish records why no note was kept.
 - If `skills/brain/` changed, reinstall the local Brain skill for Codex and OpenClaw with `brain skills install --scope local --agent codex --agent openclaw --project .`.
 - When opening a PR, make the title and body release-note friendly because GitHub release notes are generated from merged PR metadata.
 - Summarize shipped behavior in the PR, not just implementation steps, so future changelogs stay human-readable.
-- Finish with `brain session finish` before marking the PR ready, before merging it, and before the final push that makes the PR ready.
+- Finish with `brain session finish`.
 - If you must bypass enforcement, use `brain session finish --force --reason "..."` so the override is recorded.
 <!-- brain:end project-doc-workflows -->
 
@@ -60,3 +73,12 @@ Use this file for agent operating workflow inside the repo.
 - Open one PR after the queued specs for the branch are complete.
 - If legacy epic/story material is still active, archive it with `plan update --project . --archive-legacy`.
 - If GitHub story mode is enabled, run `plan update --project .` and `plan github reconcile --project . --update-visible` after merge before taking more queue work.
+
+### Brain Planning Compatibility
+
+- When changing a delegated local workflow, verify both the standalone command
+  contract and the pinned Brain package contract.
+- Keep the Brain module pin on a merged revision and reject local `replace`
+  directives in tests.
+- Verify JSON/noninteractive warning suppression plus once-per-process
+  interactive warning behavior before release.

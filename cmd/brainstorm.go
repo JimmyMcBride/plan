@@ -10,6 +10,8 @@ import (
 	"plan/internal/planning"
 	"plan/internal/workspace"
 
+	brainplanning "github.com/JimmyMcBride/brain/planning"
+	brainapp "github.com/JimmyMcBride/brain/planning/application"
 	"github.com/spf13/cobra"
 )
 
@@ -41,6 +43,48 @@ func newBrainstormCommand() *cobra.Command {
 		Short: "Start a new brainstorm",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if handled, err := withSharedPlanning(cmd, "brainstorm start", false, func(service *brainapp.Service) error {
+				reader := bufio.NewReader(cmd.InOrStdin())
+				out := cmd.OutOrStdout()
+				result, err := service.CreateBrainstorm(cmd.Context(), brainapp.CreateBrainstormInput{Title: args[0], Confirmed: true}, sharedAuthorizer(), sharedEvents())
+				if err != nil {
+					return err
+				}
+				id := result.Document.Artifact.ID
+				if strings.TrimSpace(focusQuestion) != "" {
+					if _, err := service.UpdateBrainstorm(cmd.Context(), brainapp.BrainstormUpdateInput{ID: id, Section: "focus-question", Body: focusQuestion, Confirmed: true}, sharedAuthorizer(), sharedEvents()); err != nil {
+						return err
+					}
+				}
+				for _, idea := range seedIdeas {
+					if strings.TrimSpace(idea) == "" {
+						continue
+					}
+					if _, err := service.UpdateBrainstorm(cmd.Context(), brainapp.BrainstormUpdateInput{ID: id, Section: "ideas", Body: idea, Confirmed: true}, sharedAuthorizer(), sharedEvents()); err != nil {
+						return err
+					}
+				}
+				fmt.Fprintf(out, "Created brainstorm %s\n", result.Document.Path)
+				vision, err := promptSectionValue(reader, out, "Vision", "Describe the vision in plain language. What do you see in your head? Focus on the outcome first, not the implementation.")
+				if err != nil {
+					return err
+				}
+				if _, _, err := planningManager().UpdateGuidedBrainstormIntake(string(id), planning.GuidedBrainstormIntakeInput{Vision: vision}); err != nil {
+					return err
+				}
+				supportingMaterial, err := promptSectionValue(reader, out, "Supporting Material", "List any relevant docs, links, or research you want to provide for this brainstorm. Enter one per line. Leave empty if none.")
+				if err != nil {
+					return err
+				}
+				note, session, err := planningManager().UpdateGuidedBrainstormIntake(string(id), planning.GuidedBrainstormIntakeInput{SupportingMaterial: supportingMaterial})
+				if err != nil {
+					return err
+				}
+				fmt.Fprintf(out, "Guided brainstorm session ready for %s\nSummary: %s\nNext: %s\n", note.Path, session.Summary, session.NextAction)
+				return nil
+			}); handled {
+				return err
+			}
 			reader := bufio.NewReader(cmd.InOrStdin())
 			out := cmd.OutOrStdout()
 
@@ -89,6 +133,47 @@ func newBrainstormCommand() *cobra.Command {
 		Short: "Resume the active guided brainstorm session",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if handled, err := withSharedPlanning(cmd, "brainstorm resume", false, func(service *brainapp.Service) error {
+				reader := bufio.NewReader(cmd.InOrStdin())
+				out := cmd.OutOrStdout()
+				var session brainapp.GuidedSessionRecord
+				var err error
+				if len(args) == 1 {
+					session, err = service.GetGuidedSession(cmd.Context(), args[0])
+				} else {
+					session, err = service.CurrentGuidedSession(cmd.Context())
+				}
+				if err != nil {
+					return err
+				}
+				legacySession := workspaceSessionFromShared(session)
+				if legacySession.Brainstorm == "" {
+					return fmt.Errorf("guided session %s is not linked to a brainstorm", legacySession.ChainID)
+				}
+				fmt.Fprintf(out, "Resuming %s\nSummary: %s\nNext: %s\n", legacySession.ChainID, legacySession.Summary, legacySession.NextAction)
+				action, err := promptSessionAction(reader, out)
+				if err != nil {
+					return err
+				}
+				switch action {
+				case "3":
+					updated, err := planningManager().UpdateGuidedSession(legacySession.ChainID, planning.GuidedSessionUpdateInput{
+						CurrentStage: "brainstorm", StageStatus: "in_progress",
+						NextAction: "Resume the brainstorm when you are ready to continue shaping it.",
+					})
+					if err != nil {
+						return err
+					}
+					fmt.Fprintf(out, "Saved guided session state for %s\nNext: %s\n", updated.ChainID, updated.NextAction)
+					return nil
+				case "1", "2":
+					return runGuidedBrainstormResume(reader, out, planningManager(), legacySession, action == "2")
+				default:
+					return fmt.Errorf("unsupported menu action %q", action)
+				}
+			}); handled {
+				return err
+			}
 			reader := bufio.NewReader(cmd.InOrStdin())
 			out := cmd.OutOrStdout()
 
@@ -136,6 +221,27 @@ func newBrainstormCommand() *cobra.Command {
 		Use:   "sessions",
 		Short: "List guided brainstorm sessions",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if handled, err := withSharedPlanning(cmd, "brainstorm sessions", false, func(service *brainapp.Service) error {
+				out := cmd.OutOrStdout()
+				list, err := service.ListGuidedSessions(cmd.Context())
+				if err != nil {
+					return err
+				}
+				current, err := service.CurrentGuidedSession(cmd.Context())
+				if err != nil && !strings.Contains(err.Error(), "no active guided session") {
+					return err
+				}
+				for _, session := range list {
+					marker := " "
+					if session.ChainID == current.ChainID {
+						marker = "*"
+					}
+					fmt.Fprintf(out, "%s %s stage=%s next=%s\n", marker, session.ChainID, session.CurrentStage, session.NextAction)
+				}
+				return nil
+			}); handled {
+				return err
+			}
 			out := cmd.OutOrStdout()
 			list, err := planningManager().ListGuidedSessions()
 			if err != nil {
@@ -165,6 +271,16 @@ func newBrainstormCommand() *cobra.Command {
 		Short: "Switch the last-active guided brainstorm session",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if handled, err := withSharedPlanning(cmd, "brainstorm switch", false, func(service *brainapp.Service) error {
+				result, err := service.SwitchGuidedSession(cmd.Context(), brainapp.GuidedSessionMutationInput{ChainID: "brainstorm/" + strings.TrimSpace(args[0]), Confirmed: true}, sharedAuthorizer(), sharedEvents())
+				if err != nil {
+					return err
+				}
+				_, err = fmt.Fprintf(cmd.OutOrStdout(), "Switched to %s\nSummary: %s\nNext: %s\n", result.Session.ChainID, result.Session.Summary, result.Session.NextAction)
+				return err
+			}); handled {
+				return err
+			}
 			out := cmd.OutOrStdout()
 			session, err := planningManager().SwitchGuidedSession("brainstorm/" + strings.TrimSpace(args[0]))
 			if err != nil {
@@ -180,6 +296,36 @@ func newBrainstormCommand() *cobra.Command {
 		Short: "Reopen a stage and mark downstream stages as needs review",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if args[1] != "epic" {
+				if handled, err := withSharedPlanning(cmd, "brainstorm reopen", false, func(service *brainapp.Service) error {
+					reader := bufio.NewReader(cmd.InOrStdin())
+					out := cmd.OutOrStdout()
+					chainID := "brainstorm/" + strings.TrimSpace(args[0])
+					stage := strings.TrimSpace(args[1])
+					session, err := service.GetGuidedSession(cmd.Context(), chainID)
+					if err != nil {
+						return err
+					}
+					downstream := guidedDownstreamStagesForOutput(stage)
+					fmt.Fprintf(out, "Reopen stage: %s\nDownstream stages affected: %s\nRecommended path: reopen this stage and mark downstream work as needs review.\nAlternative 1: stay on the current stage and refine locally.\nAlternative 2: stop for now and revisit after a recap pass.\nProceed? [y/N]\n", stage, strings.Join(downstream, ", "))
+					confirm, err := reader.ReadString('\n')
+					if err != nil && !errors.Is(err, io.EOF) {
+						return err
+					}
+					if strings.ToLower(strings.TrimSpace(confirm)) != "y" {
+						fmt.Fprintf(out, "Canceled reopen for %s\n", session.ChainID)
+						return nil
+					}
+					result, err := service.ReopenGuidedSession(cmd.Context(), brainapp.GuidedSessionMutationInput{ChainID: chainID, Stage: stage, Confirmed: true}, sharedAuthorizer(), sharedEvents())
+					if err != nil {
+						return err
+					}
+					fmt.Fprintf(out, "Reopened %s for %s\nMarked needs review: %s\nNext: %s\n", stage, result.Session.ChainID, strings.Join(downstream, ", "), result.Session.NextAction)
+					return nil
+				}); handled {
+					return err
+				}
+			}
 			reader := bufio.NewReader(cmd.InOrStdin())
 			out := cmd.OutOrStdout()
 			chainID := "brainstorm/" + strings.TrimSpace(args[0])
@@ -212,6 +358,31 @@ func newBrainstormCommand() *cobra.Command {
 		Short: "Run lightweight downstream review checkpoints for needs-review stages",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if handled, err := withSharedPlanning(cmd, "brainstorm review", false, func(service *brainapp.Service) error {
+				chainID := "brainstorm/" + strings.TrimSpace(args[0])
+				result, err := service.ReviewGuidedSession(cmd.Context(), brainapp.GuidedSessionMutationInput{ChainID: chainID, Confirmed: true}, sharedAuthorizer(), sharedEvents())
+				if err != nil {
+					return err
+				}
+				legacySession, legacyReviewed, err := planningManager().ReviewGuidedSessionStages(chainID)
+				if err != nil {
+					return err
+				}
+				reviewed := append([]string(nil), result.Impacted...)
+				for _, stage := range legacyReviewed {
+					if !containsValue(reviewed, stage) {
+						reviewed = append(reviewed, stage)
+					}
+				}
+				if len(reviewed) == 0 {
+					_, err = fmt.Fprintf(cmd.OutOrStdout(), "No downstream review checkpoints needed for %s\n", legacySession.ChainID)
+					return err
+				}
+				_, err = fmt.Fprintf(cmd.OutOrStdout(), "Reviewed stages for %s: %s\nNext: %s\n", legacySession.ChainID, strings.Join(reviewed, ", "), legacySession.NextAction)
+				return err
+			}); handled {
+				return err
+			}
 			out := cmd.OutOrStdout()
 			session, reviewed, err := planningManager().ReviewGuidedSessionStages("brainstorm/" + strings.TrimSpace(args[0]))
 			if err != nil {
@@ -234,6 +405,19 @@ func newBrainstormCommand() *cobra.Command {
 		Short: "Park a good-but-early idea in ROADMAP.md",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if handled, err := withSharedPlanning(cmd, "brainstorm park", false, func(service *brainapp.Service) error {
+				_, err := service.ParkRoadmap(cmd.Context(), brainapp.RoadmapParkingInput{
+					BrainstormID: brainplanning.ArtifactID(args[0]), Title: args[1], Value: parkValue,
+					Reason: parkReason, Unlock: parkUnlock, Confirmed: true,
+				}, sharedAuthorizer(), sharedEvents())
+				if err != nil {
+					return err
+				}
+				_, err = fmt.Fprintf(cmd.OutOrStdout(), "Parked %s in .plan/ROADMAP.md\n", args[1])
+				return err
+			}); handled {
+				return err
+			}
 			source := fmt.Sprintf("[Brainstorm](../brainstorms/%s.md)", strings.TrimSpace(args[0]))
 			if err := planningManager().AddRoadmapParkingEntry(planning.RoadmapParkingInput{
 				Title:  args[1],
@@ -267,6 +451,16 @@ func newBrainstormCommand() *cobra.Command {
 			if body == "" {
 				return fmt.Errorf("idea body is required")
 			}
+			if handled, err := withSharedPlanning(cmd, "brainstorm idea", false, func(service *brainapp.Service) error {
+				result, err := service.UpdateBrainstorm(cmd.Context(), brainapp.BrainstormUpdateInput{ID: brainplanning.ArtifactID(args[0]), Section: section, Body: body, Confirmed: true}, sharedAuthorizer(), sharedEvents())
+				if err != nil {
+					return err
+				}
+				_, err = fmt.Fprintf(cmd.OutOrStdout(), "Updated brainstorm %s\n", result.Document.Path)
+				return err
+			}); handled {
+				return err
+			}
 			note, err := planningManager().AddBrainstormEntry(args[0], section, body)
 			if err != nil {
 				return err
@@ -284,6 +478,16 @@ func newBrainstormCommand() *cobra.Command {
 		Short: "Show a brainstorm note",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if handled, err := withSharedPlanning(cmd, "brainstorm show", false, func(service *brainapp.Service) error {
+				document, err := service.GetBrainstorm(cmd.Context(), brainplanning.ArtifactID(args[0]))
+				if err != nil {
+					return err
+				}
+				_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s\n\n%s", document.Path, document.Body)
+				return err
+			}); handled {
+				return err
+			}
 			note, err := planningManager().ReadBrainstorm(args[0])
 			if err != nil {
 				return err
@@ -300,6 +504,26 @@ func newBrainstormCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			reader := bufio.NewReader(cmd.InOrStdin())
 			out := cmd.OutOrStdout()
+			service, shared, err := sharedPlanningService(cmd.Context())
+			if err != nil {
+				return err
+			}
+			updateRefinement := func(input planning.BrainstormRefinementInput) error {
+				_, err := planningManager().UpdateBrainstormRefinement(args[0], input)
+				return err
+			}
+			if shared {
+				defer warnSharedPlanning(cmd, "brainstorm refine", false)
+				updateRefinement = func(input planning.BrainstormRefinementInput) error {
+					_, err := service.RefineBrainstorm(cmd.Context(), brainapp.BrainstormRefinementInput{
+						ID: brainplanning.ArtifactID(args[0]), Problem: input.Problem, UserValue: input.UserValue,
+						Constraints: input.Constraints, Appetite: input.Appetite,
+						RemainingOpenQuestions: input.RemainingOpenQuestions, CandidateApproaches: input.CandidateApproaches,
+						DecisionSnapshot: input.DecisionSnapshot, Confirmed: true,
+					}, sharedAuthorizer(), sharedEvents())
+					return err
+				}
+			}
 
 			state, err := planningManager().ReadBrainstormRefinement(args[0])
 			if err != nil {
@@ -321,7 +545,7 @@ func newBrainstormCommand() *cobra.Command {
 			); err != nil {
 				return err
 			}
-			if _, err := planningManager().UpdateBrainstormRefinement(args[0], planning.BrainstormRefinementInput{
+			if err := updateRefinement(planning.BrainstormRefinementInput{
 				Problem:   state.Problem,
 				UserValue: state.UserValue,
 			}); err != nil {
@@ -343,7 +567,7 @@ func newBrainstormCommand() *cobra.Command {
 			); err != nil {
 				return err
 			}
-			if _, err := planningManager().UpdateBrainstormRefinement(args[0], planning.BrainstormRefinementInput{
+			if err := updateRefinement(planning.BrainstormRefinementInput{
 				Constraints: state.Constraints,
 				Appetite:    state.Appetite,
 			}); err != nil {
@@ -365,7 +589,7 @@ func newBrainstormCommand() *cobra.Command {
 			); err != nil {
 				return err
 			}
-			if _, err := planningManager().UpdateBrainstormRefinement(args[0], planning.BrainstormRefinementInput{
+			if err := updateRefinement(planning.BrainstormRefinementInput{
 				RemainingOpenQuestions: state.RemainingOpenQuestions,
 				CandidateApproaches:    state.CandidateApproaches,
 			}); err != nil {
@@ -381,7 +605,7 @@ func newBrainstormCommand() *cobra.Command {
 			} else {
 				fmt.Fprintf(out, "Skipping Decision Snapshot; already captured.\n")
 			}
-			if _, err := planningManager().UpdateBrainstormRefinement(args[0], planning.BrainstormRefinementInput{
+			if err := updateRefinement(planning.BrainstormRefinementInput{
 				DecisionSnapshot: state.DecisionSnapshot,
 			}); err != nil {
 				return err
@@ -403,6 +627,25 @@ func newBrainstormCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			reader := bufio.NewReader(cmd.InOrStdin())
 			out := cmd.OutOrStdout()
+			service, shared, err := sharedPlanningService(cmd.Context())
+			if err != nil {
+				return err
+			}
+			updateChallenge := func(input planning.BrainstormChallengeInput) error {
+				_, err := planningManager().UpdateBrainstormChallenge(args[0], input)
+				return err
+			}
+			if shared {
+				defer warnSharedPlanning(cmd, "brainstorm challenge", false)
+				updateChallenge = func(input planning.BrainstormChallengeInput) error {
+					_, err := service.ChallengeBrainstorm(cmd.Context(), brainapp.BrainstormChallengeInput{
+						ID: brainplanning.ArtifactID(args[0]), RabbitHoles: input.RabbitHoles, NoGos: input.NoGos,
+						Assumptions: input.Assumptions, LikelyOverengineering: input.LikelyOverengineering,
+						SimplerAlternative: input.SimplerAlternative, Confirmed: true,
+					}, sharedAuthorizer(), sharedEvents())
+					return err
+				}
+			}
 
 			state, err := planningManager().ReadBrainstormChallenge(args[0])
 			if err != nil {
@@ -424,7 +667,7 @@ func newBrainstormCommand() *cobra.Command {
 			); err != nil {
 				return err
 			}
-			if _, err := planningManager().UpdateBrainstormChallenge(args[0], planning.BrainstormChallengeInput{
+			if err := updateChallenge(planning.BrainstormChallengeInput{
 				RabbitHoles: state.RabbitHoles,
 				NoGos:       state.NoGos,
 			}); err != nil {
@@ -446,7 +689,7 @@ func newBrainstormCommand() *cobra.Command {
 			); err != nil {
 				return err
 			}
-			if _, err := planningManager().UpdateBrainstormChallenge(args[0], planning.BrainstormChallengeInput{
+			if err := updateChallenge(planning.BrainstormChallengeInput{
 				Assumptions:           state.Assumptions,
 				LikelyOverengineering: state.LikelyOverengineering,
 			}); err != nil {
@@ -462,7 +705,7 @@ func newBrainstormCommand() *cobra.Command {
 			} else {
 				fmt.Fprintf(out, "Skipping Simpler Alternative; already captured.\n")
 			}
-			if _, err := planningManager().UpdateBrainstormChallenge(args[0], planning.BrainstormChallengeInput{
+			if err := updateChallenge(planning.BrainstormChallengeInput{
 				SimplerAlternative: state.SimplerAlternative,
 			}); err != nil {
 				return err
@@ -479,6 +722,25 @@ func newBrainstormCommand() *cobra.Command {
 
 	cmd.AddCommand(start, resume, sessions, switchCmd, reopen, review, park, idea, show, refine, challenge)
 	return cmd
+}
+
+func containsValue(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
+}
+
+func workspaceSessionFromShared(session brainapp.GuidedSessionRecord) *workspace.GuidedSessionRecord {
+	return &workspace.GuidedSessionRecord{
+		ChainID: session.ChainID, Brainstorm: session.Brainstorm, Spec: session.Spec,
+		CurrentStage: session.CurrentStage, CurrentCluster: session.CurrentCluster,
+		CurrentClusterLabel: session.CurrentClusterLabel, StageStatuses: session.StageStatuses,
+		Summary: session.Summary, NextAction: session.NextAction,
+		CreatedAt: session.CreatedAt, UpdatedAt: session.UpdatedAt,
+	}
 }
 
 func runGuidedBrainstormResume(reader *bufio.Reader, out io.Writer, manager *planning.Manager, session *workspace.GuidedSessionRecord, forceCurrent bool) error {

@@ -9,6 +9,8 @@ import (
 	"plan/internal/notes"
 	"plan/internal/planning"
 
+	brainplanning "github.com/JimmyMcBride/brain/planning"
+	brainapp "github.com/JimmyMcBride/brain/planning/application"
 	"github.com/spf13/cobra"
 )
 
@@ -23,6 +25,16 @@ func newSpecCommand() *cobra.Command {
 		Short: "Show a canonical spec",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if handled, err := withSharedPlanning(cmd, "spec show", false, func(service *brainapp.Service) error {
+				document, err := service.GetSpec(cmd.Context(), brainplanning.ArtifactID(args[0]))
+				if err != nil {
+					return err
+				}
+				_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s\n\n%s", document.Path, document.Body)
+				return err
+			}); handled {
+				return err
+			}
 			note, err := planningManager().ReadSpec(args[0])
 			if err != nil {
 				return err
@@ -40,6 +52,31 @@ func newSpecCommand() *cobra.Command {
 		Short: "Edit a spec via --body, --stdin, or $EDITOR",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if handled, err := withSharedPlanning(cmd, "spec edit", false, func(service *brainapp.Service) error {
+				id := brainplanning.ArtifactID(args[0])
+				document, err := service.GetSpec(cmd.Context(), id)
+				if err != nil {
+					return err
+				}
+				updatedBody, err := readBody(cmd.InOrStdin(), body, useStdin)
+				if err != nil {
+					return err
+				}
+				if updatedBody == "" && !useStdin {
+					updatedBody, err = editTextInEditor(document.Body, editor)
+					if err != nil {
+						return err
+					}
+				}
+				result, err := service.EditSpec(cmd.Context(), brainapp.SpecEditInput{ID: id, Body: updatedBody, Confirmed: true}, sharedAuthorizer(), sharedEvents())
+				if err != nil {
+					return err
+				}
+				_, err = fmt.Fprintf(cmd.OutOrStdout(), "Updated spec %s\n", result.Document.Path)
+				return err
+			}); handled {
+				return err
+			}
 			note, err := planningManager().ReadSpec(args[0])
 			if err != nil {
 				return err
@@ -74,6 +111,27 @@ func newSpecCommand() *cobra.Command {
 		Short: "Set spec status",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if handled, err := withSharedPlanning(cmd, "spec status", false, func(service *brainapp.Service) error {
+				id := brainplanning.ArtifactID(args[0])
+				var path string
+				if brainplanning.SpecStatus(status) == brainplanning.SpecImplementing {
+					result, err := service.BeginSpecExecution(cmd.Context(), brainapp.SpecExecutionInput{ID: id, BranchPrefix: "feature/", Confirmed: true}, sharedAuthorizer(), sharedEvents())
+					if err != nil {
+						return err
+					}
+					path = result.Document.Path
+				} else {
+					result, err := service.SetSpecStatus(cmd.Context(), brainapp.SpecStatusInput{ID: id, Status: brainplanning.SpecStatus(status), Confirmed: true}, sharedAuthorizer(), sharedEvents())
+					if err != nil {
+						return err
+					}
+					path = result.Document.Path
+				}
+				_, err := fmt.Fprintf(cmd.OutOrStdout(), "Set spec %s to %s\n", path, status)
+				return err
+			}); handled {
+				return err
+			}
 			updated, err := planningManager().SetSpecStatus(args[0], status)
 			if err != nil {
 				return err
@@ -90,6 +148,19 @@ func newSpecCommand() *cobra.Command {
 		Short: "Analyze a spec for refinement gaps without rewriting its canonical sections",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if handled, err := withSharedPlanning(cmd, "spec analyze", false, func(service *brainapp.Service) error {
+				report, err := service.AnalyzeSpec(cmd.Context(), brainplanning.ArtifactID(args[0]), true, sharedAuthorizer(), sharedEvents())
+				if err != nil {
+					return err
+				}
+				printSharedSpecAnalysis(cmd.OutOrStdout(), report)
+				if report.ErrorCount() > 0 {
+					return fmt.Errorf("spec analysis found %d blocking issue(s)", report.ErrorCount())
+				}
+				return nil
+			}); handled {
+				return err
+			}
 			report, err := planningManager().AnalyzeSpec(args[0])
 			if err != nil {
 				return err
@@ -108,6 +179,19 @@ func newSpecCommand() *cobra.Command {
 		Short: "Run a profile-driven checklist pass against a spec",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if handled, err := withSharedPlanning(cmd, "spec checklist", false, func(service *brainapp.Service) error {
+				report, err := service.RunSpecChecklist(cmd.Context(), brainplanning.ArtifactID(args[0]), profile, true, sharedAuthorizer(), sharedEvents())
+				if err != nil {
+					return err
+				}
+				printSharedSpecChecklist(cmd.OutOrStdout(), report)
+				if report.ErrorCount() > 0 {
+					return fmt.Errorf("spec checklist found %d blocking issue(s)", report.ErrorCount())
+				}
+				return nil
+			}); handled {
+				return err
+			}
 			report, err := planningManager().RunSpecChecklist(args[0], profile)
 			if err != nil {
 				return err
@@ -132,6 +216,24 @@ func newSpecCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !clearInitiative && strings.TrimSpace(initiativeSlug) == "" {
 				return fmt.Errorf("initiative --set value is required unless --clear is used")
+			}
+			if handled, err := withSharedPlanning(cmd, "spec initiative", false, func(service *brainapp.Service) error {
+				var initiativeID *brainplanning.ArtifactID
+				if !clearInitiative {
+					id := brainplanning.ArtifactID(initiativeSlug)
+					initiativeID = &id
+				}
+				result, err := service.SetSpecInitiative(cmd.Context(), brainapp.SpecInitiativeInput{
+					ID: brainplanning.ArtifactID(args[0]), Initiative: initiativeID, Title: initiativeTitle,
+					Summary: initiativeSummary, Clear: clearInitiative, Confirmed: true,
+				}, sharedAuthorizer(), sharedEvents())
+				if err != nil {
+					return err
+				}
+				_, err = fmt.Fprintf(cmd.OutOrStdout(), "Updated initiative metadata for %s\n", result.Document.Path)
+				return err
+			}); handled {
+				return err
 			}
 			var (
 				note *notes.Note
@@ -164,6 +266,18 @@ func newSpecCommand() *cobra.Command {
 		Short: "Start spec execution with a suggested branch and ephemeral slices",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if handled, err := withSharedPlanning(cmd, "spec execute", false, func(service *brainapp.Service) error {
+				result, err := service.BeginSpecExecution(cmd.Context(), brainapp.SpecExecutionInput{
+					ID: brainplanning.ArtifactID(args[0]), BranchPrefix: executeBranchPrefix, Confirmed: true,
+				}, sharedAuthorizer(), sharedEvents())
+				if err != nil {
+					return err
+				}
+				printSharedSpecExecution(cmd.OutOrStdout(), result, "")
+				return nil
+			}); handled {
+				return err
+			}
 			plan, err := planningManager().BeginSpecExecution(args[0], executeBranchPrefix)
 			if err != nil {
 				return err
@@ -180,6 +294,45 @@ func newSpecCommand() *cobra.Command {
 		Short: "Continue a guided spec into the execution stage",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if handled, err := withSharedPlanning(cmd, "spec handoff", false, func(service *brainapp.Service) error {
+				id := brainplanning.ArtifactID(args[0])
+				current, err := service.GetSpec(cmd.Context(), id)
+				if err != nil {
+					return err
+				}
+				preview, err := service.PreviewSpecHandoff(cmd.Context(), brainapp.SpecExecutionInput{ID: id, BranchPrefix: handoffBranchPrefix})
+				if err != nil {
+					return err
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "Spec recap:\nCurrent understanding: %s\nRecommended next stage: continue into execution.\n", preview.Recap)
+				printSharedSpecExecution(cmd.OutOrStdout(), preview, string(current.Artifact.Status))
+				ok, err := confirmSpecExecutionStart(bufio.NewReader(cmd.InOrStdin()), cmd.OutOrStdout())
+				if err != nil {
+					return err
+				}
+				if !ok {
+					updated, err := planningManager().UpdateGuidedSession(preview.Session.ChainID, planning.GuidedSessionUpdateInput{
+						CurrentStage: "spec", StageStatus: "in_progress",
+						NextAction: "Spec execution handoff is ready when you want to start implementation.",
+					})
+					if err != nil {
+						return err
+					}
+					fmt.Fprintf(cmd.OutOrStdout(), "Checkpoint saved for %s\nNext: %s\n", updated.ChainID, updated.NextAction)
+					return nil
+				}
+				result, err := service.HandoffSpec(cmd.Context(), brainapp.SpecExecutionInput{ID: id, BranchPrefix: handoffBranchPrefix, Confirmed: true}, sharedAuthorizer(), sharedEvents())
+				if err != nil {
+					return err
+				}
+				printSharedSpecExecution(cmd.OutOrStdout(), result, "")
+				if result.Session != nil {
+					fmt.Fprintf(cmd.OutOrStdout(), "Next: %s\n", result.Session.NextAction)
+				}
+				return nil
+			}); handled {
+				return err
+			}
 			session, err := planningManager().ReadGuidedSessionBySpec(args[0])
 			if err != nil {
 				return err
@@ -277,6 +430,77 @@ func printSpecExecutionPlan(out io.Writer, plan *planning.SpecExecutionPlan) {
 	fmt.Fprintf(out, "branch: %s\n", plan.SuggestedBranch)
 	fmt.Fprintf(out, "slices: %d\n", len(plan.Slices))
 	for index, slice := range plan.Slices {
+		fmt.Fprintf(out, "%d. %s\n", index+1, slice.Title)
+		fmt.Fprintf(out, "   goal: %s\n", slice.Goal)
+		for _, verify := range slice.Verification {
+			fmt.Fprintf(out, "   verify: %s\n", verify)
+		}
+	}
+	fmt.Fprintln(out, "workflow:")
+	fmt.Fprintln(out, "- implement one slice at a time")
+	fmt.Fprintln(out, "- review and verify each slice before committing it")
+	fmt.Fprintln(out, "- open a PR after the full spec is built")
+}
+
+func printSharedSpecAnalysis(out io.Writer, report brainapp.SpecAnalysisReport) {
+	fmt.Fprintf(out, "spec_analysis: %s\n", report.SpecPath)
+	fmt.Fprintf(out, "findings: %d total, %d blocking, %d guidance\n",
+		len(report.Findings),
+		report.ErrorCount(),
+		report.WarningCount(),
+	)
+	if len(report.Findings) == 0 {
+		fmt.Fprintln(out, "status: ok")
+		return
+	}
+	for _, category := range planning.SpecAnalysisCategories() {
+		printed := false
+		for _, finding := range report.Findings {
+			if finding.Category != category {
+				continue
+			}
+			if !printed {
+				fmt.Fprintf(out, "%s:\n", category)
+				printed = true
+			}
+			fmt.Fprintf(out, "- [%s] %s\n", finding.Severity, finding.Message)
+			if finding.Recommendation != "" {
+				fmt.Fprintf(out, "  fix: %s\n", finding.Recommendation)
+			}
+		}
+	}
+}
+
+func printSharedSpecChecklist(out io.Writer, report brainapp.SpecChecklistReport) {
+	fmt.Fprintf(out, "spec_checklist: %s\n", report.SpecPath)
+	fmt.Fprintf(out, "profile: %s\n", report.Profile)
+	fmt.Fprintf(out, "findings: %d total, %d blocking, %d guidance\n",
+		len(report.Findings),
+		report.ErrorCount(),
+		report.WarningCount(),
+	)
+	if len(report.Findings) == 0 {
+		fmt.Fprintln(out, "status: ok")
+		return
+	}
+	for _, finding := range report.Findings {
+		fmt.Fprintf(out, "- [%s] %s: %s\n", finding.Severity, finding.Area, finding.Message)
+		if finding.Recommendation != "" {
+			fmt.Fprintf(out, "  fix: %s\n", finding.Recommendation)
+		}
+	}
+}
+
+func printSharedSpecExecution(out io.Writer, result brainapp.SpecExecutionResult, statusOverride string) {
+	status := string(result.Execution.Status)
+	if strings.TrimSpace(statusOverride) != "" {
+		status = statusOverride
+	}
+	fmt.Fprintf(out, "spec_execution: %s\n", result.Execution.SpecPath)
+	fmt.Fprintf(out, "status: %s\n", status)
+	fmt.Fprintf(out, "branch: %s\n", result.Execution.SuggestedBranch)
+	fmt.Fprintf(out, "slices: %d\n", len(result.Execution.Slices))
+	for index, slice := range result.Execution.Slices {
 		fmt.Fprintf(out, "%d. %s\n", index+1, slice.Title)
 		fmt.Fprintf(out, "   goal: %s\n", slice.Goal)
 		for _, verify := range slice.Verification {

@@ -1,3 +1,6 @@
+---
+updated: "2026-08-10T07:23:35Z"
+---
 # Architecture
 
 <!-- brain:begin context-architecture -->
@@ -22,4 +25,11 @@ Use this file for the structural shape of the repository.
 
 ## Local Notes
 
-Add repo-specific notes here. `brain context refresh` preserves content outside managed blocks.
+- Schema-v3 local planning commands use `github.com/JimmyMcBride/brain` public
+  Planning packages through `cmd/shared_planning.go`; the standalone command
+  layer remains the host for flags, prompts, rendering, and legacy behavior.
+- The bridge keeps Brain-specific events process-local so the standalone
+  `.plan/` disk contract is unchanged.
+- GitHub, hybrid, legacy epic/story, unsupported guide checkpoints, and invalid
+  legacy spec repair paths remain standalone fallbacks.
+- `go.mod` must pin a merged Brain revision without a local `replace` directive.
