@@ -1,5 +1,5 @@
-github.com/JimmyMcBride/brain v0.1.15-0.20260810065410-c2c71279030f h1:rkV6ZIPmnHxJBwUxnhoLX5xr85ScXymzFUpMA50yuqU=
-github.com/JimmyMcBride/brain v0.1.15-0.20260810065410-c2c71279030f/go.mod h1:3IX7jT1reTv/vPib2fv/IR61k0aBLS98jVj6cM1vtfI=
+github.com/JimmyMcBride/brain v0.1.21 h1:/V3KfRzHdvW8I/hFtiPAtICerDLPegruJU51XmXzN3M=
+github.com/JimmyMcBride/brain v0.1.21/go.mod h1:3IX7jT1reTv/vPib2fv/IR61k0aBLS98jVj6cM1vtfI=
 github.com/cpuguy83/go-md2man/v2 v2.0.6/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6NIQQ7OS05n1F4g=
 github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2s0bqwp9tc8=
 github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=

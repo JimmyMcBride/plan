@@ -1,5 +1,5 @@
 ---
-updated: "2026-08-10T07:23:35Z"
+updated: "2026-09-01T14:51:24Z"
 ---
 # Project Agent Contract
 
@@ -232,7 +232,7 @@ go run . check --project .
 
 ### Brain Planning Compatibility
 
-- Compatible schema-v3 local planning commands delegate to the pinned merged
+- Compatible schema-v3 local planning commands delegate to the pinned stable
   Brain Planning packages; standalone Plan remains the CLI presentation host.
 - Keep GitHub, hybrid, legacy, and unsupported paths on their existing
   standalone implementations until their migration slices are approved.

@@ -1,3 +1,6 @@
+---
+updated: "2026-09-01T14:51:24Z"
+---
 # Using `plan`
 
 This guide describes how to use `plan` as it exists right now.
@@ -27,7 +30,7 @@ still document legacy compatibility commands while the migration is in flight.
 
 ### Brain Planning compatibility cutover
 
-The standalone CLI pins a merged Brain revision and uses Brain's public
+The standalone CLI pins a stable Brain release and uses Brain's public
 Planning application and local-adapter packages for compatible local `doctor`,
 `status`, `check`, `roadmap`, `brainstorm`, `guide`, `discuss`, and `spec`
 operations. The standalone command layer remains responsible for flags,

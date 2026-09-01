@@ -1,5 +1,5 @@
 ---
-updated: "2026-08-10T07:23:35Z"
+updated: "2026-09-01T14:51:24Z"
 ---
 # Architecture
 
@@ -32,4 +32,4 @@ Use this file for the structural shape of the repository.
   `.plan/` disk contract is unchanged.
 - GitHub, hybrid, legacy epic/story, unsupported guide checkpoints, and invalid
   legacy spec repair paths remain standalone fallbacks.
-- `go.mod` must pin a merged Brain revision without a local `replace` directive.
+- `go.mod` must pin a published stable Brain tag without a local `replace` directive.

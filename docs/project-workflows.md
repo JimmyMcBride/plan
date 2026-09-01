@@ -1,5 +1,5 @@
 ---
-updated: "2026-08-10T07:23:35Z"
+updated: "2026-09-01T14:51:24Z"
 ---
 # Project Workflows
 
@@ -78,7 +78,7 @@ After `brain adopt` creates starter context, the AI agent must scan the repo bef
 
 - When changing a delegated local workflow, verify both the standalone command
   contract and the pinned Brain package contract.
-- Keep the Brain module pin on a merged revision and reject local `replace`
+- Keep the Brain module pin on a published stable tag and reject local `replace`
   directives in tests.
 - Verify JSON/noninteractive warning suppression plus once-per-process
   interactive warning behavior before release.
